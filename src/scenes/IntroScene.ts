@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { GAME_WIDTH, GAME_HEIGHT } from "../config";
 import { makeButton } from "../ui/Button";
+import { audio } from "../systems/AudioManager";
 
 /**
  * 3막 오프닝: 항해 → 폭풍·좌초 → Day 1.
@@ -18,6 +19,9 @@ export class IntroScene extends Phaser.Scene {
   create(): void {
     const cam = this.cameras.main;
     cam.fadeIn(600, 0, 0, 0);
+
+    audio.playBgm("title");
+    audio.play("wave");
 
     // === 배경 레이어들 ===
     const sky = this.add.graphics();
@@ -157,6 +161,8 @@ export class IntroScene extends Phaser.Scene {
 
     // 2) 폭풍 시작 (7s)
     this.time.delayedCall(7000, () => {
+      audio.playBgm("combat");
+      audio.play("wave");
       this.tweens.add({ targets: [moon, moonHalo], alpha: 0, duration: 1500 });
       this.tweens.add({ targets: stars, alpha: 0, duration: 1500 });
       this.tweens.add({ targets: stormOverlay, fillAlpha: 0.55, duration: 2000 });
@@ -181,6 +187,7 @@ export class IntroScene extends Phaser.Scene {
     this.time.delayedCall(10000, () => {
       const flash = () => {
         this.tweens.add({ targets: lightning, fillAlpha: 0.8, duration: 80, yoyo: true, hold: 40 });
+        audio.play("thunder");
       };
       flash();
       this.time.delayedCall(700, flash);
@@ -190,6 +197,8 @@ export class IntroScene extends Phaser.Scene {
 
     // 4) 충돌 및 기울어짐 (13s)
     this.time.delayedCall(13000, () => {
+      audio.play("thunder");
+      audio.play("hurt");
       this.cameras.main.shake(600, 0.04);
       this.tweens.add({
         targets: lightning,

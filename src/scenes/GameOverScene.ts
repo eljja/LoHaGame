@@ -3,6 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT } from "../config";
 import { makeButton } from "../ui/Button";
 import { SaveManager } from "../systems/SaveManager";
 import { getStore } from "../systems/GameStore";
+import { audio } from "../systems/AudioManager";
 
 export class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -12,6 +13,9 @@ export class GameOverScene extends Phaser.Scene {
   create(): void {
     const cam = this.cameras.main;
     cam.fadeIn(600, 0, 0, 0);
+
+    audio.play("death");
+    audio.playBgm("gameover");
 
     const bg = this.add.graphics();
     bg.fillGradientStyle(0x1a0208, 0x1a0208, 0x000000, 0x000000, 1);

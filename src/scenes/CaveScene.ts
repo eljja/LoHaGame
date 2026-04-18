@@ -4,6 +4,7 @@ import { ITEMS } from "../data/items";
 import { getStore } from "../systems/GameStore";
 import { makeButton } from "../ui/Button";
 import { drawPanel } from "../ui/Panel";
+import { audio } from "../systems/AudioManager";
 import type { ItemId } from "../types";
 
 /**
@@ -30,6 +31,8 @@ export class CaveScene extends Phaser.Scene {
     const store = getStore(this);
     const cam = this.cameras.main;
     cam.fadeIn(400, 0, 0, 0);
+
+    audio.playBgm("cave");
 
     if (store.caveDepth === 0) store.caveDepth = 1;
 
@@ -198,6 +201,7 @@ export class CaveScene extends Phaser.Scene {
     }
 
     // 채굴
+    audio.play("mine");
     store.time.advanceMinutes(10);
     store.stats.apply({ energy: -3 });
     this.tweens.add({ targets: icon, scale: 0.5, alpha: 0, duration: 250 });
@@ -213,6 +217,7 @@ export class CaveScene extends Phaser.Scene {
     const yieldCount = ore === "stone" ? Phaser.Math.Between(1, 2) : 1;
     store.inv.add(ore, yieldCount);
     store.pushLog(`⛏ ${ITEMS[ore].icon} ${ITEMS[ore].name} ×${yieldCount} 획득.`);
+    this.time.delayedCall(140, () => audio.play("pickup"));
 
     // 조각상 조우 확률 (밤/깊이)
     if (depth >= 2 && Math.random() < 0.08) {

@@ -5,6 +5,7 @@ import type { EnemyDef, ItemId } from "../types";
 import { getStore } from "../systems/GameStore";
 import { makeButton, type ButtonNode } from "../ui/Button";
 import { drawPanel } from "../ui/Panel";
+import { audio } from "../systems/AudioManager";
 
 interface InitData {
   enemy: EnemyDef;
@@ -38,6 +39,9 @@ export class CombatScene extends Phaser.Scene {
   create(): void {
     const cam = this.cameras.main;
     cam.fadeIn(400, 0, 0, 0);
+
+    audio.playBgm("combat");
+    audio.play("boss_alert");
 
     // 배경
     const bg = this.add.graphics();
@@ -133,6 +137,7 @@ export class CombatScene extends Phaser.Scene {
     const dmg = Math.round(weapon.dmg * (1 + store.stats.energy / 200) * Phaser.Math.FloatBetween(0.85, 1.15));
     this.enemyHp = Math.max(0, this.enemyHp - dmg);
     this.pushLog(`🩸 ${dmg} 데미지를 입혔다.`);
+    audio.play("hit");
     this.tweens.add({ targets: this.enemySprite, angle: -8, duration: 80, yoyo: true });
     this.flashColor(this.enemySprite, 0xffffff);
     this.updateHpBar();
@@ -156,6 +161,7 @@ export class CombatScene extends Phaser.Scene {
     store.inv.remove(food.id, 1);
     store.stats.apply(def.consume ?? {});
     this.pushLog(`🩹 ${def.name}을(를) 사용했다.`);
+    audio.play("heal");
     this.afterPlayerTurn();
   }
 
@@ -188,6 +194,7 @@ export class CombatScene extends Phaser.Scene {
     }
     store.stats.apply({ hp: -dmg });
     this.cameras.main.shake(200, 0.008);
+    audio.play("hurt");
     this.pushLog(`💥 ${this.enemy.name}의 공격! ${dmg} 피해.`);
     this.time.delayedCall(400, () => {
       if (store.stats.hp <= 0) {
@@ -202,6 +209,7 @@ export class CombatScene extends Phaser.Scene {
   private victory(): void {
     const store = getStore(this);
     this.pushLog(`✨ ${this.enemy.name}을(를) 쓰러뜨렸다!`);
+    audio.play("victory");
     const drops: string[] = [];
     for (const l of this.enemy.loot) {
       if (Math.random() <= l.chance) {
@@ -209,7 +217,10 @@ export class CombatScene extends Phaser.Scene {
         drops.push(`${ITEMS[l.id].icon}${ITEMS[l.id].name}×${l.count}`);
       }
     }
-    if (drops.length) this.pushLog(`🎁 획득: ${drops.join(", ")}`);
+    if (drops.length) {
+      this.pushLog(`🎁 획득: ${drops.join(", ")}`);
+      this.time.delayedCall(400, () => audio.play("pickup"));
+    }
     if (this.enemy.kind === "sea") {
       store.flags.bossesDefeated.push(store.time.day);
     }

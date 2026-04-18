@@ -4,6 +4,7 @@ import { ITEMS } from "../data/items";
 import { drawPanel } from "./Panel";
 import { makeButton } from "./Button";
 import { getStore } from "../systems/GameStore";
+import { audio } from "../systems/AudioManager";
 import type { Recipe } from "../types";
 
 export class CraftingPanel {
@@ -83,10 +84,12 @@ export class CraftingPanel {
       bg.on("pointerdown", () => {
         if (!can.ok) {
           store.pushLog("제작 조건이 부족하다.");
+          audio.play("error");
           return;
         }
         if (store.crafting.craft(recipe)) {
           store.pushLog(`🔨 ${recipe.name}을(를) 제작했다.`);
+          audio.play("craft");
           this.close();
           this.open();
         }

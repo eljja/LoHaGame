@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { COLORS } from "../config";
+import { audio } from "../systems/AudioManager";
 
 export interface ButtonOpts {
   label: string;
@@ -54,9 +55,15 @@ export function makeButton(
   });
   container.on("pointerout", () => rect.setFillStyle(bg));
   container.on("pointerdown", () => {
-    if ((container as any).disabled) return;
+    if ((container as any).disabled) {
+      audio.resume();
+      audio.play("error");
+      return;
+    }
     rect.setFillStyle(COLORS.accent);
     scene.tweens.add({ targets: container, scale: 0.96, duration: 60, yoyo: true });
+    audio.resume();
+    audio.play("click");
   });
   container.on("pointerup", () => {
     if ((container as any).disabled) return;

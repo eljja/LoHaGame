@@ -3,6 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT, WIN_DAY } from "../config";
 import { makeButton } from "../ui/Button";
 import { SaveManager } from "../systems/SaveManager";
 import { getStore } from "../systems/GameStore";
+import { audio } from "../systems/AudioManager";
 
 export class VictoryScene extends Phaser.Scene {
   constructor() {
@@ -12,6 +13,9 @@ export class VictoryScene extends Phaser.Scene {
   create(): void {
     const cam = this.cameras.main;
     cam.fadeIn(600, 0, 0, 0);
+
+    audio.playBgm("victory");
+    audio.play("victory");
 
     // 일출 배경
     const bg = this.add.graphics();

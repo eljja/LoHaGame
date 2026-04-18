@@ -2,6 +2,8 @@ import Phaser from "phaser";
 import { GAME_WIDTH, GAME_HEIGHT, COLORS, DEBUG_SPEED_KEY } from "../config";
 import { getStore } from "../systems/GameStore";
 import { drawPanel } from "../ui/Panel";
+import { makeButton, type ButtonNode } from "../ui/Button";
+import { audio } from "../systems/AudioManager";
 
 /**
  * 영구 HUD: 상단바(일차/시계/스탯), 하단 로그, 낮/밤 틴트.
@@ -60,8 +62,21 @@ export class HUDScene extends Phaser.Scene {
 
     // 배속 인디케이터
     this.speedIndicator = this.add
-      .text(GAME_WIDTH - 16, 28, "", { fontFamily: "Galmuri11, monospace", fontSize: "14px", color: "#ffd97a" })
+      .text(GAME_WIDTH - 90, 28, "", { fontFamily: "Galmuri11, monospace", fontSize: "14px", color: "#ffd97a" })
       .setOrigin(1, 0.5);
+
+    // 음소거 토글
+    const muteBtn = makeButton(this, GAME_WIDTH - 44, 28, {
+      label: audio.muted ? "🔇" : "🔊",
+      width: 52,
+      height: 36,
+      fontSize: 18,
+      bg: 0x0c1228,
+      onClick: () => {
+        const m = audio.toggleMuted();
+        (muteBtn as ButtonNode).setLabel(m ? "🔇" : "🔊");
+      },
+    });
 
     // 하단 로그 (최근 3줄)
     this.logText = this.add

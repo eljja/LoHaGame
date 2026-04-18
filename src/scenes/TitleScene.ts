@@ -3,6 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT, COLORS } from "../config";
 import { makeButton } from "../ui/Button";
 import { SaveManager } from "../systems/SaveManager";
 import { getStore } from "../systems/GameStore";
+import { audio } from "../systems/AudioManager";
 
 export class TitleScene extends Phaser.Scene {
   constructor() {
@@ -119,7 +120,21 @@ export class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    const muteBtn = makeButton(this, 80, 50, {
+      label: audio.muted ? "🔇 음소거" : "🔊 소리",
+      width: 140,
+      height: 40,
+      fontSize: 14,
+      bg: 0x0c1228,
+      onClick: () => {
+        const m = audio.toggleMuted();
+        (muteBtn as any).setLabel(m ? "🔇 음소거" : "🔊 소리");
+        if (!m) audio.playBgm("title");
+      },
+    });
+
     this.cameras.main.fadeIn(500, 0, 0, 0);
+    audio.playBgm("title");
     void COLORS; // 정적 참조 유지
   }
 }

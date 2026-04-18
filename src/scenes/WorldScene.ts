@@ -11,6 +11,7 @@ import { drawPanel } from "../ui/Panel";
 import { InventoryPanel } from "../ui/InventoryPanel";
 import { CraftingPanel } from "../ui/CraftingPanel";
 import { JournalPanel } from "../ui/JournalPanel";
+import { audio } from "../systems/AudioManager";
 
 export class WorldScene extends Phaser.Scene {
   private sceneContainer!: Phaser.GameObjects.Container;
@@ -80,7 +81,11 @@ export class WorldScene extends Phaser.Scene {
     this.buildMenuBar();
 
     // 이벤트 바인딩
-    store.time.on("phaseChange", () => this.renderZone());
+    store.time.on("phaseChange", (phase: "day" | "night") => {
+      audio.play(phase === "day" ? "phase_day" : "phase_night");
+      this.syncBgm();
+      this.renderZone();
+    });
     store.time.on("dayChange", (d: number) => {
       store.pushLog(`☀ Day ${d}가 밝았다.`);
       if (d > WIN_DAY) {
@@ -93,6 +98,9 @@ export class WorldScene extends Phaser.Scene {
       this.scene.stop("HUDScene");
       this.scene.start("GameOverScene");
     });
+
+    this.syncBgm();
+    this.events.on(Phaser.Scenes.Events.RESUME, () => this.syncBgm());
 
     this.renderZone();
 
@@ -355,6 +363,7 @@ export class WorldScene extends Phaser.Scene {
     }
     const msg = act.message(yieldStrs.join(", "));
     store.pushLog(msg);
+    if (yieldStrs.length > 0) audio.play("pickup");
     this.flashHero();
 
     // 밤 조우 가능성
@@ -386,6 +395,7 @@ export class WorldScene extends Phaser.Scene {
     store.flags.lootedCrates += 1;
     const text = loot.map((l) => `${ITEMS[l.id].icon}${ITEMS[l.id].name}×${l.count}`).join(", ");
     store.pushLog(`📦 상자에서 ${text}을(를) 찾았다.`);
+    audio.play("pickup");
     this.renderZone();
   }
 
@@ -440,6 +450,7 @@ export class WorldScene extends Phaser.Scene {
     const idx = Math.min(SEA_BOSSES.length - 1, Math.floor(day / 10) - 1);
     const boss = SEA_BOSSES[idx];
     getStore(this).pushLog(`⚠ ${boss.name}이(가) 해안에 나타났다!`);
+    audio.play("boss_alert");
     this.triggerCombat(boss);
   }
 
@@ -448,16 +459,24 @@ export class WorldScene extends Phaser.Scene {
     this.scene.pause();
   }
 
+  private syncBgm(): void {
+    const store = getStore(this);
+    audio.playBgm(store.time.phase === "day" ? "day" : "night");
+  }
+
   // ── 패널 토글 ──
   private toggleInventory(): void {
+    audio.play("menu");
     if (this.inventoryPanel.isOpen) this.inventoryPanel.close();
     else this.inventoryPanel.open(() => this.renderZone());
   }
   private toggleCrafting(): void {
+    audio.play("menu");
     if (this.craftingPanel.isOpen) this.craftingPanel.close();
     else this.craftingPanel.open();
   }
   private toggleJournal(): void {
+    audio.play("menu");
     if (this.journalPanel.isOpen) this.journalPanel.close();
     else this.journalPanel.open();
   }
