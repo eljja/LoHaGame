@@ -1,0 +1,136 @@
+import type { Recipe } from "../types";
+
+export const RECIPES: Recipe[] = [
+  {
+    id: "wood_club",
+    name: "나무몽둥이",
+    icon: "🏏",
+    result: { id: "wood_club", count: 1 },
+    inputs: [{ id: "stick", count: 3 }],
+  },
+  {
+    id: "stone_axe",
+    name: "돌도끼",
+    icon: "🪓",
+    result: { id: "stone_axe", count: 1 },
+    inputs: [
+      { id: "stick", count: 2 },
+      { id: "stone", count: 2 },
+      { id: "vine", count: 1 },
+    ],
+  },
+  {
+    id: "stone_spear",
+    name: "돌창",
+    icon: "🗡",
+    result: { id: "stone_spear", count: 1 },
+    inputs: [
+      { id: "stick", count: 1 },
+      { id: "stone", count: 1 },
+      { id: "vine", count: 1 },
+    ],
+  },
+  {
+    id: "fishing_rod",
+    name: "나무 낚싯대",
+    icon: "🎣",
+    result: { id: "fishing_rod", count: 1 },
+    inputs: [
+      { id: "stick", count: 3 },
+      { id: "vine", count: 2 },
+    ],
+  },
+  {
+    id: "rope",
+    name: "밧줄",
+    icon: "🪢",
+    result: { id: "rope", count: 1 },
+    inputs: [{ id: "vine", count: 3 }],
+  },
+  {
+    id: "torch",
+    name: "횃불",
+    icon: "🔥",
+    result: { id: "torch", count: 1 },
+    inputs: [
+      { id: "stick", count: 1 },
+      { id: "cloth", count: 1 },
+    ],
+  },
+  {
+    id: "stone_pickaxe",
+    name: "돌 곡괭이",
+    icon: "⛏",
+    result: { id: "stone_pickaxe", count: 1 },
+    inputs: [
+      { id: "stick", count: 2 },
+      { id: "stone", count: 3 },
+      { id: "vine", count: 1 },
+    ],
+  },
+  {
+    id: "iron_pickaxe",
+    name: "철 곡괭이",
+    icon: "⚒",
+    result: { id: "iron_pickaxe", count: 1 },
+    inputs: [
+      { id: "stick", count: 2 },
+      { id: "iron_ore", count: 3 },
+      { id: "rope", count: 1 },
+    ],
+  },
+  {
+    id: "bonfire",
+    name: "모닥불",
+    icon: "🏕",
+    result: { id: "bonfire", count: 1 },
+    inputs: [
+      { id: "stone", count: 4 },
+      { id: "stick", count: 5 },
+    ],
+    desc: "거점에 설치된다.",
+  },
+  {
+    id: "tent",
+    name: "천막",
+    icon: "⛺",
+    result: { id: "tent", count: 1 },
+    inputs: [
+      { id: "cloth", count: 4 },
+      { id: "stick", count: 6 },
+      { id: "rope", count: 2 },
+    ],
+    desc: "거점에 설치된다. 잠자기 가능.",
+  },
+  {
+    id: "cook_fish",
+    name: "구운 생선",
+    icon: "🍤",
+    result: { id: "fish_cooked", count: 1 },
+    inputs: [{ id: "fish_raw", count: 1 }],
+    requires: ["bonfire"],
+  },
+  {
+    id: "cook_meat",
+    name: "구운 고기",
+    icon: "🍖",
+    result: { id: "meat_cooked", count: 1 },
+    inputs: [{ id: "meat_raw", count: 1 }],
+    requires: ["bonfire"],
+  },
+  {
+    id: "purify_water",
+    name: "정화수",
+    icon: "💧",
+    result: { id: "water_clean", count: 1 },
+    inputs: [{ id: "water_dirty", count: 1 }],
+    requires: ["bonfire"],
+  },
+  {
+    id: "bandage",
+    name: "붕대",
+    icon: "🩹",
+    result: { id: "bandage", count: 1 },
+    inputs: [{ id: "cloth", count: 2 }],
+  },
+];
