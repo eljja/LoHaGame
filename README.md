@@ -40,6 +40,19 @@ src/
   ui/                  Button, Panel, InventoryPanel, CraftingPanel, JournalPanel
 ```
 
+## 배포 (GitHub Pages 자동배포)
+
+`main` 또는 `claude/**` 브랜치에 푸시되면 GitHub Actions가 자동으로 빌드하여 GitHub Pages에 배포합니다.
+
+**최초 1회 저장소 설정:**
+1. GitHub 저장소 → **Settings** → **Pages**
+2. **Source** 를 **GitHub Actions** 로 선택
+3. 이후 푸시/머지 시 자동 배포됨
+
+배포 URL: `https://eljja.github.io/LoHaGame/`
+
+워크플로 로그는 저장소의 **Actions** 탭에서 확인 가능합니다.
+
 ## 크레딧 / 라이선스 참고
 - 그래픽은 Phaser Graphics + 시스템 이모지로 생성. 외부 에셋 없음.
 - 폰트: [Galmuri11](https://github.com/quiple/galmuri) (OFL).
