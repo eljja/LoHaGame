@@ -56,14 +56,17 @@ export class JournalPanel {
 
     c.add([overlay, panel, title, body, logs]);
 
-    const close = makeButton(this.scene, x + w - 80, y + 30, {
-      label: "닫기 (Esc)",
-      width: 120,
-      height: 36,
-      fontSize: 13,
+    const closeX = makeButton(this.scene, x + w - 40, y + 40, {
+      label: "✕",
+      width: 60,
+      height: 56,
+      fontSize: 28,
+      bg: 0x2a0f18,
+      hover: 0x4a1520,
+      border: 0x8a2230,
       onClick: () => this.close(),
     });
-    c.add(close);
+    c.add(closeX);
     this.scene.input.keyboard?.once("keydown-ESC", () => this.close());
     this.container = c;
   }

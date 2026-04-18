@@ -111,9 +111,9 @@ export class WorldScene extends Phaser.Scene {
     this.menuBar.removeAll(true);
     const y = GAME_HEIGHT - 40;
     const buttons: Array<[string, () => void]> = [
-      ["🎒 인벤 (I)", () => this.toggleInventory()],
-      ["🔨 제작 (C)", () => this.toggleCrafting()],
-      ["📖 일지 (J)", () => this.toggleJournal()],
+      ["🎒 인벤토리", () => this.toggleInventory()],
+      ["🔨 제작", () => this.toggleCrafting()],
+      ["📖 일지", () => this.toggleJournal()],
       ["💾 저장", () => this.manualSave()],
       ["🏠 타이틀", () => this.backToTitle()],
     ];
