@@ -171,6 +171,12 @@ export class WorldScene extends Phaser.Scene {
       this.updateActionHint();
     });
 
+    // 동적 요소: 야생동물 방황, 날씨, 구름, 일일 무작위 이벤트
+    this.setupWildlifeAI();
+    this.setupClouds();
+    this.setupWeather();
+    this.setupRandomEvents();
+
     // ── Keyboard ──────────────────────────────────────────
     this.input.keyboard?.on("keydown-UP", () => this.tryMove(0, -1));
     this.input.keyboard?.on("keydown-DOWN", () => this.tryMove(0, 1));
@@ -795,5 +801,224 @@ export class WorldScene extends Phaser.Scene {
     this.renderEntities();
     this.updateActionHint();
     this.syncBgm();
+  }
+
+  // ── 동적 요소 ─────────────────────────────────────────────────────
+  /** 토끼 같은 동물이 근처 타일로 가끔 이동한다. */
+  private setupWildlifeAI(): void {
+    this.time.addEvent({
+      delay: 2400,
+      loop: true,
+      callback: () => this.tickWildlife(),
+    });
+  }
+
+  private tickWildlife(): void {
+    // 씬이 일시정지 상태면 아무것도 하지 않음
+    if (this.scene.isPaused()) return;
+    const store = getStore(this);
+    const rabbits = store.map.entities.filter((e) => e.type === "rabbit");
+    for (const r of rabbits) {
+      // 각 토끼는 50% 확률로 움직임 시도
+      if (Math.random() < 0.5) continue;
+      const dirs: Array<[number, number]> = [
+        [0, -1], [0, 1], [-1, 0], [1, 0],
+      ];
+      Phaser.Utils.Array.Shuffle(dirs);
+      for (const [dx, dy] of dirs) {
+        const nx = r.tx + dx;
+        const ny = r.ty + dy;
+        if (!store.map.isPassable(nx, ny)) continue;
+        // 플레이어와 같은 타일은 피함
+        if (nx === store.playerTx && ny === store.playerTy) continue;
+        const sprite = this.entityObjects.get(r.id);
+        if (!sprite) continue;
+        r.tx = nx;
+        r.ty = ny;
+        this.tweens.add({
+          targets: sprite,
+          x: nx * TILE_PX + TILE_PX / 2,
+          y: ny * TILE_PX + TILE_PX / 2,
+          duration: 260,
+          ease: "Sine.InOut",
+        });
+        break;
+      }
+    }
+  }
+
+  /** 월드 위로 떠다니는 구름 그림자. */
+  private setupClouds(): void {
+    const cloudCount = 4;
+    for (let i = 0; i < cloudCount; i++) {
+      this.spawnCloud(Math.random() * WORLD_PX);
+    }
+  }
+
+  private spawnCloud(startX: number): void {
+    const y = Math.random() * WORLD_PX;
+    const scale = 1.2 + Math.random() * 1.6;
+    const cloud = this.add
+      .text(startX, y, "☁", { fontSize: "48px" })
+      .setOrigin(0.5)
+      .setAlpha(0.35 + Math.random() * 0.2)
+      .setDepth(15)
+      .setScale(scale);
+    this.worldObjects.push(cloud);
+    this.uiCam.ignore(cloud);
+    const dur = 60000 + Math.random() * 60000;
+    this.tweens.add({
+      targets: cloud,
+      x: startX + WORLD_PX + 200,
+      duration: dur,
+      ease: "Linear",
+      onComplete: () => {
+        cloud.destroy();
+        this.spawnCloud(-200 - Math.random() * 400);
+      },
+    });
+  }
+
+  /** 가끔 날씨가 변한다 (비/바람). 비는 화면 전체에 내린다. */
+  private setupWeather(): void {
+    this.time.addEvent({
+      delay: 90000, // 1.5분마다 날씨 굴림
+      loop: true,
+      callback: () => {
+        if (this.scene.isPaused()) return;
+        const roll = Math.random();
+        if (roll < 0.18) this.startRain();
+        else if (roll < 0.3) this.startWind();
+      },
+    });
+  }
+
+  private startRain(): void {
+    const store = getStore(this);
+    store.pushLog("🌧 하늘이 어두워지더니 비가 내리기 시작한다.");
+    audio.play("phase_night");
+    const duration = 35000;
+    const particles: Phaser.GameObjects.Text[] = [];
+    const spawn = () => {
+      for (let i = 0; i < 3; i++) {
+        const px = Math.random() * GAME_WIDTH;
+        const d = this.add
+          .text(px, VP_Y - 10, "│", {
+            fontSize: "14px",
+            color: "#9fd5ff",
+          })
+          .setAlpha(0.55)
+          .setDepth(45);
+        this.worldCam.ignore(d);
+        particles.push(d);
+        this.tweens.add({
+          targets: d,
+          y: VP_Y + VP_H,
+          alpha: 0,
+          duration: 420 + Math.random() * 180,
+          ease: "Linear",
+          onComplete: () => d.destroy(),
+        });
+      }
+    };
+    const spawner = this.time.addEvent({ delay: 80, loop: true, callback: spawn });
+    this.time.delayedCall(duration, () => {
+      spawner.remove(false);
+      particles.forEach((p) => p.destroy());
+      // 비 보너스: 더러운 물 1-2 추가 (빈 용기 같이)
+      if (Math.random() < 0.75) {
+        const n = Phaser.Math.Between(1, 2);
+        store.inv.add("water_dirty", n);
+        store.pushLog(`🌧 비가 그쳤다. 받아둔 빗물 (흙탕물 ×${n}) 획득.`);
+      } else {
+        store.pushLog("🌦 비가 그쳤다.");
+      }
+    });
+  }
+
+  private startWind(): void {
+    const store = getStore(this);
+    store.pushLog("🍃 해안에서 상쾌한 바람이 불어온다. 기분이 좋아진다.");
+    store.stats.apply({ energy: 6 });
+    // 바람 이펙트: 작은 잎사귀 몇 개 화면 가로질러 이동
+    for (let i = 0; i < 8; i++) {
+      const startY = VP_Y + Math.random() * VP_H;
+      const leaf = this.add
+        .text(-20, startY, Math.random() < 0.5 ? "🍃" : "·", { fontSize: "16px" })
+        .setDepth(45)
+        .setAlpha(0.8);
+      this.worldCam.ignore(leaf);
+      this.tweens.add({
+        targets: leaf,
+        x: GAME_WIDTH + 20,
+        y: startY + (Math.random() - 0.5) * 80,
+        duration: 3500 + Math.random() * 1500,
+        delay: i * 200,
+        ease: "Sine.InOut",
+        onComplete: () => leaf.destroy(),
+      });
+    }
+  }
+
+  /** 매일 아침 무작위 이벤트 롤. */
+  private setupRandomEvents(): void {
+    const store = getStore(this);
+    store.time.on("dayChange", () => {
+      if (Math.random() < 0.55) {
+        this.time.delayedCall(2500, () => this.rollMorningEvent());
+      }
+    });
+  }
+
+  private rollMorningEvent(): void {
+    const store = getStore(this);
+    const events: Array<() => void> = [
+      () => {
+        // 갈매기가 물고기를 떨어뜨림
+        store.inv.add("fish_raw", 1);
+        store.pushLog("🕊 갈매기 한 마리가 머리 위를 지나가며 생 물고기를 떨어뜨렸다!");
+        this.spawnPickupFx(store.playerTx, store.playerTy - 1, "+🐟×1", "#9fd5ff");
+        audio.play("pickup");
+      },
+      () => {
+        // 해안가 유리병 편지
+        store.pushLog("🫙 해변에 유리병이 떠밀려왔다. 안에는 오래된 기도문이 있다. 마음이 차분해진다.");
+        store.stats.apply({ energy: 12, hp: 4 });
+      },
+      () => {
+        // 야생 꿀벌의 선물 - 열매
+        const n = Phaser.Math.Between(2, 3);
+        store.inv.add("berry", n);
+        store.pushLog(`🐝 꿀벌들이 발견한 열매를 나누어준다. 열매 ×${n}.`);
+        this.spawnPickupFx(store.playerTx, store.playerTy - 1, `+🫐×${n}`);
+        audio.play("pickup");
+      },
+      () => {
+        // 토끼가 둥지에 남긴 덩굴
+        const n = Phaser.Math.Between(2, 3);
+        store.inv.add("vine", n);
+        store.pushLog(`🐇 토끼가 둥지에 남긴 덩굴 뭉치를 발견했다. 덩굴 ×${n}.`);
+        this.spawnPickupFx(store.playerTx, store.playerTy - 1, `+🌿×${n}`);
+        audio.play("pickup");
+      },
+      () => {
+        // 기묘한 꿈
+        store.pushLog("💭 지난밤 꿈에서 구조선을 보았다. 왠지 의지가 솟구친다.");
+        store.stats.apply({ energy: 20 });
+      },
+      () => {
+        // 해풍 속 표류물
+        if (Math.random() < 0.5) {
+          store.inv.add("metal_scrap", 2);
+          store.pushLog("⚙ 아침 해안에 금속 조각이 떠밀려왔다. 금속 조각 ×2.");
+        } else {
+          store.inv.add("cloth", 2);
+          store.pushLog("🧵 바람에 실려온 낡은 천 조각을 주웠다. 천 조각 ×2.");
+        }
+        audio.play("pickup");
+      },
+    ];
+    const pick = Phaser.Utils.Array.GetRandom(events) as () => void;
+    pick();
   }
 }
