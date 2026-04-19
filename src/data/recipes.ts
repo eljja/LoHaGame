@@ -133,4 +133,16 @@ export const RECIPES: Recipe[] = [
     result: { id: "bandage", count: 1 },
     inputs: [{ id: "cloth", count: 2 }],
   },
+  {
+    id: "herbal_drink",
+    name: "허브 음료",
+    icon: "🍵",
+    result: { id: "herbal_drink", count: 1 },
+    inputs: [
+      { id: "berry", count: 2 },
+      { id: "water_dirty", count: 1 },
+    ],
+    requires: ["bonfire"],
+    desc: "행동력(⚡) +50 회복. 탈진 상태에서 특히 유용.",
+  },
 ];

@@ -29,7 +29,8 @@ export type ItemId =
   | "bonfire"
   | "tent"
   | "rope"
-  | "metal_scrap";
+  | "metal_scrap"
+  | "herbal_drink";
 
 export interface ItemDef {
   id: ItemId;
