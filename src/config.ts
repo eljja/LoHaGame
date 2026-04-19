@@ -9,9 +9,6 @@ export const NIGHT_PHASE_SECONDS = 300;
 /** 총 50일 생존해야 승리. */
 export const WIN_DAY = 50;
 
-/** 지역 간 이동 시 소비되는 게임 내 시간(분). */
-export const ZONE_TRAVEL_MINUTES = 15;
-
 /** 스탯 감소 비율(초당). 한 시간 기준이 아닌 초 단위로 상수화. */
 export const STAT_DRAIN = {
   hunger: 0.07,
