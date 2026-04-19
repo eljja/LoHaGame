@@ -28,8 +28,10 @@ export class WorldScene extends Phaser.Scene {
   // UI-space objects (UI camera)
   private uiContainer!: Phaser.GameObjects.Container;
   private actionHintText!: Phaser.GameObjects.Text;
+  private equipBarText!: Phaser.GameObjects.Text;
   private menuBar!: Phaser.GameObjects.Container;
   private dpad!: Phaser.GameObjects.Container;
+  private nightOverlay!: Phaser.GameObjects.Rectangle;
 
   private inventoryPanel!: InventoryPanel;
   private craftingPanel!: CraftingPanel;
@@ -116,6 +118,24 @@ export class WorldScene extends Phaser.Scene {
     });
     this.uiContainer.add(this.actionHintText);
 
+    // 장비 상태 표시 (우측 중단)
+    this.equipBarText = this.add.text(GAME_WIDTH - 260, 624, "", {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "13px",
+      color: "#ffd97a",
+      align: "right",
+      wordWrap: { width: 240 },
+    });
+    this.uiContainer.add(this.equipBarText);
+    this.refreshEquipBar();
+
+    // 밤 어둠 오버레이 (횃불 없으면 짙어짐, worldCam 무관 — uiCam으로 렌더)
+    this.nightOverlay = this.add
+      .rectangle(VP_X, VP_Y, VP_W, VP_H, 0x000020, 0)
+      .setOrigin(0, 0)
+      .setDepth(40);
+    this.uiContainer.add(this.nightOverlay);
+
     // Build D-pad and menu bar
     this.dpad = this.add.container(0, 0);
     this.buildDpad();
@@ -142,10 +162,18 @@ export class WorldScene extends Phaser.Scene {
     store.time.on("phaseChange", (phase: "day" | "night") => {
       audio.play(phase === "day" ? "phase_day" : "phase_night");
       this.syncBgm();
+      this.updateNightOverlay();
       if (phase === "day") {
         const count = store.map.nightRespawn();
         this.renderEntities();
         store.pushLog(`☀ 새벽이 밝아왔다. 자원 ${count}개가 재생됐다.`);
+      } else {
+        const hasTorch = store.inv.count("torch") > 0;
+        if (!hasTorch) {
+          store.pushLog("🌙 밤이 됐다. 횃불(🔥)이 없어 어둡고 위험하다. 에너지 소모가 늘어난다.");
+        } else {
+          store.pushLog("🔥 횃불을 켰다. 밤에도 주변이 환하다.");
+        }
       }
     });
 
@@ -176,6 +204,12 @@ export class WorldScene extends Phaser.Scene {
     this.setupClouds();
     this.setupWeather();
     this.setupRandomEvents();
+
+    // 인벤토리 변경 시 장비바 갱신
+    store.inv.on("change", () => {
+      this.refreshEquipBar();
+      this.updateNightOverlay();
+    });
 
     // ── Keyboard ──────────────────────────────────────────
     this.input.keyboard?.on("keydown-UP", () => this.tryMove(0, -1));
@@ -371,8 +405,16 @@ export class WorldScene extends Phaser.Scene {
 
     this.updateActionHint();
 
-    // Night mob encounter chance
-    if (store.time.phase === "night" && Math.random() < 0.04) {
+    // 밤에 횃불 없으면 에너지 추가 소모
+    if (store.time.phase === "night" && !store.inv.has("torch")) {
+      store.stats.apply({ energy: -1.5 });
+    }
+
+    // Night mob encounter chance (횃불 없으면 더 위험)
+    const nightEncounterChance = store.time.phase === "night"
+      ? (store.inv.has("torch") ? 0.025 : 0.06)
+      : 0;
+    if (nightEncounterChance > 0 && Math.random() < nightEncounterChance) {
       const mob = Phaser.Utils.Array.GetRandom(NIGHT_MOBS) as EnemyDef;
       this.triggerCombat(mob);
     }
@@ -759,6 +801,31 @@ export class WorldScene extends Phaser.Scene {
     } else {
       this.actionHintText.setText("화살표 키 또는 D-패드로 이동 | I:인벤토리 C:제작 J:일지");
     }
+  }
+
+  private refreshEquipBar(): void {
+    const store = getStore(this);
+    const weapon = store.inv.bestWeapon();
+    const wDef = ITEMS[weapon.id as import("../types").ItemId];
+    const hasTorch = store.inv.count("torch") > 0;
+    const rod = store.inv.hasTool("rod") ? "🎣" : "";
+    const lines = [
+      `⚔ ${wDef?.icon ?? "✊"} ${wDef?.name ?? "맨손"} (${weapon.dmg} dmg)`,
+      hasTorch ? "🔥 횃불 보유" : "🌑 횃불 없음",
+      rod ? `${rod} 낚싯대 보유` : "",
+    ].filter(Boolean);
+    this.equipBarText.setText(lines.join("\n"));
+  }
+
+  private updateNightOverlay(): void {
+    const store = getStore(this);
+    if (store.time.phase !== "night") {
+      this.tweens.add({ targets: this.nightOverlay, fillAlpha: 0, duration: 1500 });
+      return;
+    }
+    const hasTorch = store.inv.count("torch") > 0;
+    const targetAlpha = hasTorch ? 0.18 : 0.52;
+    this.tweens.add({ targets: this.nightOverlay, fillAlpha: targetAlpha, duration: 2000 });
   }
 
   // ── Combat triggers ────────────────────────────────────────────

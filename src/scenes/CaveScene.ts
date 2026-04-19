@@ -22,8 +22,9 @@ export class CaveScene extends Phaser.Scene {
   private rows = 5;
   private size = 90;
   private gap = 8;
-  private lightRadius = 999; // 횃불 없으면 1.8
+  private lightRadius = 999;
   private rolled: ItemId[] = [];
+  private chestIdx = -1; // 이번 그리드의 보물 상자 타일
 
   constructor() {
     super("CaveScene");
@@ -181,9 +182,13 @@ export class CaveScene extends Phaser.Scene {
         ? [["stone", 0.40], ["iron_ore", 0.50], ["diamond", 0.10]]
         : [["stone", 0.20], ["iron_ore", 0.40], ["diamond", 0.40]];
 
+    // 보물 상자: 25% 확률로 무작위 타일 하나
+    this.chestIdx = Math.random() < 0.25 ? Math.floor(Math.random() * this.cols * this.rows) : -1;
+
     this.rolled = [];
     for (let r = 0; r < this.rows; r++) {
       for (let c = 0; c < this.cols; c++) {
+        const idx = r * this.cols + c;
         const roll = Math.random();
         let acc = 0;
         let picked: ItemId = "stone";
@@ -195,20 +200,31 @@ export class CaveScene extends Phaser.Scene {
 
         const x = this.gridX + c * (this.size + this.gap);
         const y = this.gridY + r * (this.size + this.gap);
+
+        // 광물 종류별 미묘한 색 힌트
+        const oreHint = picked === "iron_ore"
+          ? Phaser.Display.Color.IntegerToColor(tileColor).brighten(10).color
+          : picked === "diamond"
+          ? Phaser.Display.Color.IntegerToColor(tileColor).brighten(20).color
+          : tileColor;
+        const tileBaseColor = idx === this.chestIdx ? 0x3a2a08 : oreHint;
+        const tileBorderColor = idx === this.chestIdx ? 0xaa8822 : borderColor;
+
         const tile = this.add
-          .rectangle(x, y, this.size, this.size, tileColor, 1)
+          .rectangle(x, y, this.size, this.size, tileBaseColor, 1)
           .setOrigin(0, 0)
-          .setStrokeStyle(2, borderColor);
-        tile.setData("idx", r * this.cols + c);
-        tile.setData("baseColor", tileColor);
+          .setStrokeStyle(idx === this.chestIdx ? 3 : 2, tileBorderColor);
+        tile.setData("idx", idx);
+        tile.setData("baseColor", tileBaseColor);
         tile.setInteractive({ useHandCursor: true });
 
-        // 돌 타일 아이콘 (채굴 전에는 모두 🟫)
+        // 아이콘: 보물 상자는 다른 표시
+        const iconText = idx === this.chestIdx ? "📦" : "🟫";
         const icon = this.add
-          .text(x + this.size / 2, y + this.size / 2, "🟫", { fontSize: "34px" })
+          .text(x + this.size / 2, y + this.size / 2, iconText, { fontSize: "34px" })
           .setOrigin(0.5);
 
-        // 어둠 처리
+        // 횃불 없으면 시야 제한
         if (this.lightRadius < 10) {
           const dx = c - Math.floor(this.cols / 2);
           const dy = r - Math.floor(this.rows / 2);
@@ -218,9 +234,14 @@ export class CaveScene extends Phaser.Scene {
           }
         }
 
+        // 보물 상자 반짝임 효과
+        if (idx === this.chestIdx) {
+          this.tweens.add({ targets: icon, alpha: 0.5, duration: 700, yoyo: true, repeat: -1, ease: "Sine.InOut" });
+        }
+
         tile.on("pointerover", () => tile.setFillStyle(0x4a5070));
         tile.on("pointerout",  () => tile.setFillStyle(tile.getData("baseColor") as number));
-        tile.on("pointerdown", () => this.mineTile(r * this.cols + c, tile, icon));
+        tile.on("pointerdown", () => this.mineTile(idx, tile, icon));
 
         this.tiles.push(tile);
         this.tileIcons.push(icon);
@@ -249,10 +270,47 @@ export class CaveScene extends Phaser.Scene {
       return;
     }
 
+    // 보물 상자 처리
+    if (idx === this.chestIdx) {
+      this.chestIdx = -1;
+      tile.disableInteractive();
+      audio.play("pickup");
+      icon.setText("✨");
+      this.tweens.add({ targets: icon, scale: 1.5, alpha: 0, duration: 600 });
+      this.tweens.add({ targets: tile, fillAlpha: 0.1, duration: 400, onComplete: () => icon.setVisible(false) });
+      // 보물 상자 전리품
+      const chestLoot: Array<[ItemId, number]> =
+        depth === 3
+          ? [["diamond", 2], ["iron_ore", 3]]
+          : depth === 2
+          ? [["iron_ore", 4], ["rope", 1]]
+          : [["stone", 4], ["vine", 2]];
+      for (const [id, cnt] of chestLoot) store.inv.add(id, cnt);
+      const lootStr = chestLoot.map(([id, n]) => `${ITEMS[id].icon}×${n}`).join(" + ");
+      store.pushLog(`📦 동굴 보물 상자 발견! ${lootStr} 획득!`);
+      store.time.advanceMinutes(5);
+      return;
+    }
+
     // 채굴 성공
     audio.play("mine");
     store.time.advanceMinutes(10);
     store.stats.apply({ energy: -3 });
+
+    // 채굴 스파크 이펙트
+    const sparks = this.add.particles(
+      this.gridX + (idx % this.cols) * (this.size + this.gap) + this.size / 2,
+      this.gridY + Math.floor(idx / this.cols) * (this.size + this.gap) + this.size / 2,
+      "particle",
+      {
+        speed: { min: 30, max: 80 },
+        lifespan: 400,
+        quantity: 6,
+        scale: { start: 0.5, end: 0 },
+        tint: ore === "diamond" ? 0x88ddff : ore === "iron_ore" ? 0xcc8844 : 0xaa9966,
+      }
+    );
+    this.time.delayedCall(500, () => sparks.destroy());
 
     // 채굴된 광석 아이콘 표시
     icon.setText(ITEMS[ore].icon);
@@ -272,9 +330,25 @@ export class CaveScene extends Phaser.Scene {
     store.pushLog(`⛏ ${ITEMS[ore].icon} ${ITEMS[ore].name} ×${yieldCount} 획득!`);
     this.time.delayedCall(150, () => audio.play("pickup"));
 
-    // 조각상 조우 (밤/깊은 층)
-    if (depth >= 2 && Math.random() < 0.08) {
-      store.pushLog("…어둠 속에서 돌 조각상이 움직인다. 등골이 서늘해진다.");
+    // 깊은 층 조각상 조우 → 전투!
+    if (depth >= 2 && Math.random() < 0.07) {
+      store.pushLog("🗿 …어둠 속에서 돌 조각상이 움직인다! 피해야 한다!");
+      this.time.delayedCall(800, () => {
+        this.scene.launch("CombatScene", {
+          enemy: {
+            id: "cave_statue",
+            name: "돌 조각상",
+            icon: "🗿",
+            hp: 35 + depth * 15,
+            atk: 10 + depth * 5,
+            canFlee: true,
+            loot: [{ id: "stone", count: 3, chance: 1 }],
+            flavor: "눈 깜짝할 새 움직인다. 보지 않으면 더 빨라진다.",
+            kind: "land",
+          }
+        });
+        this.scene.pause("CaveScene");
+      });
     }
   }
 
