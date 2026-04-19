@@ -31,6 +31,13 @@ export class CombatScene extends Phaser.Scene {
   private playerHpText!: Phaser.GameObjects.Text;
   private playerHpBarMaxWidth = 240;
 
+  // 주사위 UI (항상 화면에 상주, 공격 시 애니메이션)
+  private diceLabel!: Phaser.GameObjects.Text;
+  private diceD1!: Phaser.GameObjects.Text;
+  private dicePlus!: Phaser.GameObjects.Text;
+  private diceD2!: Phaser.GameObjects.Text;
+  private diceSum!: Phaser.GameObjects.Text;
+
   constructor() {
     super("CombatScene");
   }
@@ -97,6 +104,10 @@ export class CombatScene extends Phaser.Scene {
       fontSize: "14px",
       color: "#cfd8ff",
     }).setOrigin(0.5);
+
+    // ── 주사위 패널 (상주) ──────────────────────────────────
+    // 적 flavor(y=500)와 로그 패널(y=620) 사이의 빈 영역에 배치
+    this.buildDicePanel();
 
     // ── 플레이어 영역 ──────────────────────────────────────
     this.add.text(60, GAME_HEIGHT - 228, "🧑", { fontSize: "68px" }).setOrigin(0.5);
@@ -191,54 +202,55 @@ export class CombatScene extends Phaser.Scene {
     });
   }
 
-  // ── 주사위 굴리기 애니메이션 ───────────────────────────
+  // ── 주사위 패널 빌드 (한 번만 생성, 재사용) ─────────────
+  private buildDicePanel(): void {
+    const cx = GAME_WIDTH / 2;
+    const cy = 560; // flavor(500) 아래, 로그 패널(620) 위
+
+    this.diceLabel = this.add
+      .text(cx - 200, cy, "🎲 주사위", {
+        fontFamily: "Galmuri11, monospace",
+        fontSize: "16px",
+        color: "#8d9bd1",
+      })
+      .setOrigin(0.5);
+
+    this.diceD1 = this.add
+      .text(cx - 80, cy, "⚀", { fontSize: "56px" })
+      .setOrigin(0.5)
+      .setAlpha(0.45);
+    this.dicePlus = this.add
+      .text(cx, cy, "+", {
+        fontFamily: "Galmuri11, monospace",
+        fontSize: "26px",
+        color: "#6a7ab0",
+      })
+      .setOrigin(0.5)
+      .setAlpha(0.45);
+    this.diceD2 = this.add
+      .text(cx + 80, cy, "⚀", { fontSize: "56px" })
+      .setOrigin(0.5)
+      .setAlpha(0.45);
+    this.diceSum = this.add
+      .text(cx + 210, cy, "대기", {
+        fontFamily: "Galmuri11, monospace",
+        fontSize: "16px",
+        color: "#6a7ab0",
+      })
+      .setOrigin(0.5);
+  }
+
+  // ── 주사위 굴리기 애니메이션 (상주 UI를 재활용) ──────────
   private rollDice(onComplete: (d1: number, d2: number) => void): void {
     const d1Final = Phaser.Math.Between(1, 6);
     const d2Final = Phaser.Math.Between(1, 6);
 
-    const cx = GAME_WIDTH / 2;
-    const cy = GAME_HEIGHT / 2 + 20;
-
-    // 오버레이 배경
-    const overlay = this.add
-      .rectangle(cx, cy, 380, 200, 0x050a1a, 0.94)
-      .setStrokeStyle(2, 0x4466aa)
-      .setDepth(200);
-    const title = this.add
-      .text(cx, cy - 76, "🎲  주사위 굴리기!", {
-        fontFamily: "Galmuri11, monospace",
-        fontSize: "20px",
-        color: "#f0e040",
-      })
-      .setOrigin(0.5)
-      .setDepth(201);
-
-    const d1Text = this.add
-      .text(cx - 72, cy - 10, "⚀", { fontSize: "80px" })
-      .setOrigin(0.5)
-      .setDepth(201);
-    const plus = this.add
-      .text(cx, cy - 10, "+", {
-        fontFamily: "Galmuri11, monospace",
-        fontSize: "32px",
-        color: "#aabbff",
-      })
-      .setOrigin(0.5)
-      .setDepth(201);
-    const d2Text = this.add
-      .text(cx + 72, cy - 10, "⚀", { fontSize: "80px" })
-      .setOrigin(0.5)
-      .setDepth(201);
-    const sumText = this.add
-      .text(cx, cy + 72, "", {
-        fontFamily: "Galmuri11, monospace",
-        fontSize: "18px",
-        color: "#ffffff",
-      })
-      .setOrigin(0.5)
-      .setDepth(201);
-
-    void plus;
+    // 활성 상태로 켜기
+    this.diceD1.setAlpha(1);
+    this.diceD2.setAlpha(1);
+    this.dicePlus.setAlpha(1).setColor("#aabbff");
+    this.diceLabel.setText("🎲 굴리는 중...").setColor("#f0e040");
+    this.diceSum.setText("").setColor("#ffffff");
 
     // 굴리기 단계별 인터벌 (빠르게 시작 → 점점 느려짐)
     const intervals = [50, 55, 60, 70, 85, 100, 120, 150, 185, 220, 270, 350];
@@ -246,28 +258,42 @@ export class CombatScene extends Phaser.Scene {
 
     const doTick = () => {
       if (tick < intervals.length) {
-        d1Text.setText(DICE_FACES[Math.floor(Math.random() * 6)]);
-        d2Text.setText(DICE_FACES[Math.floor(Math.random() * 6)]);
+        this.diceD1.setText(DICE_FACES[Math.floor(Math.random() * 6)]);
+        this.diceD2.setText(DICE_FACES[Math.floor(Math.random() * 6)]);
+        // 살짝 덜덜 떨리는 효과
+        this.diceD1.setAngle((Math.random() - 0.5) * 20);
+        this.diceD2.setAngle((Math.random() - 0.5) * 20);
         this.time.delayedCall(intervals[tick++], doTick);
       } else {
         // 최종값 표시
-        d1Text.setText(DICE_FACES[d1Final - 1]);
-        d2Text.setText(DICE_FACES[d2Final - 1]);
+        this.diceD1.setText(DICE_FACES[d1Final - 1]).setAngle(0);
+        this.diceD2.setText(DICE_FACES[d2Final - 1]).setAngle(0);
         audio.play("pickup");
 
         const sum = d1Final + d2Final;
-        const label = sum >= 10 ? " ✨ 대성공!" : sum <= 4 ? " 😬 불운..." : "";
+        const label = sum >= 10 ? "✨대성공" : sum <= 4 ? "😬불운" : "정상";
         const col = sum >= 10 ? "#ffd700" : sum <= 4 ? "#ff9944" : "#aaffaa";
-        sumText.setText(`합계 ${sum}${label}`).setColor(col);
+        this.diceSum.setText(`= ${sum} ${label}`).setColor(col);
+        this.diceLabel.setText("🎲 결과").setColor("#cfd8ff");
 
         // 주사위 바운스
-        this.tweens.add({ targets: [d1Text, d2Text], scaleX: 1.35, scaleY: 1.35, duration: 90, yoyo: true, ease: "Back.Out" });
+        this.tweens.add({
+          targets: [this.diceD1, this.diceD2],
+          scaleX: 1.35,
+          scaleY: 1.35,
+          duration: 90,
+          yoyo: true,
+          ease: "Back.Out",
+        });
 
-        this.time.delayedCall(720, () => {
-          [overlay, title, d1Text, d2Text, sumText].forEach((o) => {
-            this.tweens.add({ targets: o, alpha: 0, duration: 180, onComplete: () => o.destroy() });
+        this.time.delayedCall(650, () => {
+          // 결과를 잠시 표시한 후 원래 상태로 희미하게
+          this.tweens.add({
+            targets: [this.diceD1, this.diceD2, this.dicePlus],
+            alpha: 0.45,
+            duration: 250,
           });
-          this.time.delayedCall(200, () => onComplete(d1Final, d2Final));
+          this.time.delayedCall(100, () => onComplete(d1Final, d2Final));
         });
       }
     };

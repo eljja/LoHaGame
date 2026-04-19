@@ -219,12 +219,14 @@ export class WorldScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-I", () => this.toggleInventory());
     this.input.keyboard?.on("keydown-C", () => this.toggleCrafting());
     this.input.keyboard?.on("keydown-J", () => this.toggleJournal());
+    this.input.keyboard?.on("keydown-Z", () => this.trySleep());
 
     // First visit hint
     const store2 = getStore(this);
     if (!store2.flags.firstTimeVisited["world" as never]) {
       (store2.flags.firstTimeVisited as Record<string, boolean>)["world"] = true;
       store2.pushLog("💡 화살표 키 또는 D-패드로 이동, 근처 오브젝트를 탭(클릭)하면 상호작용.");
+      store2.pushLog("💤 쉴 곳: 🏕 거점 자리에 ⛺ 천막을 설치하거나, 🚢 난파선 수색을 마치면 근처에서 Z 키/잠자기 버튼으로 잘 수 있다.");
       store2.pushLog("🚢 근처에 좌초된 배가 있다! 가까이 다가가 탭하면 내부를 수색할 수 있다.");
       // shipwreck 위치 힌트
       const ship = store2.map.entities.find((e) => e.type === "shipwreck");
@@ -538,6 +540,9 @@ export class WorldScene extends Phaser.Scene {
         store.stats.apply({ energy: -10 });
         const target = DAY_GAME[0] as EnemyDef;
         store.pushLog(`🐇 토끼를 발견했다!`);
+        // 토끼는 전투가 시작되는 순간 도망치거나 잡히므로 맵에서 제거
+        store.map.removeEntity(entity.id);
+        this.renderEntities();
         this.triggerCombat(target);
         return; // skip renderEntities below (combat will resume)
       }
@@ -754,13 +759,14 @@ export class WorldScene extends Phaser.Scene {
     this.menuBar.removeAll(true);
     const y = GAME_HEIGHT - 28;
     const buttons: Array<[string, () => void]> = [
-      ["🎒 인벤토리", () => this.toggleInventory()],
-      ["🔨 제작", () => this.toggleCrafting()],
-      ["📖 일지", () => this.toggleJournal()],
+      ["🎒 인벤(I)", () => this.toggleInventory()],
+      ["🔨 제작(C)", () => this.toggleCrafting()],
+      ["📖 일지(J)", () => this.toggleJournal()],
+      ["💤 잠자기(Z)", () => this.trySleep()],
       ["💾 저장", () => this.manualSave()],
       ["🏠 타이틀", () => this.backToTitle()],
     ];
-    const bw = 160;
+    const bw = 130;
     const gap = 8;
     const total = buttons.length * bw + (buttons.length - 1) * gap;
     const startX = (GAME_WIDTH - total) / 2 + bw / 2;
@@ -792,14 +798,67 @@ export class WorldScene extends Phaser.Scene {
     const same = store.map.entityAt(playerTx, playerTy);
     if (same) adjacent.unshift(same);
 
+    // 쉼터가 가까이 있는지 체크 (잠자기 버튼 힌트)
+    const sleepable = this.findSleepSpot();
+
     if (adjacent.length > 0) {
       const names = adjacent
         .slice(0, 3)
         .map((e) => `${ENTITIES[e.type].icon}${ENTITIES[e.type].label}`)
         .join(", ");
-      this.actionHintText.setText(`근처: ${names}\n(탭하여 상호작용 | I:인벤토리 C:제작 J:일지)`);
+      let line2 = "(탭하여 상호작용 | I:인벤 C:제작 J:일지";
+      if (sleepable) line2 += " | Z:잠자기 💤";
+      line2 += ")";
+      this.actionHintText.setText(`근처: ${names}\n${line2}`);
     } else {
-      this.actionHintText.setText("화살표 키 또는 D-패드로 이동 | I:인벤토리 C:제작 J:일지");
+      let s = "화살표/D-패드 이동 | I:인벤 C:제작 J:일지";
+      if (sleepable) s += " | 💤 Z:잠자기 가능";
+      this.actionHintText.setText(s);
+    }
+  }
+
+  /** 플레이어 인접 타일에서 잠들 수 있는 장소(천막 거점/수색 완료된 난파선)를 찾는다. */
+  private findSleepSpot(): { where: "tent" | "shipwreck"; entity: WorldEntity } | null {
+    const store = getStore(this);
+    const { playerTx, playerTy } = store;
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const e = store.map.entityAt(playerTx + dx, playerTy + dy);
+        if (!e) continue;
+        if (e.type === "camp_spot" && store.flags.hasTent) {
+          return { where: "tent", entity: e };
+        }
+        if (e.type === "shipwreck" && (e.meta?.lootLeft ?? 0) <= 0) {
+          return { where: "shipwreck", entity: e };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** 잠자기 버튼/Z 키. 쉼터가 있으면 자고, 없으면 안내 메시지. */
+  private trySleep(): void {
+    const store = getStore(this);
+    const spot = this.findSleepSpot();
+    if (spot) {
+      this.sleepAt(spot.where);
+      this.updateActionHint();
+      return;
+    }
+    // 없는 경우: 왜 못 자는지, 어떻게 해야 하는지 안내
+    if (!store.flags.hasTent) {
+      const camp = store.map.entities.find((e) => e.type === "camp_spot");
+      const hint = camp
+        ? `   → 거점 자리(🏕)는 대략 ${camp.tx - store.playerTx > 0 ? "동" : "서"}${camp.ty - store.playerTy > 0 ? "남" : "북"}쪽에 있다.`
+        : "";
+      store.pushLog(
+        "💤 아직 쉼터가 없다.\n" +
+        "   → 거점 자리(🏕)에 천막(⛺)을 설치하거나, 난파선(🚢) 수색을 마쳐야 잠들 수 있다.\n" +
+        "   → 천막 제작: 천 조각×4 + 나뭇가지×6 + 밧줄×2 (C: 제작 패널)\n" +
+        hint
+      );
+    } else {
+      store.pushLog("💤 거점(🏕)에 인접해야 잠들 수 있다. 거점 자리로 이동하자.");
     }
   }
 
