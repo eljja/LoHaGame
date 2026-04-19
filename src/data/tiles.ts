@@ -1,13 +1,13 @@
 /**
  * 타일형 오픈월드 정의.
- * - 32x32 셀, 셀당 32픽셀 → 1024x1024 월드
+ * - 64x64 셀, 셀당 32픽셀 → 2048x2048 월드
  * - 섬 중앙부: 풀/숲, 바깥 링: 해변, 더 바깥: 바다(이동 불가)
  * - 엔티티(자원/POI)는 타일 위에 배치되고, 플레이어가 인접 타일에서 클릭하면 상호작용
  */
 
-export const WORLD_TILES = 32;
+export const WORLD_TILES = 64;
 export const TILE_PX = 32;
-export const WORLD_PX = WORLD_TILES * TILE_PX; // 1024
+export const WORLD_PX = WORLD_TILES * TILE_PX; // 2048
 
 export type TerrainType =
   | "deep_water"
@@ -72,18 +72,18 @@ export interface EntityTypeDef {
 }
 
 export const ENTITIES: Record<EntityType, EntityTypeDef> = {
-  tree: { icon: "🌳", label: "나무", terrain: ["forest", "grass"], cap: 38, respawn: true, blocksMovement: true, reach: 1 },
-  berry_bush: { icon: "🫐", label: "열매덤불", terrain: ["grass", "forest"], cap: 24, respawn: true, blocksMovement: false, reach: 0 },
-  stone_outcrop: { icon: "🪨", label: "돌무더기", terrain: ["rock", "sand"], cap: 18, respawn: true, blocksMovement: true, reach: 1 },
-  vine: { icon: "🌿", label: "덩굴", terrain: ["forest"], cap: 18, respawn: true, blocksMovement: false, reach: 0 },
-  shell: { icon: "🐚", label: "조개", terrain: ["sand"], cap: 16, respawn: true, blocksMovement: false, reach: 0 },
-  driftwood: { icon: "🪵", label: "유목", terrain: ["sand"], cap: 10, respawn: true, blocksMovement: false, reach: 0 },
-  mushroom: { icon: "🍄", label: "버섯", terrain: ["forest"], cap: 8, respawn: true, blocksMovement: false, reach: 0 },
-  rabbit: { icon: "🐇", label: "토끼", terrain: ["grass", "forest"], cap: 5, respawn: true, blocksMovement: false, reach: 1 },
-  flower: { icon: "🌼", label: "들꽃", terrain: ["grass"], cap: 12, respawn: true, blocksMovement: false, reach: 0 },
-  cave_entrance: { icon: "🕳", label: "동굴 입구", terrain: ["rock"], cap: 1, respawn: false, blocksMovement: false, reach: 1 },
-  shipwreck: { icon: "🚢", label: "난파선", terrain: ["sand"], cap: 1, respawn: false, blocksMovement: true, reach: 1 },
-  cliff_lookout: { icon: "🏔", label: "절벽 전망대", terrain: ["cliff_rock"], cap: 1, respawn: false, blocksMovement: false, reach: 1 },
-  river_spring: { icon: "💧", label: "샘", terrain: ["sand", "grass"], cap: 2, respawn: false, blocksMovement: false, reach: 1 },
-  camp_spot: { icon: "🏕", label: "거점", terrain: ["grass"], cap: 1, respawn: false, blocksMovement: false, reach: 0 },
+  tree:         { icon: "🌳", label: "나무",       terrain: ["forest", "grass"],  cap: 120, respawn: true,  blocksMovement: true,  reach: 1 },
+  berry_bush:   { icon: "🫐", label: "열매덤불",   terrain: ["grass", "forest"],  cap: 80,  respawn: true,  blocksMovement: false, reach: 0 },
+  stone_outcrop:{ icon: "🪨", label: "돌무더기",   terrain: ["rock", "sand"],     cap: 60,  respawn: true,  blocksMovement: true,  reach: 1 },
+  vine:         { icon: "🌿", label: "덩굴",       terrain: ["forest"],           cap: 60,  respawn: true,  blocksMovement: false, reach: 0 },
+  shell:        { icon: "🐚", label: "조개",       terrain: ["sand"],             cap: 60,  respawn: true,  blocksMovement: false, reach: 0 },
+  driftwood:    { icon: "🪵", label: "유목",       terrain: ["sand"],             cap: 35,  respawn: true,  blocksMovement: false, reach: 0 },
+  mushroom:     { icon: "🍄", label: "버섯",       terrain: ["forest"],           cap: 28,  respawn: true,  blocksMovement: false, reach: 0 },
+  rabbit:       { icon: "🐇", label: "토끼",       terrain: ["grass", "forest"],  cap: 16,  respawn: true,  blocksMovement: false, reach: 1 },
+  flower:       { icon: "🌼", label: "들꽃",       terrain: ["grass"],            cap: 45,  respawn: true,  blocksMovement: false, reach: 0 },
+  cave_entrance:{ icon: "⛏",  label: "동굴 입구", terrain: ["rock"],             cap: 1,   respawn: false, blocksMovement: false, reach: 1 },
+  shipwreck:    { icon: "🚢", label: "난파선",     terrain: ["sand"],             cap: 1,   respawn: false, blocksMovement: true,  reach: 1 },
+  cliff_lookout:{ icon: "🏔", label: "절벽 전망대",terrain: ["cliff_rock"],       cap: 1,   respawn: false, blocksMovement: false, reach: 1 },
+  river_spring: { icon: "💧", label: "샘",         terrain: ["sand", "grass"],    cap: 2,   respawn: false, blocksMovement: false, reach: 1 },
+  camp_spot:    { icon: "🏕", label: "거점 자리",  terrain: ["grass"],            cap: 1,   respawn: false, blocksMovement: false, reach: 0 },
 };

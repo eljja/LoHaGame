@@ -4,8 +4,8 @@ import type { PlayerStats } from "./PlayerStats";
 import type { TimeSystem } from "./TimeSystem";
 import type { WorldMap, WorldMapSaveBlob } from "./WorldMap";
 
-const KEY = "loha-save-v2";
-const LEGACY_KEY = "loha-save-v1";
+const KEY = "loha-save-v3";
+const LEGACY_KEY = "loha-save-v2";
 
 export interface SaveBlob {
   time: { day: number; hour: number; phase: "day" | "night"; elapsedInPhase: number };
@@ -62,6 +62,7 @@ export const SaveManager = {
     try {
       localStorage.removeItem(KEY);
       localStorage.removeItem(LEGACY_KEY);
+      localStorage.removeItem("loha-save-v1");
     } catch {
       /* ignore */
     }

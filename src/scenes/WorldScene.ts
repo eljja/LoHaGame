@@ -160,8 +160,20 @@ export class WorldScene extends Phaser.Scene {
 
     // First visit hint
     const store2 = getStore(this);
-    if (!store2.flags.firstTimeVisited["beach" as never]) {
-      store2.pushLog("파도에 떠밀려 해변에 도착했다. D-패드나 화살표 키로 이동하고, 주변 자원을 탭하자.");
+    if (!store2.flags.firstTimeVisited["world" as never]) {
+      (store2.flags.firstTimeVisited as Record<string, boolean>)["world"] = true;
+      store2.pushLog("💡 화살표 키 또는 D-패드로 이동, 근처 오브젝트를 탭(클릭)하면 상호작용.");
+      store2.pushLog("🚢 근처에 좌초된 배가 있다! 가까이 다가가 탭하면 내부를 수색할 수 있다.");
+      // shipwreck 위치 힌트
+      const ship = store2.map.entities.find((e) => e.type === "shipwreck");
+      if (ship) {
+        const dx = ship.tx - store2.playerTx;
+        const dy = ship.ty - store2.playerTy;
+        const dir = Math.abs(dx) >= Math.abs(dy)
+          ? (dx > 0 ? "동쪽" : "서쪽")
+          : (dy > 0 ? "남쪽" : "북쪽");
+        store2.pushLog(`   → 배는 현재 위치에서 ${dir} 방향에 있다.`);
+      }
     }
   }
 
@@ -374,7 +386,11 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "cave_entrance": {
-        store.pushLog("🕳 동굴로 들어간다...");
+        if (store.inv.bestPickaxeTier() < 1) {
+          store.pushLog("⛏ 동굴 입구다. 안으로 들어가려면 곡괭이(⛏)가 필요하다.\n   제작 패널(C키)에서 돌 곡괭이를 만들어보자: 나뭇가지×2 + 돌×3 + 덩굴×1");
+          break;
+        }
+        store.pushLog("⛏ 동굴 안으로 들어간다... 어두운 돌 벽을 곡괭이로 두드리면 광석을 캘 수 있다.");
         store.caveDepth = 1;
         store.time.advanceMinutes(10);
         this.cameras.main.fadeOut(400, 0, 0, 0);
@@ -386,7 +402,13 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "shipwreck": {
-        this.lootShipwreck(entity);
+        const lootLeft = entity.meta?.lootLeft ?? 0;
+        if (lootLeft > 0) {
+          this.lootShipwreck(entity);
+        } else {
+          // 물자를 모두 수색한 뒤에는 배 안에서 잠들 수 있다
+          this.sleepAt("shipwreck");
+        }
         break;
       }
 
@@ -415,9 +437,23 @@ export class WorldScene extends Phaser.Scene {
 
       case "camp_spot": {
         if (store.flags.hasTent) {
-          this.sleep();
+          this.sleepAt("tent");
+        } else if (store.inv.has("tent")) {
+          // 인벤토리에 천막이 있으면 자동 설치
+          store.inv.remove("tent", 1);
+          store.flags.hasTent = true;
+          store.pushLog("⛺ 거점에 천막을 설치했다! 이곳에서 편히 잠들 수 있다.");
+          audio.play("craft");
+          if (store.inv.has("bonfire")) {
+            store.inv.remove("bonfire", 1);
+            store.flags.hasBonfire = true;
+            store.pushLog("🔥 모닥불도 함께 설치했다! 이제 요리가 가능하다.");
+          }
         } else {
-          store.pushLog("🏕 거점을 찾았다. 천막을 세워야 안전하게 쉴 수 있다.");
+          store.pushLog(
+            "🏕 거점 자리를 발견했다! 천막(⛺)을 제작해서 여기에 설치하면 매일 밤 쉴 수 있다.\n" +
+            "   제작 패널(C키) → 천막: 천 조각×4 + 나뭇가지×6 + 밧줄×2"
+          );
         }
         break;
       }
@@ -430,10 +466,6 @@ export class WorldScene extends Phaser.Scene {
   private lootShipwreck(entity: WorldEntity): void {
     const store = getStore(this);
     const lootLeft = entity.meta?.lootLeft ?? 0;
-    if (lootLeft <= 0) {
-      store.pushLog("🚢 난파선을 뒤졌지만 아무것도 남아있지 않다.");
-      return;
-    }
 
     store.time.advanceMinutes(30);
     store.stats.apply({ energy: -5 });
@@ -465,20 +497,38 @@ export class WorldScene extends Phaser.Scene {
     }
 
     const text = loot.map((l) => `${ITEMS[l.id].icon}${ITEMS[l.id].name}×${l.count}`).join(", ");
-    store.pushLog(`📦 난파선에서 ${text}을(를) 찾았다.`);
+    store.pushLog(`📦 난파선 내부 수색: ${text}`);
+    if ((entity.meta?.lootLeft ?? 0) <= 0) {
+      store.pushLog("💭 배 안에 물자가 모두 떨어졌다. 이제 배 안에서 잠들 수 있다. (다시 탭)");
+    }
     audio.play("pickup");
   }
 
-  private sleep(): void {
+  /** 쉼터 종류에 따라 다음 아침까지 시간을 건너뛰고 체력·행동력을 회복한다. */
+  private sleepAt(where: "tent" | "shipwreck"): void {
     const store = getStore(this);
-    const quality = store.flags.hasTent ? "편안하게" : "땅바닥에서";
+
+    // 낮이면 먼저 낮 구간을 건너뜀
     if (store.time.phase === "day") {
-      store.time.advanceMinutes(12 * 60 - Math.floor(store.time.phaseProgress * 12 * 60));
+      const dayLeft = Math.floor((1 - store.time.phaseProgress) * 12 * 60);
+      if (dayLeft > 0) store.time.advanceMinutes(dayLeft + 1);
     }
-    store.time.advanceMinutes(12 * 60 - Math.floor(store.time.phaseProgress * 12 * 60));
-    store.stats.restFull();
-    if (store.flags.hasTent) store.stats.apply({ hp: 20 });
-    store.pushLog(`💤 ${quality} 하룻밤을 보냈다.`);
+    // 밤 구간을 건너뜀 (아침까지)
+    const nightLeft = Math.floor((1 - store.time.phaseProgress) * 12 * 60);
+    if (nightLeft > 0) store.time.advanceMinutes(nightLeft + 1);
+
+    // 행동력 완전 회복
+    const energyNeeded = 100 - store.stats.energy;
+    if (energyNeeded > 0) store.stats.apply({ energy: energyNeeded });
+
+    if (where === "tent") {
+      store.stats.apply({ hp: 40 });
+      store.pushLog("⛺ 천막에서 편히 잠들었다. 체력과 행동력이 완전히 회복됐다!");
+    } else {
+      store.stats.apply({ hp: 20 });
+      store.pushLog("🚢 배 안에서 잠들었다. 체력과 행동력이 어느정도 회복됐다.");
+    }
+    audio.play("heal");
   }
 
   // ── UI ─────────────────────────────────────────────────────────

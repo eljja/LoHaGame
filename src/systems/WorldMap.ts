@@ -46,8 +46,9 @@ export class WorldMap {
     const N = this.size;
     const cx = (N - 1) / 2;
     const cy = (N - 1) / 2;
-    const islandR = 13.5;
-    const beachR = 14.8;
+    // 비례 상수: N=64 기준 → islandR≈27, beachR≈29.6
+    const islandR = N * 0.422;
+    const beachR  = N * 0.463;
 
     const forestNoise: number[][] = [];
     for (let y = 0; y < N; y++) {
@@ -61,7 +62,7 @@ export class WorldMap {
     const riverOffsets: number[] = [];
     const baseRiverX = Math.floor(N * 0.32);
     for (let y = 0; y < N; y++) {
-      const wave = Math.sin(y * 0.35 + rnd() * 0.3) * 2 + rnd() * 0.8 - 0.4;
+      const wave = Math.sin(y * 0.18 + rnd() * 0.3) * 3 + rnd() * 1.2 - 0.6;
       riverOffsets.push(Math.round(baseRiverX + wave));
     }
 
@@ -74,13 +75,13 @@ export class WorldMap {
         const d = Math.sqrt(dx * dx + dy * dy);
 
         let t: TerrainType;
-        if (d > beachR + 0.8) t = "deep_water";
+        if (d > beachR + 1.5) t = "deep_water";
         else if (d > beachR) t = "shallow_water";
         else if (d > islandR) t = "sand";
         else {
-          // 섬 내부 기본은 풀밭. 숲 노이즈 임계치 초과 시 숲.
+          // 섬 내부: 중심부는 숲 많고 가장자리는 풀
           const nz = forestNoise[y][x];
-          const forestBias = d < 8 ? 0.55 : 0.4;
+          const forestBias = d < N * 0.25 ? 0.55 : 0.4;
           t = nz > 1 - forestBias ? "forest" : "grass";
         }
         row.push(t);
@@ -93,28 +94,28 @@ export class WorldMap {
     for (let y = 0; y < N; y++) {
       for (let x = 0; x < N; x++) {
         const d = Math.sqrt((x - rockCenter.x) ** 2 + (y - rockCenter.y) ** 2);
-        if (d < 2.2 && this.in(x, y) && this.terrain[y][x] !== "deep_water" && this.terrain[y][x] !== "shallow_water") {
+        if (d < N * 0.07 && this.in(x, y) && this.terrain[y][x] !== "deep_water" && this.terrain[y][x] !== "shallow_water") {
           this.terrain[y][x] = "rock";
         }
       }
     }
 
-    // 절벽 (고지대): 남동 가장자리
+    // 절벽 (고지대): 동북 영역
     const cliffCenter = { x: Math.floor(N * 0.78), y: Math.floor(N * 0.24) };
     for (let y = 0; y < N; y++) {
       for (let x = 0; x < N; x++) {
         const d = Math.sqrt((x - cliffCenter.x) ** 2 + (y - cliffCenter.y) ** 2);
-        if (d < 1.8 && this.in(x, y) && this.terrain[y][x] !== "deep_water" && this.terrain[y][x] !== "shallow_water") {
+        if (d < N * 0.056 && this.in(x, y) && this.terrain[y][x] !== "deep_water" && this.terrain[y][x] !== "shallow_water") {
           this.terrain[y][x] = "cliff_rock";
         }
       }
     }
 
-    // 강 덧그리기 (섬 내부에서만)
+    // 강 덧그리기 (섬 내부에서만, 2~3칸 폭)
     for (let y = 0; y < N; y++) {
       const rx = riverOffsets[y];
-      const widths = [0];
-      if (rnd() > 0.4) widths.push(1);
+      const widths = [0, 1]; // 기본 2칸 폭
+      if (rnd() > 0.5) widths.push(2); // 가끔 3칸
       for (const w of widths) {
         const x = rx + w;
         if (this.in(x, y)) {
@@ -132,12 +133,15 @@ export class WorldMap {
     this.entities = [];
     this.nextId = 1;
     const rnd = mulberry32(this.seed ^ 0x9e37);
+    const N = this.size;
 
-    // POI 먼저: cave_entrance, shipwreck, cliff_lookout, river_spring, camp_spot
+    // POI 먼저
     this.placePoi("cave_entrance", rnd);
     this.placePoi("cliff_lookout", rnd);
     this.placePoi("shipwreck", rnd, (tx, ty) => this.isCoastalSand(tx, ty));
-    this.placePoi("camp_spot", rnd, (tx, ty) => this.distFromCenter(tx, ty) < 6 && this.terrain[ty][tx] === "grass");
+    this.placePoi("camp_spot", rnd, (tx, ty) =>
+      this.distFromCenter(tx, ty) < N * 0.188 && this.terrain[ty][tx] === "grass"
+    );
     this.placePoi("river_spring", rnd, (tx, ty) => this.adjacentTo(tx, ty, "river"));
     this.placePoi("river_spring", rnd, (tx, ty) => this.adjacentTo(tx, ty, "river"));
 
@@ -147,7 +151,7 @@ export class WorldMap {
 
   private placePoi(type: EntityType, rnd: () => number, filter?: (tx: number, ty: number) => boolean): void {
     const def = ENTITIES[type];
-    for (let attempt = 0; attempt < 400; attempt++) {
+    for (let attempt = 0; attempt < 600; attempt++) {
       const tx = Math.floor(rnd() * this.size);
       const ty = Math.floor(rnd() * this.size);
       if (!this.in(tx, ty)) continue;
@@ -163,22 +167,15 @@ export class WorldMap {
   private isCoastalSand(tx: number, ty: number): boolean {
     if (!this.in(tx, ty)) return false;
     if (this.terrain[ty][tx] !== "sand") return false;
-    // 4방향 중 하나라도 바다면 해안
     const ns: Array<[number, number]> = [
-      [tx + 1, ty],
-      [tx - 1, ty],
-      [tx, ty + 1],
-      [tx, ty - 1],
+      [tx + 1, ty], [tx - 1, ty], [tx, ty + 1], [tx, ty - 1],
     ];
     return ns.some(([x, y]) => this.in(x, y) && (this.terrain[y][x] === "shallow_water" || this.terrain[y][x] === "deep_water"));
   }
 
   private adjacentTo(tx: number, ty: number, t: TerrainType): boolean {
     const ns: Array<[number, number]> = [
-      [tx + 1, ty],
-      [tx - 1, ty],
-      [tx, ty + 1],
-      [tx, ty - 1],
+      [tx + 1, ty], [tx - 1, ty], [tx, ty + 1], [tx, ty - 1],
     ];
     return ns.some(([x, y]) => this.in(x, y) && this.terrain[y][x] === t);
   }
@@ -250,7 +247,7 @@ export class WorldMap {
 
   private trySpawn(type: EntityType, rnd: () => number): boolean {
     const def = ENTITIES[type];
-    for (let a = 0; a < 80; a++) {
+    for (let a = 0; a < 100; a++) {
       const tx = Math.floor(rnd() * this.size);
       const ty = Math.floor(rnd() * this.size);
       if (!this.in(tx, ty)) continue;
