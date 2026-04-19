@@ -24,13 +24,27 @@ export class PlayerStats extends Phaser.Events.EventEmitter {
   tick(deltaMs: number, phase: Phase): void {
     if (this.dead) return;
     const s = deltaMs / 1000;
+    const prevEnergy = this.energy;
+    const prevHunger = this.hunger;
+    const prevThirst = this.thirst;
+
     this.hunger = Math.max(0, this.hunger - STAT_DRAIN.hunger * s);
     this.thirst = Math.max(0, this.thirst - STAT_DRAIN.thirst * s);
     this.energy = Math.max(0, this.energy - (phase === "day" ? STAT_DRAIN.energyDay : STAT_DRAIN.energyNight) * s);
-    // 굶주림/탈수 피해
+
+    // 허기·탈수 → HP 감소
     if (this.hunger <= 0) this.hp -= 0.05 * s;
-    if (this.thirst <= 0) this.hp -= 0.1 * s;
+    if (this.thirst <= 0) this.hp -= 0.10 * s;
+    // 탈진(에너지=0) → HP 서서히 감소 (굶주림보다 약함)
+    if (this.energy <= 0) this.hp -= 0.03 * s;
+
     this.hp = Phaser.Math.Clamp(this.hp, 0, 100);
+
+    // 경계치 돌파 경고 이벤트 (UI 알림용)
+    if (prevEnergy > 0 && this.energy <= 0)  this.emit("warn", "energy");
+    if (prevHunger > 0 && this.hunger <= 0)  this.emit("warn", "hunger");
+    if (prevThirst > 0 && this.thirst <= 0)  this.emit("warn", "thirst");
+
     if (this.hp <= 0 && !this.dead) {
       this.dead = true;
       this.emit("death");

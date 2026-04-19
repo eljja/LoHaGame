@@ -101,6 +101,7 @@ export class HUDScene extends Phaser.Scene {
     });
     store.time.on("hourChange", () => this.clockText.setText(store.time.clockString()));
     store.stats.on("change", () => this.refreshStats());
+    store.stats.on("warn", (stat: string) => this.onStatDepleted(stat));
     store.on("log", () => this.refreshLog());
 
     this.refreshStats();
@@ -124,13 +125,44 @@ export class HUDScene extends Phaser.Scene {
     store.stats.tick(delta * store.time.speedMultiplier, store.time.phase);
   }
 
+  private onStatDepleted(stat: string): void {
+    const store = getStore(this);
+    const barEntry = this.statBars[stat];
+    if (barEntry) {
+      // 해당 스탯 바 빨간 깜빡임
+      this.tweens.add({
+        targets: barEntry.bar,
+        alpha: 0.1,
+        duration: 150,
+        yoyo: true,
+        repeat: 5,
+        onComplete: () => barEntry.bar.setAlpha(1),
+      });
+    }
+    const msgs: Record<string, string> = {
+      energy: "⚡ 행동력이 0이 됐다! 탈진 상태 — HP가 서서히 감소한다. 잠들어서 회복하라.",
+      hunger: "🍗 허기가 극에 달했다! 음식을 먹지 않으면 HP가 계속 줄어든다.",
+      thirst: "💧 극도로 목마르다! 물을 마시지 않으면 HP가 빠르게 줄어든다.",
+    };
+    if (msgs[stat]) store.pushLog(msgs[stat]);
+  }
+
   private refreshStats(): void {
     const s = getStore(this).stats;
     const map: Record<string, number> = { hp: s.hp, hunger: s.hunger, thirst: s.thirst, energy: s.energy };
+    const dangerColors: Record<string, number> = {
+      hp: COLORS.danger, hunger: 0xff6600, thirst: 0xff4444, energy: 0xff4444,
+    };
+    const normalColors: Record<string, number> = {
+      hp: COLORS.danger, hunger: COLORS.warn, thirst: COLORS.accent, energy: COLORS.good,
+    };
     for (const k of Object.keys(this.statBars)) {
       const v = map[k];
       this.statBars[k].bar.width = (v / 100) * 120;
       this.statBars[k].label.setText(Math.floor(v).toString());
+      // 20 이하면 빨간색으로 변색
+      const col = v <= 20 ? dangerColors[k] : normalColors[k];
+      this.statBars[k].bar.setFillStyle(col);
     }
   }
 
