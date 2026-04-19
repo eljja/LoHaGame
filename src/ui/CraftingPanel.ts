@@ -109,6 +109,9 @@ export class CraftingPanel {
     c.add(closeX);
     this.scene.input.keyboard?.once("keydown-ESC", () => this.close());
     this.container = c;
+
+    const worldCam = this.scene.cameras.main;
+    if (worldCam) worldCam.ignore(c);
   }
 
   close(): void {

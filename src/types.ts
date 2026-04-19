@@ -30,7 +30,16 @@ export type ItemId =
   | "tent"
   | "rope"
   | "metal_scrap"
-  | "herbal_drink";
+  | "herbal_drink"
+  | "mushroom"
+  | "large_bandage"
+  | "medkit"
+  | "iron_sword"
+  | "meat_stew"
+  | "smoked_fish"
+  | "energy_tonic"
+  | "trail_mix"
+  | "coconut";
 
 export interface ItemDef {
   id: ItemId;

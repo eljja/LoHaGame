@@ -23,6 +23,7 @@ export class WorldScene extends Phaser.Scene {
   private terrainGfx!: Phaser.GameObjects.Graphics;
   private entityObjects: Map<number, Phaser.GameObjects.Text> = new Map();
   private playerSprite!: Phaser.GameObjects.Text;
+  private playerShadow!: Phaser.GameObjects.Ellipse;
 
   // UI-space objects (UI camera)
   private uiContainer!: Phaser.GameObjects.Container;
@@ -63,6 +64,17 @@ export class WorldScene extends Phaser.Scene {
     this.terrainGfx = this.add.graphics();
     this.worldObjects.push(this.terrainGfx);
 
+    // Player shadow (elliptical, world space, behind player)
+    const playerShadow = this.add
+      .ellipse(
+        store.playerTx * TILE_PX + TILE_PX / 2,
+        store.playerTy * TILE_PX + TILE_PX / 2 + 10,
+        22, 8, 0x000000, 0.35
+      )
+      .setDepth(9);
+    this.worldObjects.push(playerShadow);
+    this.playerShadow = playerShadow;
+
     // Player sprite (world space)
     this.playerSprite = this.add
       .text(
@@ -74,6 +86,16 @@ export class WorldScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(10);
     this.worldObjects.push(this.playerSprite);
+
+    // 플레이어 가벼운 호흡 애니메이션 (원래 위치 추적 방해 없이 스케일만)
+    this.tweens.add({
+      targets: this.playerSprite,
+      scaleY: 1.04,
+      duration: 1200,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.InOut",
+    });
 
     // Camera follow player with lerp
     this.worldCam.startFollow(this.playerSprite, true, 0.1, 0.1);
@@ -206,7 +228,9 @@ export class WorldScene extends Phaser.Scene {
     this.entityObjects.clear();
 
     // Remove old entity objects from worldObjects tracking
-    this.worldObjects = this.worldObjects.filter((o) => o === this.terrainGfx || o === this.playerSprite);
+    this.worldObjects = this.worldObjects.filter(
+      (o) => o === this.terrainGfx || o === this.playerSprite || o === this.playerShadow
+    );
 
     for (const entity of store.map.entities) {
       const def = ENTITIES[entity.type];
@@ -222,8 +246,42 @@ export class WorldScene extends Phaser.Scene {
       t.on("pointerdown", () => this.tapEntity(entity));
       t.on("pointerover", () => {
         this.actionHintText.setText(`${def.icon} ${def.label} — 탭하여 상호작용`);
+        this.tweens.add({ targets: t, scale: 1.2, duration: 120, ease: "Sine.Out" });
       });
-      t.on("pointerout", () => this.updateActionHint());
+      t.on("pointerout", () => {
+        this.updateActionHint();
+        this.tweens.add({ targets: t, scale: 1.0, duration: 120, ease: "Sine.Out" });
+      });
+
+      // 살아있는 엔티티는 가볍게 흔들/호흡 애니메이션
+      if (entity.type === "rabbit") {
+        this.tweens.add({
+          targets: t,
+          y: worldY - 3,
+          duration: 320,
+          ease: "Sine.InOut",
+          yoyo: true,
+          repeat: -1,
+        });
+      } else if (entity.type === "flower" || entity.type === "berry_bush" || entity.type === "mushroom" || entity.type === "vine") {
+        this.tweens.add({
+          targets: t,
+          angle: 4,
+          duration: 1200 + Math.random() * 800,
+          ease: "Sine.InOut",
+          yoyo: true,
+          repeat: -1,
+        });
+      } else if (entity.type === "shell" || entity.type === "driftwood") {
+        this.tweens.add({
+          targets: t,
+          y: worldY - 2,
+          duration: 900 + Math.random() * 600,
+          ease: "Sine.InOut",
+          yoyo: true,
+          repeat: -1,
+        });
+      }
 
       this.entityObjects.set(entity.id, t);
       this.worldObjects.push(t);
@@ -231,6 +289,32 @@ export class WorldScene extends Phaser.Scene {
 
     // Update UI camera ignore list
     this.uiCam.ignore(this.worldObjects);
+  }
+
+  /** 플레이어 머리 위로 획득 아이템 텍스트가 떠오르며 사라지는 이펙트. */
+  private spawnPickupFx(tx: number, ty: number, text: string, color = "#ffd97a"): void {
+    const wx = tx * TILE_PX + TILE_PX / 2;
+    const wy = ty * TILE_PX + TILE_PX / 2;
+    const fx = this.add
+      .text(wx, wy - 10, text, {
+        fontFamily: "Galmuri11, monospace",
+        fontSize: "14px",
+        color,
+        stroke: "#0a0f22",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(20);
+    this.worldObjects.push(fx);
+    this.uiCam.ignore(fx);
+    this.tweens.add({
+      targets: fx,
+      y: wy - 48,
+      alpha: 0,
+      duration: 900,
+      ease: "Cubic.Out",
+      onComplete: () => fx.destroy(),
+    });
   }
 
   // ── Player movement ────────────────────────────────────────────
@@ -254,12 +338,29 @@ export class WorldScene extends Phaser.Scene {
     store.stats.apply({ energy: -0.5 });
 
     // Animate player
+    const newX = nx * TILE_PX + TILE_PX / 2;
+    const newY = ny * TILE_PX + TILE_PX / 2;
     this.tweens.add({
       targets: this.playerSprite,
-      x: nx * TILE_PX + TILE_PX / 2,
-      y: ny * TILE_PX + TILE_PX / 2,
+      x: newX,
+      y: newY,
       duration: 120,
       ease: "Linear",
+    });
+    this.tweens.add({
+      targets: this.playerShadow,
+      x: newX,
+      y: newY + 10,
+      duration: 120,
+      ease: "Linear",
+    });
+    // 발자국 같은 잔상: 살짝 위아래로 튀어오르는 hop
+    this.tweens.add({
+      targets: this.playerSprite,
+      scaleY: 0.92,
+      duration: 60,
+      yoyo: true,
+      ease: "Quad.Out",
     });
 
     this.updateActionHint();
@@ -290,6 +391,7 @@ export class WorldScene extends Phaser.Scene {
         store.time.advanceMinutes(15);
         store.stats.apply({ energy: -3 });
         store.pushLog(`🌳 나무에서 나뭇가지를 구했다. 나뭇가지 ×${count}`);
+        this.spawnPickupFx(entity.tx, entity.ty, `+🪵×${count}`);
         audio.play("pickup");
         break;
       }
@@ -300,6 +402,7 @@ export class WorldScene extends Phaser.Scene {
         store.map.removeEntity(entity.id);
         store.time.advanceMinutes(10);
         store.pushLog(`🫐 열매덤불에서 열매를 땄다. 열매 ×${count}`);
+        this.spawnPickupFx(entity.tx, entity.ty, `+🫐×${count}`);
         audio.play("pickup");
         break;
       }
@@ -311,6 +414,7 @@ export class WorldScene extends Phaser.Scene {
         store.time.advanceMinutes(20);
         store.stats.apply({ energy: -5 });
         store.pushLog(`🪨 돌을 캤다. 돌 ×${count}`);
+        this.spawnPickupFx(entity.tx, entity.ty, `+🪨×${count}`);
         audio.play("pickup");
         break;
       }
@@ -321,6 +425,7 @@ export class WorldScene extends Phaser.Scene {
         store.map.removeEntity(entity.id);
         store.time.advanceMinutes(10);
         store.pushLog(`🌿 덩굴을 모았다. 덩굴 ×${count}`);
+        this.spawnPickupFx(entity.tx, entity.ty, `+🌿×${count}`);
         audio.play("pickup");
         break;
       }
@@ -329,15 +434,22 @@ export class WorldScene extends Phaser.Scene {
         const r = Math.random();
         store.map.removeEntity(entity.id);
         store.time.advanceMinutes(10);
-        if (r < 0.3) {
+        if (r < 0.25) {
           store.inv.add("fish_raw", 1);
           store.pushLog("🐚 조개에서 날것 물고기를 찾았다.");
-        } else if (r < 0.6) {
+          this.spawnPickupFx(entity.tx, entity.ty, "+🐟×1");
+        } else if (r < 0.45) {
           store.inv.add("stone", 1);
           store.pushLog("🐚 조개 속에 돌이 들어있었다.");
-        } else if (r < 0.8) {
+          this.spawnPickupFx(entity.tx, entity.ty, "+🪨×1");
+        } else if (r < 0.65) {
           store.inv.add("cloth", 1);
           store.pushLog("🐚 조개에서 낡은 천 조각을 발견했다.");
+          this.spawnPickupFx(entity.tx, entity.ty, "+🧵×1");
+        } else if (r < 0.8) {
+          store.inv.add("coconut", 1);
+          store.pushLog("🥥 파도에 휩쓸려온 야자 열매를 주웠다.");
+          this.spawnPickupFx(entity.tx, entity.ty, "+🥥×1", "#e3f0b0");
         } else {
           store.pushLog("🐚 빈 조개껍데기다.");
         }
@@ -350,16 +462,25 @@ export class WorldScene extends Phaser.Scene {
         store.inv.add("stick", count);
         store.map.removeEntity(entity.id);
         store.time.advanceMinutes(10);
-        store.pushLog(`🪵 유목에서 나뭇가지를 모았다. 나뭇가지 ×${count}`);
+        let msg = `🪵 유목에서 나뭇가지를 모았다. 나뭇가지 ×${count}`;
+        this.spawnPickupFx(entity.tx, entity.ty, `+🪵×${count}`);
+        if (Math.random() < 0.2) {
+          store.inv.add("coconut", 1);
+          msg += " (+🥥 야자 열매)";
+          this.spawnPickupFx(entity.tx, entity.ty - 1, "+🥥×1", "#e3f0b0");
+        }
+        store.pushLog(msg);
         audio.play("pickup");
         break;
       }
 
       case "mushroom": {
-        store.inv.add("berry", 1); // mushroom as food item
+        const count = Phaser.Math.Between(1, 2);
+        store.inv.add("mushroom", count);
         store.map.removeEntity(entity.id);
         store.time.advanceMinutes(10);
-        store.pushLog("🍄 버섯을 채취했다. (먹을 수 있다)");
+        store.pushLog(`🍄 버섯을 채취했다. 버섯 ×${count} (약한 회복 효과)`);
+        this.spawnPickupFx(entity.tx, entity.ty, `+🍄×${count}`, "#ffb3d1");
         audio.play("pickup");
         break;
       }
@@ -473,18 +594,20 @@ export class WorldScene extends Phaser.Scene {
     const lootPools = [
       [
         { id: "can_food" as const, count: 3 },
-        { id: "bandage" as const, count: 1 },
+        { id: "bandage" as const, count: 2 },
         { id: "water_clean" as const, count: 2 },
       ],
       [
         { id: "can_food" as const, count: 2 },
         { id: "pistol" as const, count: 1 },
         { id: "bullet" as const, count: 6 },
+        { id: "medkit" as const, count: 1 },
       ],
       [
         { id: "blanket" as const, count: 1 },
         { id: "cloth" as const, count: 3 },
         { id: "water_clean" as const, count: 1 },
+        { id: "large_bandage" as const, count: 1 },
       ],
     ];
 

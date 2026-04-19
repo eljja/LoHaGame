@@ -92,6 +92,10 @@ export class InventoryPanel {
 
     this.scene.input.keyboard?.once("keydown-ESC", () => this.close());
     this.container = c;
+
+    // 월드 카메라는 스크롤하므로, 패널은 UI 카메라에만 렌더되도록 무시 처리
+    const worldCam = this.scene.cameras.main;
+    if (worldCam) worldCam.ignore(c);
   }
 
   private useItem(id: ItemId, onUse?: (id: ItemId) => void): void {

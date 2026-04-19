@@ -12,6 +12,21 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     desc: "약간의 허기와 피로를 달래준다.",
     stack: 99, consume: { hunger: 12, thirst: 3, energy: 6 }, category: "food",
   },
+  mushroom: {
+    id: "mushroom", name: "버섯", icon: "🍄",
+    desc: "숲의 버섯. 약한 회복 효과.",
+    stack: 99, consume: { hunger: 8, energy: 10 }, category: "food",
+  },
+  coconut: {
+    id: "coconut", name: "야자 열매", icon: "🥥",
+    desc: "해변에서 주운 야자. 수분과 열량이 풍부.",
+    stack: 20, consume: { hunger: 18, thirst: 30, energy: 10 }, category: "food",
+  },
+  trail_mix: {
+    id: "trail_mix", name: "야생식 꾸러미", icon: "🥜",
+    desc: "열매와 버섯을 말려 뭉친 간식. 가벼운 한 끼.",
+    stack: 20, consume: { hunger: 30, energy: 18 }, category: "food",
+  },
   fish_raw: {
     id: "fish_raw", name: "생 물고기", icon: "🐟",
     desc: "날것은 배탈의 위험. 익혀 먹자.",
@@ -31,6 +46,16 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     id: "meat_cooked", name: "구운 고기", icon: "🍖",
     desc: "든든한 한 끼. 행동력도 크게 회복된다.",
     stack: 99, consume: { hunger: 50, energy: 25 }, category: "food",
+  },
+  smoked_fish: {
+    id: "smoked_fish", name: "훈제 생선", icon: "🍣",
+    desc: "천과 함께 연기에 말린 생선. 보존성과 효능 모두 뛰어나다.",
+    stack: 30, consume: { hunger: 55, thirst: 5, energy: 30 }, category: "food",
+  },
+  meat_stew: {
+    id: "meat_stew", name: "고기 스튜", icon: "🍲",
+    desc: "물과 열매로 푹 고아낸 스튜. 최고의 한 상.",
+    stack: 10, consume: { hunger: 80, thirst: 30, energy: 45, hp: 15 }, category: "food",
   },
 
   water_dirty: {
@@ -56,12 +81,27 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     desc: "버섯으로 끓인 차. 피로 회복에 최고.",
     stack: 10, consume: { energy: 50, thirst: 20 }, category: "food",
   },
+  energy_tonic: {
+    id: "energy_tonic", name: "강장 영약", icon: "🧪",
+    desc: "허브차를 농축한 보양제. 탈진 직전에도 즉시 회복.",
+    stack: 5, consume: { energy: 95, hp: 10, thirst: 10 }, category: "food",
+  },
 
   // ── 회복 아이템 ──────────────────────────────────────────────────────────────
   bandage: {
     id: "bandage", name: "붕대", icon: "🩹",
     desc: "상처를 감싼다. HP가 회복된다.",
     stack: 20, consume: { hp: 40 }, category: "misc",
+  },
+  large_bandage: {
+    id: "large_bandage", name: "대형 붕대", icon: "🧻",
+    desc: "넓은 상처까지 감싸는 고급 붕대. 체력이 크게 회복된다.",
+    stack: 10, consume: { hp: 75 }, category: "misc",
+  },
+  medkit: {
+    id: "medkit", name: "구급상자", icon: "🧰",
+    desc: "약품과 붕대가 든 상자. 즉시 완전 회복.",
+    stack: 3, consume: { hp: 100, energy: 20 }, category: "misc",
   },
   blanket: {
     id: "blanket", name: "담요", icon: "🛏",
@@ -82,6 +122,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   wood_club:    { id: "wood_club",    name: "나무몽둥이", icon: "🏏", desc: "원시적이지만 유용.",          stack: 1,  weaponDamage: 8,  category: "weapon" },
   stone_axe:    { id: "stone_axe",    name: "돌도끼",     icon: "🪓", desc: "나무를 빠르게 벤다.",         stack: 1,  weaponDamage: 12, tool: "axe", category: "weapon" },
   stone_spear:  { id: "stone_spear",  name: "돌창",       icon: "🗡", desc: "찌르기 공격.",                stack: 1,  weaponDamage: 16, category: "weapon" },
+  iron_sword:   { id: "iron_sword",   name: "철검",       icon: "⚔", desc: "벼려낸 철로 만든 강력한 검.", stack: 1,  weaponDamage: 30, category: "weapon" },
   fishing_rod:  { id: "fishing_rod",  name: "나무 낚싯대",icon: "🎣", desc: "강과 바다에서 낚시.",          stack: 1,  tool: "rod",     category: "tool" },
   stone_pickaxe:{ id: "stone_pickaxe",name: "돌 곡괭이",  icon: "⛏", desc: "돌과 약한 광석을 캔다.",      stack: 1,  tool: "pickaxe", pickaxeTier: 1, category: "tool" },
   iron_pickaxe: { id: "iron_pickaxe", name: "철 곡괭이",  icon: "⚒", desc: "깊은 광맥을 캔다.",           stack: 1,  tool: "pickaxe", pickaxeTier: 2, category: "tool" },
