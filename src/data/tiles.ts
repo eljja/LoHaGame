@@ -54,7 +54,8 @@ export type EntityType =
   | "shipwreck"
   | "cliff_lookout"
   | "river_spring"
-  | "camp_spot";
+  | "camp_spot"
+  | "fishing_spot";
 
 export interface EntityTypeDef {
   icon: string;
@@ -86,4 +87,5 @@ export const ENTITIES: Record<EntityType, EntityTypeDef> = {
   cliff_lookout:{ icon: "🏔", label: "절벽 전망대",terrain: ["cliff_rock"],       cap: 1,   respawn: false, blocksMovement: false, reach: 1 },
   river_spring: { icon: "💧", label: "샘",         terrain: ["sand", "grass"],    cap: 2,   respawn: false, blocksMovement: false, reach: 1 },
   camp_spot:    { icon: "🏕", label: "거점 자리",  terrain: ["grass"],            cap: 1,   respawn: false, blocksMovement: false, reach: 0 },
+  fishing_spot: { icon: "🎣", label: "낚시 포인트",terrain: ["sand", "grass"],    cap: 3,   respawn: false, blocksMovement: false, reach: 1 },
 };

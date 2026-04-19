@@ -3,81 +3,44 @@ import { GAME_WIDTH, GAME_HEIGHT, COLORS } from "../config";
 import { ITEMS } from "../data/items";
 import type { ItemId } from "../types";
 import { drawPanel } from "./Panel";
-import { makeButton } from "./Button";
+import { makeButton, type ButtonNode } from "./Button";
 import { getStore } from "../systems/GameStore";
+import { audio } from "../systems/AudioManager";
 
 export class InventoryPanel {
   private container?: Phaser.GameObjects.Container;
+  private selectedSlotIdx: number | null = null;
+  private detailContainer?: Phaser.GameObjects.Container;
+  private gridContainer?: Phaser.GameObjects.Container;
+  private onUseCallback?: (id: ItemId) => void;
 
   constructor(private scene: Phaser.Scene) {}
 
   open(onUse?: (id: ItemId) => void): void {
     if (this.container) this.close();
-    const store = getStore(this.scene);
-    const w = 720;
-    const h = 540;
+    this.onUseCallback = onUse;
+    this.selectedSlotIdx = null;
+    const w = 760;
+    const h = 570;
     const x = (GAME_WIDTH - w) / 2;
     const y = (GAME_HEIGHT - h) / 2;
 
     const c = this.scene.add.container(0, 0).setDepth(200);
-    const overlay = this.scene.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55).setOrigin(0, 0);
+    const overlay = this.scene.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.6).setOrigin(0, 0);
     overlay.setInteractive();
     const panel = drawPanel(this.scene, x, y, w, h, { fill: 0x0b1228, alpha: 0.98 });
-    const title = this.scene.add.text(x + 20, y + 18, "🎒 인벤토리", {
+    const title = this.scene.add.text(x + 22, y + 20, "🎒 인벤토리", {
       fontFamily: "Galmuri11, monospace",
       fontSize: "24px",
       color: "#eaf0ff",
     });
-    const hint = this.scene.add.text(x + 20, y + 52, "아이템을 클릭하면 사용할 수 있다.", {
+    const hint = this.scene.add.text(x + 22, y + 54, "슬롯을 클릭하면 아이템 정보와 사용 옵션이 표시된다.", {
       fontFamily: "Galmuri11, monospace",
       fontSize: "13px",
       color: "#8d9bd1",
     });
-
     c.add([overlay, panel, title, hint]);
 
-    // 슬롯 그리드 4열 x 5행
-    const cols = 5;
-    const rows = 4;
-    const slotSize = 96;
-    const gap = 12;
-    const gridW = cols * slotSize + (cols - 1) * gap;
-    const startX = x + (w - gridW) / 2;
-    const startY = y + 90;
-
-    for (let i = 0; i < cols * rows; i++) {
-      const cx = startX + (i % cols) * (slotSize + gap);
-      const cy = startY + Math.floor(i / cols) * (slotSize + gap);
-      const slot = store.inv.slots[i] ?? null;
-
-      const bg = this.scene.add.rectangle(cx, cy, slotSize, slotSize, 0x111a38, 1).setOrigin(0, 0).setStrokeStyle(2, COLORS.panelBorder);
-      c.add(bg);
-      if (slot) {
-        const def = ITEMS[slot.id];
-        const emoji = this.scene.add.text(cx + slotSize / 2, cy + slotSize / 2 - 6, def.icon, {
-          fontSize: "42px",
-        }).setOrigin(0.5);
-        const name = this.scene.add.text(cx + slotSize / 2, cy + slotSize - 20, def.name, {
-          fontFamily: "Galmuri11, monospace",
-          fontSize: "11px",
-          color: "#cfd8ff",
-        }).setOrigin(0.5);
-        const count = this.scene.add.text(cx + slotSize - 6, cy + 4, String(slot.count), {
-          fontFamily: "Galmuri11, monospace",
-          fontSize: "13px",
-          color: "#ffd97a",
-        }).setOrigin(1, 0);
-        c.add([emoji, name, count]);
-        bg.setInteractive({ useHandCursor: true });
-        bg.on("pointerover", () => bg.setFillStyle(0x1c2a5c));
-        bg.on("pointerout", () => bg.setFillStyle(0x111a38));
-        bg.on("pointerdown", () => {
-          this.useItem(slot.id, onUse);
-        });
-      }
-    }
-
-    // 닫기: 우상단 ✕ 큰 버튼 (터치 친화)
     const closeX = makeButton(this.scene, x + w - 40, y + 40, {
       label: "✕",
       width: 60,
@@ -90,23 +53,236 @@ export class InventoryPanel {
     });
     c.add(closeX);
 
-    this.scene.input.keyboard?.once("keydown-ESC", () => this.close());
     this.container = c;
 
-    // 월드 카메라는 스크롤하므로, 패널은 UI 카메라에만 렌더되도록 무시 처리
+    const gridSlot = this.scene.add.container(0, 0);
+    this.gridContainer = gridSlot;
+    c.add(gridSlot);
+    this.renderGrid(x, y, w);
+
+    const detailSlot = this.scene.add.container(0, 0);
+    this.detailContainer = detailSlot;
+    c.add(detailSlot);
+    this.renderDetail(x, y, w, h);
+
+    this.scene.input.keyboard?.once("keydown-ESC", () => this.close());
+
     const worldCam = this.scene.cameras.main;
     if (worldCam) worldCam.ignore(c);
   }
 
-  private useItem(id: ItemId, onUse?: (id: ItemId) => void): void {
+  private renderGrid(panelX: number, panelY: number, panelW: number): void {
+    const slot = this.gridContainer!;
+    slot.removeAll(true);
+    const store = getStore(this.scene);
+
+    const cols = 5;
+    const slotSize = 90;
+    const gap = 10;
+    const gridW = cols * slotSize + (cols - 1) * gap;
+    const startX = panelX + (panelW - gridW) / 2;
+    const startY = panelY + 86;
+
+    for (let i = 0; i < 20; i++) {
+      const cx = startX + (i % cols) * (slotSize + gap);
+      const cy = startY + Math.floor(i / cols) * (slotSize + gap);
+      const item = store.inv.slots[i] ?? null;
+      const isSelected = this.selectedSlotIdx === i;
+
+      const borderCol = isSelected ? COLORS.accent : COLORS.panelBorder;
+      const fillCol = isSelected ? 0x1c2a5c : 0x111a38;
+      const bg = this.scene.add
+        .rectangle(cx, cy, slotSize, slotSize, fillCol, 1)
+        .setOrigin(0, 0)
+        .setStrokeStyle(isSelected ? 3 : 2, borderCol);
+      slot.add(bg);
+
+      if (item) {
+        const def = ITEMS[item.id];
+        const emoji = this.scene.add
+          .text(cx + slotSize / 2, cy + slotSize / 2 - 8, def.icon, { fontSize: "38px" })
+          .setOrigin(0.5);
+        const count = this.scene.add
+          .text(cx + slotSize - 5, cy + 4, `×${item.count}`, {
+            fontFamily: "Galmuri11, monospace",
+            fontSize: "12px",
+            color: "#ffd97a",
+          })
+          .setOrigin(1, 0);
+        const catColors: Record<string, string> = {
+          food: "#8be58b", weapon: "#ff9a9a", tool: "#ffd97a", material: "#a3b4e8", misc: "#cfd8ff", build: "#e8c860",
+        };
+        const cat = this.scene.add
+          .text(cx + slotSize / 2, cy + slotSize - 14, def.name, {
+            fontFamily: "Galmuri11, monospace",
+            fontSize: "11px",
+            color: catColors[def.category] ?? "#cfd8ff",
+          })
+          .setOrigin(0.5);
+        slot.add([emoji, count, cat]);
+
+        bg.setInteractive({ useHandCursor: true });
+        bg.on("pointerover", () => { if (!isSelected) bg.setFillStyle(0x172447); });
+        bg.on("pointerout", () => { if (!isSelected) bg.setFillStyle(fillCol); });
+        bg.on("pointerdown", () => {
+          if (this.selectedSlotIdx === i) {
+            this.selectedSlotIdx = null;
+          } else {
+            this.selectedSlotIdx = i;
+            audio.play("click");
+          }
+          const w = 760;
+          const h = 570;
+          const x = (GAME_WIDTH - w) / 2;
+          const y = (GAME_HEIGHT - h) / 2;
+          this.renderGrid(x, y, w);
+          this.renderDetail(x, y, w, h);
+        });
+      } else {
+        // 빈 슬롯: 슬롯 번호 표시
+        const numTxt = this.scene.add.text(cx + slotSize / 2, cy + slotSize / 2, String(i + 1), {
+          fontFamily: "Galmuri11, monospace",
+          fontSize: "14px",
+          color: "#2a3660",
+        }).setOrigin(0.5);
+        slot.add(numTxt);
+      }
+    }
+
+    const worldCam = this.scene.cameras.main;
+    if (worldCam && this.container) worldCam.ignore(slot);
+  }
+
+  private renderDetail(panelX: number, panelY: number, panelW: number, panelH: number): void {
+    const slot = this.detailContainer!;
+    slot.removeAll(true);
+    const store = getStore(this.scene);
+
+    const detailY = panelY + 86 + 4 * 100; // 아래 영역
+    const detailH = panelH - (detailY - panelY) - 16;
+    const dX = panelX + 16;
+    const dW = panelW - 32;
+
+    // 구분선
+    const sep = this.scene.add
+      .rectangle(dX, detailY, dW, 1, COLORS.panelBorder, 0.5)
+      .setOrigin(0, 0);
+    slot.add(sep);
+
+    if (this.selectedSlotIdx === null || !store.inv.slots[this.selectedSlotIdx]) {
+      const hintText = this.scene.add
+        .text(panelX + panelW / 2, detailY + detailH / 2, "슬롯을 클릭하면 아이템 정보가 표시됩니다.", {
+          fontFamily: "Galmuri11, monospace",
+          fontSize: "13px",
+          color: "#4a5880",
+        })
+        .setOrigin(0.5);
+      slot.add(hintText);
+      const worldCam = this.scene.cameras.main;
+      if (worldCam && this.container) worldCam.ignore(slot);
+      return;
+    }
+
+    const item = store.inv.slots[this.selectedSlotIdx]!;
+    const def = ITEMS[item.id];
+
+    // 아이콘 + 이름
+    const iconTxt = this.scene.add
+      .text(dX + 40, detailY + 16, def.icon, { fontSize: "44px" })
+      .setOrigin(0.5, 0);
+    const nameTxt = this.scene.add
+      .text(dX + 76, detailY + 16, def.name, {
+        fontFamily: "Galmuri11, monospace",
+        fontSize: "20px",
+        color: "#eaf0ff",
+      });
+    const catColors: Record<string, string> = {
+      food: "#8be58b", weapon: "#ff9a9a", tool: "#ffd97a", material: "#a3b4e8", misc: "#cfd8ff", build: "#e8c860",
+    };
+    const catLabel: Record<string, string> = {
+      food: "음식", weapon: "무기", tool: "도구", material: "재료", misc: "기타", build: "건축",
+    };
+    const catTxt = this.scene.add.text(dX + 76, detailY + 44, `[${catLabel[def.category] ?? def.category}]  보유: ${item.count}개`, {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "13px",
+      color: catColors[def.category] ?? "#a3b4e8",
+    });
+    const descTxt = this.scene.add.text(dX + 76, detailY + 64, def.desc, {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "13px",
+      color: "#8d9bd1",
+      wordWrap: { width: dW - 90 },
+    });
+    slot.add([iconTxt, nameTxt, catTxt, descTxt]);
+
+    // 스탯 효과 표시 (소비 아이템)
+    if (def.consume) {
+      const parts: string[] = [];
+      const c = def.consume;
+      if (c.hp)     parts.push(`❤ HP ${c.hp > 0 ? "+" : ""}${c.hp}`);
+      if (c.hunger) parts.push(`🍗 허기 ${c.hunger > 0 ? "+" : ""}${c.hunger}`);
+      if (c.thirst) parts.push(`💧 갈증 ${c.thirst > 0 ? "+" : ""}${c.thirst}`);
+      if (c.energy) parts.push(`⚡ 행동력 ${c.energy > 0 ? "+" : ""}${c.energy}`);
+      const effectTxt = this.scene.add.text(dX + 76, detailY + 88, parts.join("   "), {
+        fontFamily: "Galmuri11, monospace",
+        fontSize: "13px",
+        color: "#ffe08a",
+      });
+      slot.add(effectTxt);
+    }
+    if (def.weaponDamage) {
+      const dmgTxt = this.scene.add.text(dX + 76, detailY + 88, `⚔ 공격력: ${def.weaponDamage}`, {
+        fontFamily: "Galmuri11, monospace",
+        fontSize: "13px",
+        color: "#ff9a9a",
+      });
+      slot.add(dmgTxt);
+    }
+
+    // 액션 버튼들
+    const btnY = detailY + detailH - 4;
+    const buttons: Array<{ label: string; action: () => void; disabled?: boolean; color?: number }> = [];
+
+    if (def.consume || def.placeable) {
+      buttons.push({
+        label: def.placeable ? "🏕 설치" : "✅ 사용",
+        action: () => this.useItem(item.id),
+        color: 0x1e4a2a,
+      });
+    }
+    buttons.push({
+      label: "❌ 버리기",
+      action: () => this.dropItem(item.id),
+      color: 0x2a0f18,
+    });
+
+    const bw = 150;
+    const gap = 10;
+    buttons.forEach((b, i) => {
+      const btn = makeButton(this.scene, dX + bw / 2 + i * (bw + gap), btnY, {
+        label: b.label,
+        width: bw,
+        height: 40,
+        fontSize: 14,
+        bg: b.color ?? COLORS.panel,
+        onClick: b.action,
+        disabled: b.disabled,
+      });
+      slot.add(btn as ButtonNode);
+    });
+
+    const worldCam = this.scene.cameras.main;
+    if (worldCam && this.container) worldCam.ignore(slot);
+  }
+
+  private useItem(id: ItemId): void {
     const store = getStore(this.scene);
     const def = ITEMS[id];
     if (def.placeable) {
-      // Allow placement on grass or sand terrain (open world)
       const map = store.map;
       const terrain = map.terrainAt(store.playerTx, store.playerTy);
       if (terrain !== "grass" && terrain !== "sand" && terrain !== "forest") {
-        store.pushLog("이곳에는 설치할 수 없다. 풀밭이나 해변에서만 설치할 수 있다.");
+        store.pushLog("이곳에는 설치할 수 없다. 풀밭이나 해변에서 설치 가능.");
         return;
       }
       if (def.placeable === "bonfire" && !store.flags.hasBonfire) {
@@ -119,25 +295,56 @@ export class InventoryPanel {
         store.pushLog("⛺ 천막을 세웠다. 거점이 확장됐다.");
       } else {
         store.pushLog("이미 설치되어 있다.");
+        return;
       }
       this.close();
-      if (onUse) onUse(id);
+      if (this.onUseCallback) this.onUseCallback(id);
       return;
     }
     if (def.consume) {
       store.inv.remove(id, 1);
       store.stats.apply(def.consume);
-      store.pushLog(`${def.icon} ${def.name}을(를) 사용했다.`);
-      this.close();
-      if (onUse) onUse(id);
+      const effects: string[] = [];
+      if (def.consume.hp)     effects.push(`❤${def.consume.hp > 0 ? "+" : ""}${def.consume.hp}`);
+      if (def.consume.hunger) effects.push(`🍗+${def.consume.hunger}`);
+      if (def.consume.thirst) effects.push(`💧+${def.consume.thirst}`);
+      if (def.consume.energy) effects.push(`⚡+${def.consume.energy}`);
+      store.pushLog(`${def.icon} ${def.name} 사용. ${effects.join(" ")}`);
+      audio.play("heal");
+      this.selectedSlotIdx = null;
+      const w = 760;
+      const h = 570;
+      const x = (GAME_WIDTH - w) / 2;
+      const y = (GAME_HEIGHT - h) / 2;
+      this.renderGrid(x, y, w);
+      this.renderDetail(x, y, w, h);
+      if (this.onUseCallback) this.onUseCallback(id);
       return;
     }
-    store.pushLog(`${def.name}은(는) 지금 사용할 수 없다.`);
+    store.pushLog(`${def.name}은(는) 지금 바로 사용할 수 없다.`);
+  }
+
+  private dropItem(id: ItemId): void {
+    const store = getStore(this.scene);
+    const def = ITEMS[id];
+    store.inv.remove(id, 1);
+    store.pushLog(`🗑 ${def.icon} ${def.name}을(를) 버렸다.`);
+    audio.play("click");
+    this.selectedSlotIdx = null;
+    const w = 760;
+    const h = 570;
+    const x = (GAME_WIDTH - w) / 2;
+    const y = (GAME_HEIGHT - h) / 2;
+    this.renderGrid(x, y, w);
+    this.renderDetail(x, y, w, h);
   }
 
   close(): void {
     this.container?.destroy();
     this.container = undefined;
+    this.selectedSlotIdx = null;
+    this.detailContainer = undefined;
+    this.gridContainer = undefined;
   }
 
   get isOpen(): boolean {

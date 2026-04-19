@@ -144,6 +144,10 @@ export class WorldMap {
     );
     this.placePoi("river_spring", rnd, (tx, ty) => this.adjacentTo(tx, ty, "river"));
     this.placePoi("river_spring", rnd, (tx, ty) => this.adjacentTo(tx, ty, "river"));
+    // 낚시 포인트: 강 옆 2군데 + 해변 1군데
+    this.placePoi("fishing_spot", rnd, (tx, ty) => this.adjacentTo(tx, ty, "river"));
+    this.placePoi("fishing_spot", rnd, (tx, ty) => this.adjacentTo(tx, ty, "river"));
+    this.placePoi("fishing_spot", rnd, (tx, ty) => this.terrain[ty][tx] === "sand" && this.adjacentTo(tx, ty, "shallow_water"));
 
     // 자원 리스폰
     this.nightRespawn();

@@ -1,12 +1,12 @@
 import Phaser from "phaser";
-import { GAME_WIDTH, GAME_HEIGHT, WIN_DAY } from "../config";
+import { GAME_WIDTH, GAME_HEIGHT, WIN_DAY, COLORS } from "../config";
 import { TERRAIN, ENTITIES, TILE_PX, WORLD_PX } from "../data/tiles";
 import { ITEMS } from "../data/items";
 import { SEA_BOSSES, NIGHT_MOBS, DAY_GAME } from "../data/enemies";
 import type { EnemyDef } from "../types";
 import { getStore } from "../systems/GameStore";
 import type { WorldEntity } from "../systems/WorldMap";
-import { makeButton } from "../ui/Button";
+import { makeButton, type ButtonNode } from "../ui/Button";
 import { InventoryPanel } from "../ui/InventoryPanel";
 import { CraftingPanel } from "../ui/CraftingPanel";
 import { JournalPanel } from "../ui/JournalPanel";
@@ -558,7 +558,21 @@ export class WorldScene extends Phaser.Scene {
         store.inv.add("water_dirty", count);
         store.time.advanceMinutes(10);
         store.pushLog(`💧 샘물을 길었다. 더러운 물 ×${count} (끓여야 마실 수 있다)`);
+        // 낚싯대 있으면 낚시 포인트 힌트
+        if (store.inv.hasTool("rod")) {
+          store.pushLog("💡 근처에 낚시 포인트(🎣)가 있다면 탭해서 낚시할 수 있다.");
+        }
         audio.play("pickup");
+        break;
+      }
+
+      case "fishing_spot": {
+        if (!store.inv.hasTool("rod")) {
+          store.pushLog("🎣 낚시 포인트다. 낚싯대(🎣)가 있어야 낚시할 수 있다.\n   제작: 나뭇가지×3 + 덩굴×2");
+        } else {
+          this.startFishing(entity.tx, entity.ty);
+          return;
+        }
         break;
       }
 
@@ -795,6 +809,173 @@ export class WorldScene extends Phaser.Scene {
     this.scene.stop("HUDScene");
     this.cameras.main.fadeOut(400, 0, 0, 0);
     this.time.delayedCall(420, () => this.scene.start("TitleScene"));
+  }
+
+  /** 낚시 미니게임: 찌가 잠기면 제때 버튼 클릭 */
+  private startFishing(fishTx: number, fishTy: number): void {
+    const store = getStore(this);
+    store.time.advanceMinutes(20);
+    store.stats.apply({ energy: -4 });
+    store.pushLog("🎣 낚싯대를 드리웠다. 찌가 잠기면 '낚아채기!' 버튼을 눌러라!");
+
+    const PW = 400;
+    const PH = 320;
+    const PX = (GAME_WIDTH - PW) / 2;
+    const PY = (GAME_HEIGHT - PH) / 2;
+
+    const c = this.add.container(0, 0).setDepth(250);
+    const overlay = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5).setOrigin(0, 0).setInteractive();
+    c.add(overlay);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x050d28, 0.97);
+    bg.fillRoundedRect(PX, PY, PW, PH, 16);
+    bg.lineStyle(2, COLORS.accent, 0.8);
+    bg.strokeRoundedRect(PX, PY, PW, PH, 16);
+    c.add(bg);
+
+    const titleTxt = this.add.text(PX + PW / 2, PY + 26, "🎣 낚시 중...", {
+      fontFamily: "Galmuri11, monospace", fontSize: "22px", color: "#cfd8ff",
+    }).setOrigin(0.5);
+    c.add(titleTxt);
+
+    // 낚싯줄 + 찌 애니메이션
+    const lineGfx = this.add.graphics();
+    c.add(lineGfx);
+    const bobberCx = PX + PW / 2;
+    const bobberBaseY = PY + 160;
+    const bobber = this.add.text(bobberCx, bobberBaseY, "🔵", { fontSize: "24px" }).setOrigin(0.5);
+    c.add(bobber);
+
+    const drawLine = (bY: number) => {
+      lineGfx.clear();
+      lineGfx.lineStyle(2, 0xaaddff, 0.7);
+      lineGfx.beginPath();
+      lineGfx.moveTo(PX + PW / 2, PY + 70);
+      lineGfx.lineTo(bobberCx, bY - 10);
+      lineGfx.strokePath();
+    };
+    drawLine(bobberBaseY);
+
+    // 찌가 위아래로 살살 움직임
+    const idleTween = this.tweens.add({
+      targets: bobber,
+      y: bobberBaseY + 10,
+      duration: 800,
+      ease: "Sine.InOut",
+      yoyo: true,
+      repeat: -1,
+      onUpdate: () => drawLine(bobber.y),
+    });
+
+    const statusTxt = this.add.text(PX + PW / 2, PY + 210, "찌를 지켜봐라...", {
+      fontFamily: "Galmuri11, monospace", fontSize: "15px", color: "#8d9bd1",
+    }).setOrigin(0.5);
+    c.add(statusTxt);
+
+    // 낚아채기 버튼 (처음엔 비활성)
+    let canCatch = false;
+    const catchBtn = makeButton(this, PX + PW / 2, PY + PH - 52, {
+      label: "낚아채기! 🎣",
+      width: 200,
+      height: 52,
+      fontSize: 18,
+      bg: 0x1a3a1a,
+      hover: 0x2a5a2a,
+      border: 0x3a8a3a,
+      textColor: "#88cc88",
+      onClick: () => {
+        if (!canCatch) return;
+        clearTimeout(missTimer);
+        idleTween.stop();
+        c.destroy();
+        this.grantFishLoot(fishTx, fishTy);
+      },
+      disabled: true,
+    }) as ButtonNode;
+    c.add(catchBtn);
+
+    const cancelBtn = makeButton(this, PX + PW - 32, PY + 24, {
+      label: "✕",
+      width: 44,
+      height: 36,
+      fontSize: 18,
+      bg: 0x2a0f18,
+      hover: 0x4a1520,
+      border: 0x8a2230,
+      onClick: () => {
+        clearTimeout(missTimer);
+        idleTween.stop();
+        c.destroy();
+        store.pushLog("🎣 낚시를 그만뒀다.");
+        this.renderEntities();
+      },
+    });
+    c.add(cancelBtn);
+
+    // 월드 카메라 무시
+    this.worldCam.ignore(c);
+
+    // 무작위 3~8초 뒤 찌가 잠김
+    const waitMs = 3000 + Math.random() * 5000;
+    let missTimer: ReturnType<typeof setTimeout>;
+
+    this.time.delayedCall(waitMs, () => {
+      idleTween.stop();
+      // 찌 급격히 아래로 ↓ (bite 애니메이션)
+      this.tweens.add({
+        targets: bobber,
+        y: bobberBaseY + 28,
+        duration: 180,
+        ease: "Bounce.Out",
+        onUpdate: () => drawLine(bobber.y),
+      });
+      bobber.setText("🟣");
+      statusTxt.setText("‼ 낚아채기!");
+      statusTxt.setStyle({ color: "#ffdd44", fontSize: "20px" });
+
+      // 버튼 활성화
+      canCatch = true;
+      catchBtn.setDisabled(false);
+      (catchBtn as any).setLabel("낚아채기! ⬇️");
+
+      // 1.5초 내에 안 누르면 실패
+      missTimer = setTimeout(() => {
+        idleTween.stop();
+        c.destroy();
+        store.pushLog("🎣 아뿔싸! 찌를 늦게 당겼다. 물고기가 도망쳤다.");
+      }, 1500);
+    });
+  }
+
+  private grantFishLoot(tx: number, ty: number): void {
+    const store = getStore(this);
+    const r = Math.random();
+    if (r < 0.55) {
+      const n = Phaser.Math.Between(1, 2);
+      store.inv.add("fish_raw", n);
+      store.pushLog(`🐟 낚시 성공! 생 물고기 ×${n} 획득!`);
+      this.spawnPickupFx(tx, ty, `+🐟×${n}`);
+    } else if (r < 0.75) {
+      const n = Phaser.Math.Between(1, 2);
+      store.inv.add("fish_cooked", n);
+      store.pushLog(`🍤 운이 좋다! 구운 생선 ×${n} 획득!`);
+      this.spawnPickupFx(tx, ty, `+🍤×${n}`);
+    } else if (r < 0.88) {
+      store.inv.add("water_clean", 1);
+      store.pushLog("💧 이상하게도 맑은 물이 담긴 조개껍데기가 올라왔다. 정화수 ×1.");
+      this.spawnPickupFx(tx, ty, "+💧×1", "#9fd5ff");
+    } else if (r < 0.96) {
+      store.inv.add("metal_scrap", 1);
+      store.pushLog("⛓ 낚싯줄에 금속 조각이 걸려왔다. 금속 조각 ×1.");
+    } else {
+      store.inv.add("diamond", 1);
+      store.pushLog("💎 낚시 대박! 강바닥에서 다이아몬드가 올라왔다!");
+      this.spawnPickupFx(tx, ty, "+💎×1", "#a0e0ff");
+    }
+    audio.play("pickup");
+    this.renderEntities();
+    this.updateActionHint();
   }
 
   resumeFromOverlay(): void {
