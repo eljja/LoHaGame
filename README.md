@@ -1,5 +1,7 @@
 # 로하의 무인도 생존기
 
+### ▶ [🎮 지금 바로 플레이하기 (GitHub Pages)](https://eljja.github.io/LoHaGame/)
+
 웹 브라우저에서 돌아가는 2D 서바이벌 게임. Phaser 3 + Vite + TypeScript.
 
 ## 스토리
@@ -49,7 +51,7 @@ src/
 2. **Source** 를 **GitHub Actions** 로 선택
 3. 이후 푸시/머지 시 자동 배포됨
 
-배포 URL: `https://eljja.github.io/LoHaGame/`
+배포 URL: **<https://eljja.github.io/LoHaGame/>**
 
 워크플로 로그는 저장소의 **Actions** 탭에서 확인 가능합니다.
 
