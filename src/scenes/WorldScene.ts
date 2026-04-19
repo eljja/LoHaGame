@@ -1,33 +1,45 @@
 import Phaser from "phaser";
-import { GAME_WIDTH, GAME_HEIGHT, COLORS, ZONE_TRAVEL_MINUTES, WIN_DAY } from "../config";
-import { ZONES, ZONE_ADJACENCY } from "../data/zones";
-import { ACTIONS } from "../data/resources";
+import { GAME_WIDTH, GAME_HEIGHT, WIN_DAY } from "../config";
+import { TERRAIN, ENTITIES, TILE_PX, WORLD_PX } from "../data/tiles";
 import { ITEMS } from "../data/items";
 import { SEA_BOSSES, NIGHT_MOBS, DAY_GAME } from "../data/enemies";
-import type { ZoneId, ZoneActionId, EnemyDef } from "../types";
+import type { EnemyDef } from "../types";
 import { getStore } from "../systems/GameStore";
-import { makeButton, type ButtonNode } from "../ui/Button";
-import { drawPanel } from "../ui/Panel";
+import type { WorldEntity } from "../systems/WorldMap";
+import { makeButton } from "../ui/Button";
 import { InventoryPanel } from "../ui/InventoryPanel";
 import { CraftingPanel } from "../ui/CraftingPanel";
 import { JournalPanel } from "../ui/JournalPanel";
 import { audio } from "../systems/AudioManager";
 
+// Viewport constants
+const VP_X = 0;
+const VP_Y = 56;
+const VP_W = GAME_WIDTH;
+const VP_H = 552; // 56..608
+
 export class WorldScene extends Phaser.Scene {
-  private sceneContainer!: Phaser.GameObjects.Container;
-  private actionBar!: Phaser.GameObjects.Container;
-  private moveBar!: Phaser.GameObjects.Container;
+  // World-space objects (followed by main camera)
+  private terrainGfx!: Phaser.GameObjects.Graphics;
+  private entityObjects: Map<number, Phaser.GameObjects.Text> = new Map();
+  private playerSprite!: Phaser.GameObjects.Text;
+
+  // UI-space objects (UI camera)
+  private uiContainer!: Phaser.GameObjects.Container;
+  private actionHintText!: Phaser.GameObjects.Text;
   private menuBar!: Phaser.GameObjects.Container;
-  private zoneTitle!: Phaser.GameObjects.Text;
-  private zoneDesc!: Phaser.GameObjects.Text;
+  private dpad!: Phaser.GameObjects.Container;
 
   private inventoryPanel!: InventoryPanel;
   private craftingPanel!: CraftingPanel;
   private journalPanel!: JournalPanel;
 
-  private bg!: Phaser.GameObjects.Graphics;
-  private decorContainer!: Phaser.GameObjects.Container;
-  private hero!: Phaser.GameObjects.Text;
+  // Cameras
+  private worldCam!: Phaser.Cameras.Scene2D.Camera;
+  private uiCam!: Phaser.Cameras.Scene2D.Camera;
+
+  // World object layer (tagged so UI cam can ignore them)
+  private worldObjects: Phaser.GameObjects.GameObject[] = [];
 
   constructor() {
     super("WorldScene");
@@ -35,57 +47,86 @@ export class WorldScene extends Phaser.Scene {
 
   create(): void {
     const store = getStore(this);
-    const cam = this.cameras.main;
-    cam.fadeIn(500, 0, 0, 0);
 
-    this.sceneContainer = this.add.container(0, 0);
-    this.bg = this.add.graphics();
-    this.decorContainer = this.add.container(0, 0);
+    // ── Cameras ──────────────────────────────────────────
+    // Main (world) camera: shows the tile world
+    this.worldCam = this.cameras.main;
+    this.worldCam.setViewport(VP_X, VP_Y, VP_W, VP_H);
+    this.worldCam.setBounds(0, 0, WORLD_PX, WORLD_PX);
 
-    // 상단 HUD가 56px 차지. 가용 영역 56 ~ GAME_HEIGHT-230 정도.
-    // 씬 타이틀
-    this.zoneTitle = this.add
-      .text(GAME_WIDTH / 2, 84, "", {
-        fontFamily: "Galmuri11, monospace",
-        fontSize: "32px",
-        color: "#eaf0ff",
-        stroke: "#0b2040",
-        strokeThickness: 4,
-      })
-      .setOrigin(0.5);
-    this.zoneDesc = this.add
-      .text(GAME_WIDTH / 2, 120, "", {
-        fontFamily: "Galmuri11, monospace",
-        fontSize: "14px",
-        color: "#9fb7ff",
-      })
-      .setOrigin(0.5);
+    // UI camera: full screen, sits on top
+    this.uiCam = this.cameras.add(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-    // 주인공
-    this.hero = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 310, "🧑", { fontSize: "56px" }).setOrigin(0.5);
-    this.tweens.add({ targets: this.hero, y: this.hero.y - 6, duration: 1800, yoyo: true, repeat: -1, ease: "Sine.InOut" });
+    this.worldCam.fadeIn(500, 0, 0, 0);
 
-    // 바닥 패널
-    drawPanel(this, 0, GAME_HEIGHT - 220, GAME_WIDTH, 220, { fill: 0x060a18, alpha: 0.95 });
+    // ── World objects ─────────────────────────────────────
+    this.terrainGfx = this.add.graphics();
+    this.worldObjects.push(this.terrainGfx);
 
-    // 버튼 컨테이너들
-    this.actionBar = this.add.container(0, 0);
-    this.moveBar = this.add.container(0, 0);
+    // Player sprite (world space)
+    this.playerSprite = this.add
+      .text(
+        store.playerTx * TILE_PX + TILE_PX / 2,
+        store.playerTy * TILE_PX + TILE_PX / 2,
+        "🧑",
+        { fontSize: "28px" }
+      )
+      .setOrigin(0.5)
+      .setDepth(10);
+    this.worldObjects.push(this.playerSprite);
+
+    // Camera follow player with lerp
+    this.worldCam.startFollow(this.playerSprite, true, 0.1, 0.1);
+
+    // ── UI Container ──────────────────────────────────────
+    this.uiContainer = this.add.container(0, 0).setDepth(50);
+
+    // Bottom panel background
+    const bottomBg = this.add.rectangle(0, 608, GAME_WIDTH, 192, 0x060a18, 0.95).setOrigin(0, 0);
+    this.uiContainer.add(bottomBg);
+
+    // Action hint text (left side of bottom UI)
+    this.actionHintText = this.add.text(20, 624, "", {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "13px",
+      color: "#9fb7ff",
+      wordWrap: { width: 700 },
+    });
+    this.uiContainer.add(this.actionHintText);
+
+    // Build D-pad and menu bar
+    this.dpad = this.add.container(0, 0);
+    this.buildDpad();
+    this.uiContainer.add(this.dpad);
+
     this.menuBar = this.add.container(0, 0);
+    this.buildMenuBar();
+    this.uiContainer.add(this.menuBar);
 
+    // Panels
     this.inventoryPanel = new InventoryPanel(this);
     this.craftingPanel = new CraftingPanel(this);
     this.journalPanel = new JournalPanel(this);
 
-    // 전역 메뉴
-    this.buildMenuBar();
+    // ── UI Camera ignores world objects ───────────────────
+    this.uiCam.ignore(this.worldObjects);
 
-    // 이벤트 바인딩
+    // ── Render world ──────────────────────────────────────
+    this.renderTerrain();
+    this.renderEntities();
+    this.updateActionHint();
+
+    // ── Event bindings ────────────────────────────────────
     store.time.on("phaseChange", (phase: "day" | "night") => {
       audio.play(phase === "day" ? "phase_day" : "phase_night");
       this.syncBgm();
-      this.renderZone();
+      if (phase === "day") {
+        const count = store.map.nightRespawn();
+        this.renderEntities();
+        store.pushLog(`☀ 새벽이 밝아왔다. 자원 ${count}개가 재생됐다.`);
+      }
     });
+
     store.time.on("dayChange", (d: number) => {
       store.pushLog(`☀ Day ${d}가 밝았다.`);
       if (d > WIN_DAY) {
@@ -93,31 +134,390 @@ export class WorldScene extends Phaser.Scene {
         this.scene.start("VictoryScene");
       }
     });
+
     store.time.on("day10Tick", (d: number) => this.triggerSeaBoss(d));
+
     store.stats.on("death", () => {
       this.scene.stop("HUDScene");
       this.scene.start("GameOverScene");
     });
 
     this.syncBgm();
-    this.events.on(Phaser.Scenes.Events.RESUME, () => this.syncBgm());
+    this.events.on(Phaser.Scenes.Events.RESUME, () => {
+      this.syncBgm();
+      this.renderEntities();
+      this.updateActionHint();
+    });
 
-    this.renderZone();
-
-    // 디버그 키
+    // ── Keyboard ──────────────────────────────────────────
+    this.input.keyboard?.on("keydown-UP", () => this.tryMove(0, -1));
+    this.input.keyboard?.on("keydown-DOWN", () => this.tryMove(0, 1));
+    this.input.keyboard?.on("keydown-LEFT", () => this.tryMove(-1, 0));
+    this.input.keyboard?.on("keydown-RIGHT", () => this.tryMove(1, 0));
     this.input.keyboard?.on("keydown-I", () => this.toggleInventory());
     this.input.keyboard?.on("keydown-C", () => this.toggleCrafting());
     this.input.keyboard?.on("keydown-J", () => this.toggleJournal());
 
-    // 첫 진입 안내
-    if (Object.keys(store.flags.firstTimeVisited).length === 0) {
-      store.pushLog("파도에 떠밀려 해변에 도착했다. 먼저 주변을 둘러보자.");
+    // First visit hint
+    const store2 = getStore(this);
+    if (!store2.flags.firstTimeVisited["beach" as never]) {
+      store2.pushLog("파도에 떠밀려 해변에 도착했다. D-패드나 화살표 키로 이동하고, 주변 자원을 탭하자.");
+    }
+  }
+
+  // ── Terrain rendering ──────────────────────────────────────────
+  private renderTerrain(): void {
+    const store = getStore(this);
+    const map = store.map;
+    const gfx = this.terrainGfx;
+    gfx.clear();
+
+    for (let ty = 0; ty < map.size; ty++) {
+      for (let tx = 0; tx < map.size; tx++) {
+        const terrType = map.terrain[ty][tx];
+        const def = TERRAIN[terrType];
+        // Slight checkerboard mottle
+        const useMottle = def.mottle && (tx + ty) % 2 === 0;
+        const col = useMottle ? def.mottle! : def.color;
+        gfx.fillStyle(col, 1);
+        gfx.fillRect(tx * TILE_PX, ty * TILE_PX, TILE_PX, TILE_PX);
+      }
+    }
+  }
+
+  // ── Entity rendering ───────────────────────────────────────────
+  private renderEntities(): void {
+    const store = getStore(this);
+
+    // Remove all existing entity sprites
+    this.entityObjects.forEach((t) => t.destroy());
+    this.entityObjects.clear();
+
+    // Remove old entity objects from worldObjects tracking
+    this.worldObjects = this.worldObjects.filter((o) => o === this.terrainGfx || o === this.playerSprite);
+
+    for (const entity of store.map.entities) {
+      const def = ENTITIES[entity.type];
+      const worldX = entity.tx * TILE_PX + TILE_PX / 2;
+      const worldY = entity.ty * TILE_PX + TILE_PX / 2;
+
+      const t = this.add
+        .text(worldX, worldY, def.icon, { fontSize: "24px" })
+        .setOrigin(0.5)
+        .setDepth(5)
+        .setInteractive({ useHandCursor: true });
+
+      t.on("pointerdown", () => this.tapEntity(entity));
+      t.on("pointerover", () => {
+        this.actionHintText.setText(`${def.icon} ${def.label} — 탭하여 상호작용`);
+      });
+      t.on("pointerout", () => this.updateActionHint());
+
+      this.entityObjects.set(entity.id, t);
+      this.worldObjects.push(t);
+    }
+
+    // Update UI camera ignore list
+    this.uiCam.ignore(this.worldObjects);
+  }
+
+  // ── Player movement ────────────────────────────────────────────
+  private tryMove(dx: number, dy: number): void {
+    const store = getStore(this);
+    const nx = store.playerTx + dx;
+    const ny = store.playerTy + dy;
+
+    if (!store.map.isPassable(nx, ny)) {
+      // Check if there's a non-blocking entity we can interact with
+      const entity = store.map.entityAt(nx, ny);
+      if (entity) {
+        this.tapEntity(entity);
+      }
+      return;
+    }
+
+    store.playerTx = nx;
+    store.playerTy = ny;
+    store.time.advanceMinutes(3);
+    store.stats.apply({ energy: -0.5 });
+
+    // Animate player
+    this.tweens.add({
+      targets: this.playerSprite,
+      x: nx * TILE_PX + TILE_PX / 2,
+      y: ny * TILE_PX + TILE_PX / 2,
+      duration: 120,
+      ease: "Linear",
+    });
+
+    this.updateActionHint();
+
+    // Night mob encounter chance
+    if (store.time.phase === "night" && Math.random() < 0.04) {
+      const mob = Phaser.Utils.Array.GetRandom(NIGHT_MOBS) as EnemyDef;
+      this.triggerCombat(mob);
+    }
+  }
+
+  // ── Entity interaction ─────────────────────────────────────────
+  private tapEntity(entity: WorldEntity): void {
+    const store = getStore(this);
+    const reachable = store.map.reachableEntity(store.playerTx, store.playerTy, entity.tx, entity.ty);
+    if (!reachable) {
+      // Try to walk adjacent first
+      store.pushLog(`${ENTITIES[entity.type].icon} ${ENTITIES[entity.type].label}에 접근해야 한다.`);
+      this.updateActionHint();
+      return;
+    }
+
+    switch (entity.type) {
+      case "tree": {
+        const count = Phaser.Math.Between(2, 3);
+        store.inv.add("stick", count);
+        store.map.removeEntity(entity.id);
+        store.time.advanceMinutes(15);
+        store.stats.apply({ energy: -3 });
+        store.pushLog(`🌳 나무에서 나뭇가지를 구했다. 나뭇가지 ×${count}`);
+        audio.play("pickup");
+        break;
+      }
+
+      case "berry_bush": {
+        const count = Phaser.Math.Between(1, 2);
+        store.inv.add("berry", count);
+        store.map.removeEntity(entity.id);
+        store.time.advanceMinutes(10);
+        store.pushLog(`🫐 열매덤불에서 열매를 땄다. 열매 ×${count}`);
+        audio.play("pickup");
+        break;
+      }
+
+      case "stone_outcrop": {
+        const count = Phaser.Math.Between(1, 2);
+        store.inv.add("stone", count);
+        store.map.removeEntity(entity.id);
+        store.time.advanceMinutes(20);
+        store.stats.apply({ energy: -5 });
+        store.pushLog(`🪨 돌을 캤다. 돌 ×${count}`);
+        audio.play("pickup");
+        break;
+      }
+
+      case "vine": {
+        const count = Phaser.Math.Between(1, 2);
+        store.inv.add("vine", count);
+        store.map.removeEntity(entity.id);
+        store.time.advanceMinutes(10);
+        store.pushLog(`🌿 덩굴을 모았다. 덩굴 ×${count}`);
+        audio.play("pickup");
+        break;
+      }
+
+      case "shell": {
+        const r = Math.random();
+        store.map.removeEntity(entity.id);
+        store.time.advanceMinutes(10);
+        if (r < 0.3) {
+          store.inv.add("fish_raw", 1);
+          store.pushLog("🐚 조개에서 날것 물고기를 찾았다.");
+        } else if (r < 0.6) {
+          store.inv.add("stone", 1);
+          store.pushLog("🐚 조개 속에 돌이 들어있었다.");
+        } else if (r < 0.8) {
+          store.inv.add("cloth", 1);
+          store.pushLog("🐚 조개에서 낡은 천 조각을 발견했다.");
+        } else {
+          store.pushLog("🐚 빈 조개껍데기다.");
+        }
+        audio.play("pickup");
+        break;
+      }
+
+      case "driftwood": {
+        const count = Phaser.Math.Between(1, 2);
+        store.inv.add("stick", count);
+        store.map.removeEntity(entity.id);
+        store.time.advanceMinutes(10);
+        store.pushLog(`🪵 유목에서 나뭇가지를 모았다. 나뭇가지 ×${count}`);
+        audio.play("pickup");
+        break;
+      }
+
+      case "mushroom": {
+        store.inv.add("berry", 1); // mushroom as food item
+        store.map.removeEntity(entity.id);
+        store.time.advanceMinutes(10);
+        store.pushLog("🍄 버섯을 채취했다. (먹을 수 있다)");
+        audio.play("pickup");
+        break;
+      }
+
+      case "rabbit": {
+        store.time.advanceMinutes(40);
+        store.stats.apply({ energy: -10 });
+        const target = DAY_GAME[0] as EnemyDef;
+        store.pushLog(`🐇 토끼를 발견했다!`);
+        this.triggerCombat(target);
+        return; // skip renderEntities below (combat will resume)
+      }
+
+      case "flower": {
+        store.map.removeEntity(entity.id);
+        store.time.advanceMinutes(5);
+        store.pushLog("🌼 들꽃이 피어있다. 향기가 은은하다.");
+        if (Math.random() < 0.1) {
+          store.inv.add("cloth", 1);
+          store.pushLog("  → 꽃잎으로 천 조각을 만들었다.");
+          audio.play("pickup");
+        }
+        break;
+      }
+
+      case "cave_entrance": {
+        store.pushLog("🕳 동굴로 들어간다...");
+        store.caveDepth = 1;
+        store.time.advanceMinutes(10);
+        this.cameras.main.fadeOut(400, 0, 0, 0);
+        this.time.delayedCall(420, () => {
+          this.scene.launch("CaveScene");
+          this.scene.pause();
+        });
+        return;
+      }
+
+      case "shipwreck": {
+        this.lootShipwreck(entity);
+        break;
+      }
+
+      case "cliff_lookout": {
+        store.time.advanceMinutes(20);
+        const nextBoss = Math.ceil(store.time.day / 10) * 10;
+        const left = nextBoss - store.time.day;
+        if (left === 0) {
+          store.pushLog("🏔 수면이 부자연스럽게 솟구친다… 오늘 무언가 올 것이다.");
+        } else if (left <= 2) {
+          store.pushLog(`🏔 수평선이 검게 물든다. ${left}일 내에 해양 습격이 있을 것.`);
+        } else {
+          store.pushLog("🏔 수평선을 바라봤다. 구조선은 아직 없다.");
+        }
+        break;
+      }
+
+      case "river_spring": {
+        const count = Phaser.Math.Between(1, 2);
+        store.inv.add("water_dirty", count);
+        store.time.advanceMinutes(10);
+        store.pushLog(`💧 샘물을 길었다. 더러운 물 ×${count} (끓여야 마실 수 있다)`);
+        audio.play("pickup");
+        break;
+      }
+
+      case "camp_spot": {
+        if (store.flags.hasTent) {
+          this.sleep();
+        } else {
+          store.pushLog("🏕 거점을 찾았다. 천막을 세워야 안전하게 쉴 수 있다.");
+        }
+        break;
+      }
+    }
+
+    this.renderEntities();
+    this.updateActionHint();
+  }
+
+  private lootShipwreck(entity: WorldEntity): void {
+    const store = getStore(this);
+    const lootLeft = entity.meta?.lootLeft ?? 0;
+    if (lootLeft <= 0) {
+      store.pushLog("🚢 난파선을 뒤졌지만 아무것도 남아있지 않다.");
+      return;
+    }
+
+    store.time.advanceMinutes(30);
+    store.stats.apply({ energy: -5 });
+
+    const lootPools = [
+      [
+        { id: "can_food" as const, count: 3 },
+        { id: "bandage" as const, count: 1 },
+        { id: "water_clean" as const, count: 2 },
+      ],
+      [
+        { id: "can_food" as const, count: 2 },
+        { id: "pistol" as const, count: 1 },
+        { id: "bullet" as const, count: 6 },
+      ],
+      [
+        { id: "blanket" as const, count: 1 },
+        { id: "cloth" as const, count: 3 },
+        { id: "water_clean" as const, count: 1 },
+      ],
+    ];
+
+    const idx = 3 - lootLeft; // lootLeft 3→pool 0, 2→pool 1, 1→pool 2
+    const loot = lootPools[idx] ?? lootPools[0];
+    for (const l of loot) store.inv.add(l.id, l.count);
+
+    if (entity.meta) {
+      entity.meta.lootLeft = lootLeft - 1;
+    }
+
+    const text = loot.map((l) => `${ITEMS[l.id].icon}${ITEMS[l.id].name}×${l.count}`).join(", ");
+    store.pushLog(`📦 난파선에서 ${text}을(를) 찾았다.`);
+    audio.play("pickup");
+  }
+
+  private sleep(): void {
+    const store = getStore(this);
+    const quality = store.flags.hasTent ? "편안하게" : "땅바닥에서";
+    if (store.time.phase === "day") {
+      store.time.advanceMinutes(12 * 60 - Math.floor(store.time.phaseProgress * 12 * 60));
+    }
+    store.time.advanceMinutes(12 * 60 - Math.floor(store.time.phaseProgress * 12 * 60));
+    store.stats.restFull();
+    if (store.flags.hasTent) store.stats.apply({ hp: 20 });
+    store.pushLog(`💤 ${quality} 하룻밤을 보냈다.`);
+  }
+
+  // ── UI ─────────────────────────────────────────────────────────
+  private buildDpad(): void {
+    this.dpad.removeAll(true);
+    const cx = GAME_WIDTH - 120;
+    const cy = 688; // center of dpad in bottom UI
+    const btnSize = 52;
+    const gap = 4;
+
+    const dirs: Array<[string, number, number]> = [
+      ["↑", 0, -1],
+      ["↓", 0, 1],
+      ["←", -1, 0],
+      ["→", 1, 0],
+    ];
+    const offsets: Record<string, [number, number]> = {
+      "↑": [0, -(btnSize + gap)],
+      "↓": [0, btnSize + gap],
+      "←": [-(btnSize + gap), 0],
+      "→": [btnSize + gap, 0],
+    };
+
+    for (const [label, dx, dy] of dirs) {
+      const [ox, oy] = offsets[label];
+      const btn = makeButton(this, cx + ox, cy + oy, {
+        label,
+        width: btnSize,
+        height: btnSize,
+        fontSize: 22,
+        onClick: () => this.tryMove(dx, dy),
+      });
+      this.dpad.add(btn);
     }
   }
 
   private buildMenuBar(): void {
     this.menuBar.removeAll(true);
-    const y = GAME_HEIGHT - 40;
+    const y = GAME_HEIGHT - 28;
     const buttons: Array<[string, () => void]> = [
       ["🎒 인벤토리", () => this.toggleInventory()],
       ["🔨 제작", () => this.toggleCrafting()],
@@ -125,327 +525,50 @@ export class WorldScene extends Phaser.Scene {
       ["💾 저장", () => this.manualSave()],
       ["🏠 타이틀", () => this.backToTitle()],
     ];
-    const bw = 170;
-    const gap = 10;
+    const bw = 160;
+    const gap = 8;
     const total = buttons.length * bw + (buttons.length - 1) * gap;
     const startX = (GAME_WIDTH - total) / 2 + bw / 2;
     buttons.forEach(([label, cb], i) => {
-      const b = makeButton(this, startX + i * (bw + gap), y, { label, width: bw, height: 40, fontSize: 13, onClick: cb });
+      const b = makeButton(this, startX + i * (bw + gap), y, {
+        label,
+        width: bw,
+        height: 36,
+        fontSize: 12,
+        onClick: cb,
+      });
       this.menuBar.add(b);
     });
   }
 
-  private renderZone(): void {
+  private updateActionHint(): void {
     const store = getStore(this);
-    const zone = ZONES[store.currentZone];
-
-    store.flags.firstTimeVisited[store.currentZone] = true;
-
-    // 배경 그라디언트
-    this.bg.clear();
-    const pal = zone.palette;
-    const top = store.time.phase === "day" ? pal.dayTop : pal.nightTop;
-    const bot = store.time.phase === "day" ? pal.dayBot : pal.nightBot;
-    this.bg.fillGradientStyle(top, top, bot, bot, 1);
-    this.bg.fillRect(0, 56, GAME_WIDTH, GAME_HEIGHT - 276);
-
-    // 장식 이모지를 흩뿌림
-    this.decorContainer.removeAll(true);
-    const decorCount = 14;
-    for (let i = 0; i < decorCount; i++) {
-      const ch = zone.decor[i % zone.decor.length];
-      const ex = Phaser.Math.Between(80, GAME_WIDTH - 80);
-      const ey = Phaser.Math.Between(150, GAME_HEIGHT - 260);
-      const scale = Phaser.Math.FloatBetween(0.6, 1.6);
-      const alpha = Phaser.Math.FloatBetween(0.5, 1);
-      const t = this.add.text(ex, ey, ch, { fontSize: `${Math.round(36 * scale)}px` }).setAlpha(alpha);
-      this.decorContainer.add(t);
-    }
-    // 바닥선
-    const groundY = GAME_HEIGHT - 248;
-    const ground = this.add.rectangle(GAME_WIDTH / 2, groundY, GAME_WIDTH, 4, 0x000000, 0.25);
-    this.decorContainer.add(ground);
-
-    this.zoneTitle.setText(`${zone.short} · ${zone.name}`);
-    const desc = this.zoneDescription(store.currentZone);
-    this.zoneDesc.setText(desc);
-
-    // 주인공 위치 리셋
-    this.hero.setPosition(GAME_WIDTH / 2, GAME_HEIGHT - 300);
-
-    this.buildActionBar();
-    this.buildMoveBar();
-  }
-
-  private zoneDescription(id: ZoneId): string {
-    const store = getStore(this);
-    const phase = store.time.phase;
-    switch (id) {
-      case "beach":
-        return phase === "day" ? "파도가 잔잔하다. 멀리 좌초된 배가 보인다." : "달빛이 모래를 비춘다. 이따금 무언가의 기척이 느껴진다.";
-      case "shipwreck":
-        return "반파된 선체가 해안에 기울어져 있다. 쓸 만한 것이 남아 있을지도 모른다.";
-      case "forest":
-        return phase === "day" ? "새소리와 함께 나무 사이로 햇살이 스며든다." : "나뭇가지 사이에서 무언가가 지켜보는 듯하다.";
-      case "river":
-        return "맑은 물이 흐른다. 물고기의 그림자가 보인다.";
-      case "cave_entrance":
-        return "축축한 바람이 동굴에서 새어나온다.";
-      case "cave_interior":
-        return `깊이 ${store.caveDepth}층. 횃불 없이는 한 치 앞이 보이지 않는다.`;
-      case "cliff":
-        return "수평선이 한눈에 들어온다. 구조선은 아직 보이지 않는다.";
-      case "camp":
-        return `${store.flags.hasBonfire ? "🔥 모닥불이 타오른다. " : ""}${store.flags.hasTent ? "⛺ 천막이 바람을 막아준다." : ""}`;
-    }
-  }
-
-  private buildActionBar(): void {
-    this.actionBar.removeAll(true);
-    const store = getStore(this);
-    const zone = ZONES[store.currentZone];
-    const y = GAME_HEIGHT - 170;
-    const label = this.add.text(60, y - 34, "행동", {
-      fontFamily: "Galmuri11, monospace",
-      fontSize: "14px",
-      color: "#8d9bd1",
-    });
-    this.actionBar.add(label);
-
-    const bw = 160;
-    const gap = 10;
-    let x = 70;
-    for (const aid of zone.actions) {
-      const act = ACTIONS[aid];
-      let disabled = false;
-      let reason = "";
-      if (act.onlyPhase && act.onlyPhase !== store.time.phase) {
-        disabled = true;
-        reason = act.onlyPhase === "day" ? "(낮에만)" : "(밤에만)";
-      }
-      if (act.requiresTool && !store.inv.hasTool(act.requiresTool)) {
-        disabled = true;
-        reason = `(${act.requiresTool === "rod" ? "낚싯대" : act.requiresTool === "pickaxe" ? "곡괭이" : "도끼"} 필요)`;
-      }
-      if (aid === "enter_cave" && store.time.day < 1) {
-        disabled = true;
-      }
-      if (aid === "sleep" && !store.flags.hasTent && store.currentZone === "camp") {
-        // 거점에서만 잠 가능, 천막이 있으면 숙면
-      }
-      if (aid === "loot_crate" && store.flags.lootedCrates >= 3) {
-        disabled = true;
-        reason = "(모두 수색됨)";
-      }
-      const btn = makeButton(this, x + bw / 2, y, {
-        label: `${act.icon} ${act.label}${reason ? " " + reason : ""}`,
-        width: bw,
-        height: 44,
-        fontSize: 13,
-        disabled,
-        onClick: () => this.doAction(aid),
-      });
-      this.actionBar.add(btn);
-      x += bw + gap;
-    }
-  }
-
-  private buildMoveBar(): void {
-    this.moveBar.removeAll(true);
-    const store = getStore(this);
-    const from = store.currentZone;
-    const adj = ZONE_ADJACENCY[from];
-    const y = GAME_HEIGHT - 112;
-    const label = this.add.text(60, y - 34, "이동", {
-      fontFamily: "Galmuri11, monospace",
-      fontSize: "14px",
-      color: "#8d9bd1",
-    });
-    this.moveBar.add(label);
-
-    const bw = 150;
-    const gap = 10;
-    let x = 70;
-    for (const id of adj) {
-      const zone = ZONES[id];
-      let locked = false;
-      let tip = "";
-      if (zone.unlock && !zone.unlock({
-        day: store.time.day,
-        hour: store.time.hour,
-        phase: store.time.phase,
-        stats: store.stats,
-        inventory: store.inv.slots,
-        equipped: {},
-        flags: store.flags,
-        currentZone: store.currentZone,
-        caveDepth: store.caveDepth,
-      })) {
-        locked = true;
-        if (id === "cliff") tip = " (밧줄 필요)";
-        if (id === "camp") tip = " (거점 구축 필요)";
-      }
-      const btn = makeButton(this, x + bw / 2, y, {
-        label: `→ ${zone.short}${tip}`,
-        width: bw,
-        height: 44,
-        fontSize: 13,
-        disabled: locked,
-        onClick: () => this.travelTo(id),
-      });
-      this.moveBar.add(btn);
-      x += bw + gap;
-    }
-  }
-
-  private travelTo(zoneId: ZoneId): void {
-    const store = getStore(this);
-    if (zoneId === "cave_interior") {
-      // 동굴 내부는 전용 씬
-      store.currentZone = "cave_interior";
-      store.time.advanceMinutes(ZONE_TRAVEL_MINUTES);
-      this.cameras.main.fadeOut(400, 0, 0, 0);
-      this.time.delayedCall(420, () => {
-        this.scene.launch("CaveScene");
-        this.scene.pause();
-      });
-      return;
-    }
-    this.cameras.main.fadeOut(300, 0, 0, 0);
-    this.time.delayedCall(320, () => {
-      store.currentZone = zoneId;
-      store.time.advanceMinutes(ZONE_TRAVEL_MINUTES);
-      store.pushLog(`${ZONES[zoneId].short}(으)로 이동했다.`);
-      this.renderZone();
-      this.cameras.main.fadeIn(300, 0, 0, 0);
-    });
-  }
-
-  private doAction(id: ZoneActionId): void {
-    const store = getStore(this);
-    const act = ACTIONS[id];
-
-    // 특수 분기
-    if (id === "enter_cave") {
-      this.travelTo("cave_interior");
-      return;
-    }
-    if (id === "sleep") {
-      this.sleep();
-      return;
-    }
-    if (id === "loot_crate") {
-      this.lootCrate();
-      return;
-    }
-    if (id === "observe_sea") {
-      this.observeSea();
-      return;
-    }
-    if (id === "hunt") {
-      this.hunt();
-      return;
-    }
-
-    // 시간/에너지 소비
-    store.time.advanceMinutes(act.costMinutes);
-    if (act.costEnergy) store.stats.apply({ energy: -act.costEnergy });
-
-    // 보상 롤
-    const yieldStrs: string[] = [];
-    for (const r of act.reward) {
-      if (r.chance != null && Math.random() > r.chance) continue;
-      const n = Phaser.Math.Between(r.min, r.max);
-      if (n > 0) {
-        store.inv.add(r.id, n);
-        yieldStrs.push(`${ITEMS[r.id].icon}${ITEMS[r.id].name} ×${n}`);
+    const { playerTx, playerTy } = store;
+    // Check adjacent entities
+    const adjacent: WorldEntity[] = [];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        const e = store.map.entityAt(playerTx + dx, playerTy + dy);
+        if (e) adjacent.push(e);
       }
     }
-    const msg = act.message(yieldStrs.join(", "));
-    store.pushLog(msg);
-    if (yieldStrs.length > 0) audio.play("pickup");
-    this.flashHero();
+    // Also same tile
+    const same = store.map.entityAt(playerTx, playerTy);
+    if (same) adjacent.unshift(same);
 
-    // 밤 조우 가능성
-    if (store.time.phase === "night" && (id === "gather_berry" || id === "gather_wood" || id === "look_around") && Math.random() < 0.2) {
-      const mob = Phaser.Utils.Array.GetRandom(NIGHT_MOBS) as EnemyDef;
-      this.triggerCombat(mob);
-      return;
-    }
-
-    this.renderZone();
-  }
-
-  private flashHero(): void {
-    this.tweens.add({ targets: this.hero, scale: 1.2, duration: 120, yoyo: true });
-  }
-
-  private lootCrate(): void {
-    const store = getStore(this);
-    store.time.advanceMinutes(30);
-    store.stats.apply({ energy: -5 });
-    const lootPools = [
-      [{ id: "can_food" as const, count: 3 }, { id: "bandage" as const, count: 1 }, { id: "water_clean" as const, count: 2 }],
-      [{ id: "can_food" as const, count: 2 }, { id: "pistol" as const, count: 1 }, { id: "bullet" as const, count: 6 }],
-      [{ id: "blanket" as const, count: 1 }, { id: "cloth" as const, count: 3 }, { id: "water_clean" as const, count: 1 }],
-    ];
-    const idx = store.flags.lootedCrates;
-    const loot = lootPools[idx] ?? lootPools[0];
-    for (const l of loot) store.inv.add(l.id, l.count);
-    store.flags.lootedCrates += 1;
-    const text = loot.map((l) => `${ITEMS[l.id].icon}${ITEMS[l.id].name}×${l.count}`).join(", ");
-    store.pushLog(`📦 상자에서 ${text}을(를) 찾았다.`);
-    audio.play("pickup");
-    this.renderZone();
-  }
-
-  private observeSea(): void {
-    const store = getStore(this);
-    store.time.advanceMinutes(20);
-    const nextBoss = Math.ceil(store.time.day / 10) * 10;
-    const left = nextBoss - store.time.day;
-    if (left === 0) {
-      store.pushLog("🌊 수면이 부자연스럽게 솟구친다… 오늘 무언가 올 것이다.");
-    } else if (left <= 2) {
-      store.pushLog(`🔭 수평선이 검게 물든다. ${left}일 내에 해양 습격이 있을 것.`);
+    if (adjacent.length > 0) {
+      const names = adjacent
+        .slice(0, 3)
+        .map((e) => `${ENTITIES[e.type].icon}${ENTITIES[e.type].label}`)
+        .join(", ");
+      this.actionHintText.setText(`근처: ${names}\n(탭하여 상호작용 | I:인벤토리 C:제작 J:일지)`);
     } else {
-      store.pushLog("🔭 오늘은 바다가 고요하다. 구조선은 아직 없다.");
+      this.actionHintText.setText("화살표 키 또는 D-패드로 이동 | I:인벤토리 C:제작 J:일지");
     }
-    this.renderZone();
   }
 
-  private hunt(): void {
-    const store = getStore(this);
-    store.time.advanceMinutes(40);
-    store.stats.apply({ energy: -10 });
-    if (Math.random() < 0.5) {
-      store.pushLog("🌿 사냥감을 놓쳤다.");
-      this.renderZone();
-      return;
-    }
-    const target = Phaser.Utils.Array.GetRandom(DAY_GAME) as EnemyDef;
-    this.triggerCombat(target);
-  }
-
-  private sleep(): void {
-    const store = getStore(this);
-    if (store.currentZone !== "camp") {
-      store.pushLog("거점에서만 안전하게 잘 수 있다.");
-      return;
-    }
-    const quality = store.flags.hasTent ? "편안하게" : "땅바닥에서";
-    // 남은 현재 phase 스킵 → 다음 낮 06:00 까지
-    if (store.time.phase === "day") {
-      store.time.advanceMinutes(12 * 60 - Math.floor(store.time.phaseProgress * 12 * 60)); // to night
-    }
-    store.time.advanceMinutes(12 * 60 - Math.floor(store.time.phaseProgress * 12 * 60)); // to next day
-    store.stats.restFull();
-    if (store.flags.hasTent) store.stats.apply({ hp: 20 });
-    store.pushLog(`💤 ${quality} 하룻밤을 보냈다.`);
-    this.renderZone();
-  }
-
-  // ── 전투 트리거 ──
+  // ── Combat triggers ────────────────────────────────────────────
   private triggerSeaBoss(day: number): void {
     const idx = Math.min(SEA_BOSSES.length - 1, Math.floor(day / 10) - 1);
     const boss = SEA_BOSSES[idx];
@@ -464,17 +587,19 @@ export class WorldScene extends Phaser.Scene {
     audio.playBgm(store.time.phase === "day" ? "day" : "night");
   }
 
-  // ── 패널 토글 ──
+  // ── Panel toggles ──────────────────────────────────────────────
   private toggleInventory(): void {
     audio.play("menu");
     if (this.inventoryPanel.isOpen) this.inventoryPanel.close();
-    else this.inventoryPanel.open(() => this.renderZone());
+    else this.inventoryPanel.open(() => this.updateActionHint());
   }
+
   private toggleCrafting(): void {
     audio.play("menu");
     if (this.craftingPanel.isOpen) this.craftingPanel.close();
     else this.craftingPanel.open();
   }
+
   private toggleJournal(): void {
     audio.play("menu");
     if (this.journalPanel.isOpen) this.journalPanel.close();
@@ -494,8 +619,8 @@ export class WorldScene extends Phaser.Scene {
   }
 
   resumeFromOverlay(): void {
-    this.renderZone();
+    this.renderEntities();
+    this.updateActionHint();
+    this.syncBgm();
   }
 }
-
-void COLORS;

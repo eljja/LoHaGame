@@ -4,7 +4,8 @@ import { PlayerStats } from "./PlayerStats";
 import { Inventory } from "./Inventory";
 import { Crafting } from "./Crafting";
 import { SaveManager, type SaveBlob } from "./SaveManager";
-import type { GameState, ZoneId } from "../types";
+import { WorldMap } from "./WorldMap";
+import type { GameState } from "../types";
 
 /**
  * 모든 시스템과 게임 상태의 단일 소유자. Phaser game.registry에 'store'로 저장.
@@ -15,6 +16,12 @@ export class GameStore extends Phaser.Events.EventEmitter {
   inv = new Inventory();
   crafting: Crafting;
 
+  /** 오픈월드 맵 */
+  map: WorldMap = new WorldMap();
+  /** 플레이어 타일 좌표 */
+  playerTx = 0;
+  playerTy = 0;
+
   flags: GameState["flags"] = {
     lootedCrates: 0,
     hasTent: false,
@@ -23,7 +30,6 @@ export class GameStore extends Phaser.Events.EventEmitter {
     bossesDefeated: [],
   };
 
-  currentZone: ZoneId = "beach";
   caveDepth: 0 | 1 | 2 | 3 = 0;
 
   /** 최근 로그 라인 */
@@ -32,7 +38,32 @@ export class GameStore extends Phaser.Events.EventEmitter {
   constructor() {
     super();
     this.crafting = new Crafting(this.inv, () => ({ hasBonfire: this.flags.hasBonfire, hasTent: this.flags.hasTent }));
+    this.placePlayerAtStart();
     this.time.on("dayChange", () => this.save());
+  }
+
+  private placePlayerAtStart(): void {
+    // 시작 위치: 난파선 근처 해변에서 한 칸 안쪽
+    const ship = this.map.entities.find((e) => e.type === "shipwreck");
+    if (ship) {
+      const candidates: Array<[number, number]> = [
+        [ship.tx + 1, ship.ty],
+        [ship.tx - 1, ship.ty],
+        [ship.tx, ship.ty + 1],
+        [ship.tx, ship.ty - 1],
+      ];
+      for (const [x, y] of candidates) {
+        if (this.map.isPassable(x, y)) {
+          this.playerTx = x;
+          this.playerTy = y;
+          return;
+        }
+      }
+    }
+    // 폴백: 중앙
+    const c = Math.floor(this.map.size / 2);
+    this.playerTx = c;
+    this.playerTy = c;
   }
 
   pushLog(msg: string): void {
@@ -53,7 +84,8 @@ export class GameStore extends Phaser.Events.EventEmitter {
       bossesDefeated: [],
     };
     this.crafting = new Crafting(this.inv, () => ({ hasBonfire: this.flags.hasBonfire, hasTent: this.flags.hasTent }));
-    this.currentZone = "beach";
+    this.map = new WorldMap();
+    this.placePlayerAtStart();
     this.caveDepth = 0;
     this.logs = [];
     this.time.on("dayChange", () => this.save());
@@ -66,8 +98,10 @@ export class GameStore extends Phaser.Events.EventEmitter {
       stats: this.stats,
       inv: this.inv,
       flags: this.flags,
-      currentZone: this.currentZone,
       caveDepth: this.caveDepth,
+      map: this.map,
+      playerTx: this.playerTx,
+      playerTy: this.playerTy,
     });
   }
 
@@ -76,8 +110,18 @@ export class GameStore extends Phaser.Events.EventEmitter {
     this.stats.fromJSON(blob.stats);
     this.inv.fromJSON(blob.inventory);
     this.flags = blob.flags;
-    this.currentZone = blob.currentZone;
     this.caveDepth = blob.caveDepth;
+    if (blob.map) {
+      this.map = WorldMap.fromJSON(blob.map);
+    } else {
+      this.map = new WorldMap();
+    }
+    if (blob.playerTx != null && blob.playerTy != null && this.map.in(blob.playerTx, blob.playerTy)) {
+      this.playerTx = blob.playerTx;
+      this.playerTy = blob.playerTy;
+    } else {
+      this.placePlayerAtStart();
+    }
   }
 }
 

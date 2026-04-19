@@ -249,7 +249,6 @@ export class CaveScene extends Phaser.Scene {
   private leave(): void {
     const store = getStore(this);
     store.caveDepth = 0;
-    store.currentZone = "cave_entrance";
     this.cameras.main.fadeOut(300, 0, 0, 0);
     this.time.delayedCall(320, () => {
       this.scene.stop();

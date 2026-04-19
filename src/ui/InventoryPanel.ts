@@ -98,8 +98,11 @@ export class InventoryPanel {
     const store = getStore(this.scene);
     const def = ITEMS[id];
     if (def.placeable) {
-      if (store.currentZone !== "camp" && store.currentZone !== "beach" && store.currentZone !== "forest") {
-        store.pushLog("이곳에는 설치할 수 없다.");
+      // Allow placement on grass or sand terrain (open world)
+      const map = store.map;
+      const terrain = map.terrainAt(store.playerTx, store.playerTy);
+      if (terrain !== "grass" && terrain !== "sand" && terrain !== "forest") {
+        store.pushLog("이곳에는 설치할 수 없다. 풀밭이나 해변에서만 설치할 수 있다.");
         return;
       }
       if (def.placeable === "bonfire" && !store.flags.hasBonfire) {

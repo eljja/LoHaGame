@@ -126,7 +126,6 @@ export interface GameState {
     firstTimeVisited: Partial<Record<ZoneId, boolean>>;
     bossesDefeated: number[]; // days cleared
   };
-  currentZone: ZoneId;
   caveDepth: 0 | 1 | 2 | 3;
   savedAt?: number;
 }
