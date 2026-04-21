@@ -3,10 +3,17 @@ import type { Recipe } from "../types";
 import type { Inventory } from "./Inventory";
 
 export class Crafting {
-  constructor(private inv: Inventory, private getFlags: () => { hasBonfire: boolean; hasTent: boolean }) {}
+  constructor(
+    private inv: Inventory,
+    private getFlags: () => { hasBonfire: boolean; hasTent: boolean; discoveredRecipes?: string[] }
+  ) {}
 
+  /** 플레이어가 발견한 레시피만 반환. */
   listRecipes(): Recipe[] {
-    return RECIPES;
+    const flags = this.getFlags();
+    const discovered = flags.discoveredRecipes;
+    if (!discovered || discovered.length === 0) return RECIPES;
+    return RECIPES.filter((r) => discovered.includes(r.id));
   }
 
   canCraft(recipe: Recipe): { ok: boolean; reason?: string } {

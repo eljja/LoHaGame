@@ -232,17 +232,18 @@ export class CraftingPanel {
     // 요구 시설
     let reqY = dy + 196 + recipe.inputs.length * 26 + 8;
     if (recipe.requires?.length) {
-      const flags = store.flags;
       for (const r of recipe.requires) {
         const icon = r === "bonfire" ? "🏕" : "⛺";
         const name = r === "bonfire" ? "모닥불" : "천막";
-        const has = r === "bonfire" ? flags.hasBonfire : flags.hasTent;
-        const t = this.scene.add.text(dx + 14, reqY, `${icon} 시설: ${name}`, {
+        const has = r === "bonfire"
+          ? store.isNearStructure("bonfire_placed", store.playerTx, store.playerTy)
+          : store.isNearStructure("tent_placed", store.playerTx, store.playerTy);
+        const t = this.scene.add.text(dx + 14, reqY, `${icon} 시설(2칸 이내): ${name}`, {
           fontFamily: "Galmuri11, monospace",
           fontSize: "12px",
           color: has ? "#8be58b" : "#ff9a9a",
         });
-        const status = this.scene.add.text(dx + dw - 14, reqY, has ? "있음" : "없음", {
+        const status = this.scene.add.text(dx + dw - 14, reqY, has ? "✓ 있음" : "✗ 없음", {
           fontFamily: "Galmuri11, monospace",
           fontSize: "12px",
           color: has ? "#8be58b" : "#ff9a9a",
@@ -285,6 +286,11 @@ export class CraftingPanel {
     if (store.crafting.craft(recipe)) {
       store.pushLog(`🔨 ${recipe.name}을(를) 제작했다.`);
       audio.play("craft");
+      // achievement triggers
+      if (recipe.id === "bonfire") store.unlockAchievement("first_fire");
+      if (recipe.id === "meat_stew") store.unlockAchievement("master_chef");
+      // discover recipes from the crafted result item
+      store.discoverRecipes(recipe.result.id);
       // 선택 유지하고 재렌더 (연속 제작 편의)
       this.renderList();
       this.renderDetail();

@@ -138,6 +138,11 @@ export interface GameState {
     hasBonfire: boolean;
     firstTimeVisited: Partial<Record<ZoneId, boolean>>;
     bossesDefeated: number[]; // days cleared
+    unlockedAchievements: string[];
+    discoveredRecipes: string[];
+    fishCaught: number;
+    nightSkyBuff?: boolean; // next sleep at tent gives bonus HP
+    lastNightSkyDay?: number; // game-day key of last sky observation
   };
   caveDepth: 0 | 1 | 2 | 3;
   savedAt?: number;

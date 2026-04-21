@@ -2,8 +2,9 @@ import Phaser from "phaser";
 import { GAME_WIDTH, GAME_HEIGHT, WIN_DAY, COLORS } from "../config";
 import { TERRAIN, ENTITIES, TILE_PX, WORLD_PX } from "../data/tiles";
 import { ITEMS } from "../data/items";
+import { RECIPES } from "../data/recipes";
 import { SEA_BOSSES, NIGHT_MOBS, DAY_GAME } from "../data/enemies";
-import type { EnemyDef } from "../types";
+import type { EnemyDef, ItemId } from "../types";
 import { getStore } from "../systems/GameStore";
 import type { WorldEntity } from "../systems/WorldMap";
 import { makeButton, type ButtonNode } from "../ui/Button";
@@ -11,6 +12,8 @@ import { InventoryPanel } from "../ui/InventoryPanel";
 import { CraftingPanel } from "../ui/CraftingPanel";
 import { JournalPanel } from "../ui/JournalPanel";
 import { audio } from "../systems/AudioManager";
+import { showAchievementToast } from "../ui/AchievementToast";
+import type { Achievement } from "../data/achievements";
 
 // Viewport constants
 const VP_X = 0;
@@ -166,6 +169,18 @@ export class WorldScene extends Phaser.Scene {
     this.updateActionHint();
 
     // ── Event bindings ────────────────────────────────────
+    // ── Achievement & recipe discovery listeners ──────────────────
+    store.on("achievement", (ach: Achievement) => showAchievementToast(this, ach));
+    store.on("recipesDiscovered", (ids: string[]) => {
+      ids.forEach((id, i) => {
+        const recipe = RECIPES.find((r) => r.id === id);
+        if (!recipe) return;
+        this.time.delayedCall(i * 700, () => {
+          store.pushLog(`📜 새 레시피 발견: ${recipe.icon} ${recipe.name}!`);
+        });
+      });
+    });
+
     store.time.on("phaseChange", (phase: "day" | "night") => {
       audio.play(phase === "day" ? "phase_day" : "phase_night");
       this.syncBgm();
@@ -186,6 +201,7 @@ export class WorldScene extends Phaser.Scene {
 
     store.time.on("dayChange", (d: number) => {
       store.pushLog(`☀ Day ${d}가 밝았다.`);
+      store.checkTimedAchievements();
       if (d > WIN_DAY) {
         this.scene.stop("HUDScene");
         this.scene.start("VictoryScene");
@@ -204,6 +220,9 @@ export class WorldScene extends Phaser.Scene {
       this.syncBgm();
       this.renderEntities();
       this.updateActionHint();
+      // cave depth achievement (check before CaveScene resets depth)
+      if (store.caveDepth >= 3) store.unlockAchievement("cave_floor3");
+      store.checkTimedAchievements();
     });
 
     // 동적 요소: 야생동물 방황, 날씨, 구름, 일일 무작위 이벤트
@@ -396,6 +415,123 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+  /** first_hunt 특성: 채집 시 10% 확률로 아이템 1개 추가 획득 */
+  private gatherPerkBonus(tx: number, ty: number, itemId: ItemId): void {
+    const store = getStore(this);
+    if (store.perkGatherBonus > 0 && Math.random() < store.perkGatherBonus) {
+      store.inv.add(itemId, 1);
+      this.spawnPickupFx(tx, ty - 1, "✨+1", "#ffe58a");
+    }
+  }
+
+  // ── Night sky events ───────────────────────────────────────────
+
+  /** 밤하늘 관찰 — 하루에 한 번만 발동. 무작위 천문 이벤트 + 버프. */
+  private rollNightSkyEvent(): void {
+    const store = getStore(this);
+    const dayKey = store.time.day * 2 + 1; // night unique key
+    if (store.flags.lastNightSkyDay === dayKey) {
+      store.pushLog("🌙 이미 오늘 밤 하늘을 관찰했다.");
+      return;
+    }
+    store.flags.lastNightSkyDay = dayKey;
+
+    const r = Math.random();
+    if (r < 0.12) {
+      store.stats.apply({ energy: 30 });
+      store.pushLog("🌌 오로라가 밤하늘을 물들인다! 넋이 나간다. (행동력 +30)");
+      this.showNightSkyEffect("aurora");
+      store.unlockAchievement("stargazer");
+    } else if (r < 0.40) {
+      store.stats.apply({ energy: 20 });
+      store.pushLog("🌠 밤하늘을 가로지르는 별똥별! 소원을 빌었다. (행동력 +20)");
+      this.showNightSkyEffect("meteor");
+      store.unlockAchievement("stargazer");
+    } else if (r < 0.58) {
+      store.flags.nightSkyBuff = true;
+      store.pushLog("🌙 달무리가 피어났다. 포근하다. 지금 잠들면 HP 회복량이 증가한다.");
+      this.showNightSkyEffect("moon");
+      store.unlockAchievement("stargazer");
+    } else if (r < 0.78) {
+      store.stats.apply({ energy: 15 });
+      store.pushLog("⭐ 별자리가 선명하다. 왠지 마음이 안정된다. (행동력 +15)");
+      store.unlockAchievement("stargazer");
+    } else {
+      store.stats.apply({ energy: 8 });
+      store.pushLog("🌙 고요한 밤이다. 파도 소리가 마음을 달랜다. (행동력 +8)");
+    }
+  }
+
+  private showNightSkyEffect(type: "aurora" | "meteor" | "moon"): void {
+    if (type === "aurora") {
+      const rect1 = this.add.rectangle(VP_X, VP_Y, VP_W, VP_H, 0x00e070, 0).setOrigin(0, 0).setDepth(305);
+      this.worldCam.ignore(rect1);
+      this.tweens.add({
+        targets: rect1,
+        fillAlpha: 0.18,
+        duration: 2500,
+        yoyo: true,
+        ease: "Sine.InOut",
+        onComplete: () => rect1.destroy(),
+      });
+      this.time.delayedCall(500, () => {
+        const rect2 = this.add.rectangle(VP_X, VP_Y, VP_W, VP_H, 0xff55ff, 0).setOrigin(0, 0).setDepth(304);
+        this.worldCam.ignore(rect2);
+        this.tweens.add({
+          targets: rect2,
+          fillAlpha: 0.10,
+          duration: 3200,
+          yoyo: true,
+          ease: "Sine.InOut",
+          onComplete: () => rect2.destroy(),
+        });
+      });
+    } else if (type === "meteor") {
+      for (let i = 0; i < 6; i++) {
+        this.time.delayedCall(i * 260, () => {
+          const sx = Phaser.Math.Between(VP_X + 60, VP_X + VP_W / 2);
+          const sy = Phaser.Math.Between(VP_Y + 20, VP_Y + 100);
+          const star = this.add.text(sx, sy, "✨", { fontSize: "16px" }).setDepth(310).setAlpha(1);
+          this.worldCam.ignore(star);
+          this.tweens.add({
+            targets: star,
+            x: sx + 200,
+            y: sy + 90,
+            alpha: 0,
+            duration: 650,
+            ease: "Quad.Out",
+            onComplete: () => star.destroy(),
+          });
+        });
+      }
+    } else if (type === "moon") {
+      const mx = VP_X + VP_W * 0.75;
+      const my = VP_Y + 55;
+      const ring = this.add.circle(mx, my, 56, 0xffeebb, 0).setDepth(305);
+      const moon = this.add.text(mx, my, "🌕", { fontSize: "32px" }).setOrigin(0.5).setDepth(307).setAlpha(0);
+      this.worldCam.ignore(ring);
+      this.worldCam.ignore(moon);
+      this.tweens.add({
+        targets: ring,
+        fillAlpha: 0.45,
+        duration: 1600,
+        hold: 2200,
+        yoyo: true,
+        ease: "Sine.InOut",
+        onComplete: () => ring.destroy(),
+      });
+      this.tweens.add({
+        targets: moon,
+        alpha: 1,
+        duration: 1600,
+        hold: 2200,
+        yoyo: true,
+        ease: "Sine.InOut",
+        onComplete: () => moon.destroy(),
+      });
+    }
+  }
+
   // ── Player movement ────────────────────────────────────────────
   private tryMove(dx: number, dy: number): void {
     const store = getStore(this);
@@ -480,6 +616,8 @@ export class WorldScene extends Phaser.Scene {
         store.stats.apply({ energy: -3 });
         store.pushLog(`🌳 나무에서 나뭇가지를 구했다. 나뭇가지 ×${count}`);
         this.spawnPickupFx(entity.tx, entity.ty, `+🪵×${count}`);
+        this.gatherPerkBonus(entity.tx, entity.ty, "stick");
+        store.discoverRecipes("stick");
         audio.play("pickup");
         break;
       }
@@ -491,6 +629,8 @@ export class WorldScene extends Phaser.Scene {
         store.time.advanceMinutes(10);
         store.pushLog(`🫐 열매덤불에서 열매를 땄다. 열매 ×${count}`);
         this.spawnPickupFx(entity.tx, entity.ty, `+🫐×${count}`);
+        this.gatherPerkBonus(entity.tx, entity.ty, "berry");
+        store.discoverRecipes("berry");
         audio.play("pickup");
         break;
       }
@@ -503,6 +643,8 @@ export class WorldScene extends Phaser.Scene {
         store.stats.apply({ energy: -5 });
         store.pushLog(`🪨 돌을 캤다. 돌 ×${count}`);
         this.spawnPickupFx(entity.tx, entity.ty, `+🪨×${count}`);
+        this.gatherPerkBonus(entity.tx, entity.ty, "stone");
+        store.discoverRecipes("stone");
         audio.play("pickup");
         break;
       }
@@ -514,6 +656,8 @@ export class WorldScene extends Phaser.Scene {
         store.time.advanceMinutes(10);
         store.pushLog(`🌿 덩굴을 모았다. 덩굴 ×${count}`);
         this.spawnPickupFx(entity.tx, entity.ty, `+🌿×${count}`);
+        this.gatherPerkBonus(entity.tx, entity.ty, "vine");
+        store.discoverRecipes("vine");
         audio.play("pickup");
         break;
       }
@@ -526,14 +670,17 @@ export class WorldScene extends Phaser.Scene {
           store.inv.add("fish_raw", 1);
           store.pushLog("🐚 조개에서 날것 물고기를 찾았다.");
           this.spawnPickupFx(entity.tx, entity.ty, "+🐟×1");
+          store.discoverRecipes("fish_raw");
         } else if (r < 0.45) {
           store.inv.add("stone", 1);
           store.pushLog("🐚 조개 속에 돌이 들어있었다.");
           this.spawnPickupFx(entity.tx, entity.ty, "+🪨×1");
+          store.discoverRecipes("stone");
         } else if (r < 0.65) {
           store.inv.add("cloth", 1);
           store.pushLog("🐚 조개에서 낡은 천 조각을 발견했다.");
           this.spawnPickupFx(entity.tx, entity.ty, "+🧵×1");
+          store.discoverRecipes("cloth");
         } else if (r < 0.8) {
           store.inv.add("coconut", 1);
           store.pushLog("🥥 파도에 휩쓸려온 야자 열매를 주웠다.");
@@ -569,6 +716,8 @@ export class WorldScene extends Phaser.Scene {
         store.time.advanceMinutes(10);
         store.pushLog(`🍄 버섯을 채취했다. 버섯 ×${count} (약한 회복 효과)`);
         this.spawnPickupFx(entity.tx, entity.ty, `+🍄×${count}`, "#ffb3d1");
+        this.gatherPerkBonus(entity.tx, entity.ty, "mushroom");
+        store.discoverRecipes("mushroom");
         audio.play("pickup");
         break;
       }
@@ -578,6 +727,7 @@ export class WorldScene extends Phaser.Scene {
         store.stats.apply({ energy: -10 });
         const target = DAY_GAME[0] as EnemyDef;
         store.pushLog(`🐇 토끼를 발견했다!`);
+        store.unlockAchievement("first_hunt");
         // 토끼는 전투가 시작되는 순간 도망치거나 잡히므로 맵에서 제거
         store.map.removeEntity(entity.id);
         this.renderEntities();
@@ -626,14 +776,19 @@ export class WorldScene extends Phaser.Scene {
 
       case "cliff_lookout": {
         store.time.advanceMinutes(20);
-        const nextBoss = Math.ceil(store.time.day / 10) * 10;
-        const left = nextBoss - store.time.day;
-        if (left === 0) {
-          store.pushLog("🏔 수면이 부자연스럽게 솟구친다… 오늘 무언가 올 것이다.");
-        } else if (left <= 2) {
-          store.pushLog(`🏔 수평선이 검게 물든다. ${left}일 내에 해양 습격이 있을 것.`);
+        if (store.time.phase === "night") {
+          store.pushLog("🏔 어두운 밤바다 위로 별이 쏟아진다...");
+          this.rollNightSkyEvent();
         } else {
-          store.pushLog("🏔 수평선을 바라봤다. 구조선은 아직 없다.");
+          const nextBoss = Math.ceil(store.time.day / 10) * 10;
+          const left = nextBoss - store.time.day;
+          if (left === 0) {
+            store.pushLog("🏔 수면이 부자연스럽게 솟구친다… 오늘 무언가 올 것이다.");
+          } else if (left <= 2) {
+            store.pushLog(`🏔 수평선이 검게 물든다. ${left}일 내에 해양 습격이 있을 것.`);
+          } else {
+            store.pushLog("🏔 수평선을 바라봤다. 구조선은 아직 없다.");
+          }
         }
         break;
       }
@@ -643,6 +798,7 @@ export class WorldScene extends Phaser.Scene {
         store.inv.add("water_dirty", count);
         store.time.advanceMinutes(10);
         store.pushLog(`💧 샘물을 길었다. 더러운 물 ×${count} (끓여야 마실 수 있다)`);
+        store.discoverRecipes("water_dirty");
         // 낚싯대 있으면 낚시 포인트 힌트
         if (store.inv.hasTool("rod")) {
           store.pushLog("💡 근처에 낚시 포인트(🎣)가 있다면 탭해서 낚시할 수 있다.");
@@ -705,6 +861,7 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "tent_placed": {
+        if (store.time.phase === "night") this.rollNightSkyEvent();
         this.sleepAt("tent");
         break;
       }
@@ -746,6 +903,7 @@ export class WorldScene extends Phaser.Scene {
         for (const d of drops) store.inv.add(d.id, d.count);
         const text = drops.map((d) => `${ITEMS[d.id].icon}${ITEMS[d.id].name}×${d.count}`).join(", ");
         store.pushLog(`💰 묻혀있던 보물을 발견했다! ${text}`);
+        store.unlockAchievement("treasure_dug");
         audio.play("victory");
         this.spawnPickupFx(entity.tx, entity.ty, "💰💰💰", "#ffd700");
         // 황금빛 파티클 몇 개
@@ -792,7 +950,10 @@ export class WorldScene extends Phaser.Scene {
 
     const idx = 3 - lootLeft; // lootLeft 3→pool 0, 2→pool 1, 1→pool 2
     const loot = lootPools[idx] ?? lootPools[0];
-    for (const l of loot) store.inv.add(l.id, l.count);
+    for (const l of loot) {
+      store.inv.add(l.id, l.count);
+      store.discoverRecipes(l.id);
+    }
 
     if (entity.meta) {
       entity.meta.lootLeft = lootLeft - 1;
@@ -823,11 +984,17 @@ export class WorldScene extends Phaser.Scene {
     const energyNeeded = 100 - store.stats.energy;
     if (energyNeeded > 0) store.stats.apply({ energy: energyNeeded });
 
+    const nightBuff = store.flags.nightSkyBuff && where === "tent";
+    if (nightBuff) store.flags.nightSkyBuff = false;
+
     if (where === "tent") {
-      store.stats.apply({ hp: 40 });
-      store.pushLog("⛺ 천막에서 편히 잠들었다. 체력과 행동력이 완전히 회복됐다!");
+      const hpGain = 40 + store.perkBonusRestHp + (nightBuff ? 20 : 0);
+      store.stats.apply({ hp: hpGain });
+      store.pushLog(nightBuff
+        ? `⛺ 달무리의 축복 아래 달콤하게 잠들었다. HP +${hpGain}, 행동력 완전 회복!`
+        : `⛺ 천막에서 편히 잠들었다. 체력과 행동력이 완전히 회복됐다!`);
     } else {
-      store.stats.apply({ hp: 20 });
+      store.stats.apply({ hp: 20 + store.perkBonusRestHp });
       store.pushLog("🚢 배 안에서 잠들었다. 체력과 행동력이 어느정도 회복됐다.");
     }
     audio.play("heal");
@@ -1258,28 +1425,31 @@ export class WorldScene extends Phaser.Scene {
       catchBtn.setDisabled(false);
       (catchBtn as any).setLabel("낚아채기! ⬇️");
 
-      // 1.5초 내에 안 누르면 실패
+      // 1.5초 (+fish5 특성 0.5초) 내에 안 누르면 실패
+      const catchWindowMs = 1500 + store.perkFishExtraMs;
       missTimer = setTimeout(() => {
         idleTween.stop();
         c.destroy();
         store.pushLog("🎣 아뿔싸! 찌를 늦게 당겼다. 물고기가 도망쳤다.");
-      }, 1500);
+      }, catchWindowMs);
     });
   }
 
   private grantFishLoot(tx: number, ty: number): void {
     const store = getStore(this);
-    const r = Math.random();
+    const r = Math.random() + store.perkRareDropBonus;
     if (r < 0.55) {
       const n = Phaser.Math.Between(1, 2);
       store.inv.add("fish_raw", n);
       store.pushLog(`🐟 낚시 성공! 생 물고기 ×${n} 획득!`);
       this.spawnPickupFx(tx, ty, `+🐟×${n}`);
+      store.discoverRecipes("fish_raw");
     } else if (r < 0.75) {
       const n = Phaser.Math.Between(1, 2);
       store.inv.add("fish_cooked", n);
       store.pushLog(`🍤 운이 좋다! 구운 생선 ×${n} 획득!`);
       this.spawnPickupFx(tx, ty, `+🍤×${n}`);
+      store.discoverRecipes("fish_cooked");
     } else if (r < 0.88) {
       store.inv.add("water_clean", 1);
       store.pushLog("💧 이상하게도 맑은 물이 담긴 조개껍데기가 올라왔다. 정화수 ×1.");
@@ -1292,6 +1462,9 @@ export class WorldScene extends Phaser.Scene {
       store.pushLog("💎 낚시 대박! 강바닥에서 다이아몬드가 올라왔다!");
       this.spawnPickupFx(tx, ty, "+💎×1", "#a0e0ff");
     }
+    // fish5 achievement tracking
+    store.flags.fishCaught = (store.flags.fishCaught ?? 0) + 1;
+    if (store.flags.fishCaught >= 5) store.unlockAchievement("fish5");
     audio.play("pickup");
     this.renderEntities();
     this.updateActionHint();

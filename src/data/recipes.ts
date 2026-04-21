@@ -1,4 +1,25 @@
-import type { Recipe } from "../types";
+import type { ItemId, Recipe } from "../types";
+
+/**
+ * 특정 아이템을 처음 획득할 때 해금되는 레시피 목록.
+ * key = ItemId, value = 해금되는 recipe id 배열.
+ */
+export const RECIPE_UNLOCK_TRIGGERS: Partial<Record<ItemId, string[]>> = {
+  stick:       ["wood_club", "fishing_rod"],
+  stone:       ["stone_axe", "stone_spear", "stone_pickaxe", "bonfire"],
+  vine:        ["rope", "stone_axe", "stone_spear", "stone_pickaxe"],
+  cloth:       ["torch", "bandage", "tent"],
+  iron_ore:    ["iron_pickaxe", "iron_sword"],
+  fish_raw:    ["cook_fish"],
+  fish_cooked: ["smoked_fish"],
+  meat_raw:    ["cook_meat"],
+  meat_cooked: ["meat_stew"],
+  water_dirty: ["purify_water"],
+  berry:       ["herbal_drink", "trail_mix"],
+  mushroom:    ["trail_mix"],
+  bandage:     ["large_bandage", "medkit"],
+  herbal_drink:["energy_tonic", "medkit"],
+};
 
 export const RECIPES: Recipe[] = [
   {

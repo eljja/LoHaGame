@@ -399,6 +399,7 @@ export class CombatScene extends Phaser.Scene {
       if (Math.random() <= l.chance) {
         store.inv.add(l.id, l.count);
         drops.push(`${ITEMS[l.id].icon}${ITEMS[l.id].name}×${l.count}`);
+        store.discoverRecipes(l.id);
       }
     }
     if (drops.length) {
@@ -407,6 +408,7 @@ export class CombatScene extends Phaser.Scene {
     }
     if (this.enemy.kind === "sea") {
       store.flags.bossesDefeated.push(store.time.day);
+      store.checkTimedAchievements();
     }
     this.tweens.add({ targets: this.enemySprite, alpha: 0, scale: 0.5, duration: 900, ease: "Back.In" });
     this.time.delayedCall(1200, () => this.endCombat(true));

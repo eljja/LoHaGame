@@ -8,6 +8,9 @@ export class PlayerStats extends Phaser.Events.EventEmitter {
   thirst = 80;
   energy = 90;
   dead = false;
+  /** Perk multipliers set by GameStore when achievements unlock */
+  hungerMult = 1.0;
+  energyMult = 1.0;
 
   apply(delta: StatDelta): void {
     if (delta.hp != null) this.hp = Phaser.Math.Clamp(this.hp + delta.hp, 0, 100);
@@ -28,9 +31,9 @@ export class PlayerStats extends Phaser.Events.EventEmitter {
     const prevHunger = this.hunger;
     const prevThirst = this.thirst;
 
-    this.hunger = Math.max(0, this.hunger - STAT_DRAIN.hunger * s);
+    this.hunger = Math.max(0, this.hunger - STAT_DRAIN.hunger * this.hungerMult * s);
     this.thirst = Math.max(0, this.thirst - STAT_DRAIN.thirst * s);
-    this.energy = Math.max(0, this.energy - (phase === "day" ? STAT_DRAIN.energyDay : STAT_DRAIN.energyNight) * s);
+    this.energy = Math.max(0, this.energy - (phase === "day" ? STAT_DRAIN.energyDay : STAT_DRAIN.energyNight) * this.energyMult * s);
 
     // 허기·탈수 → HP 감소
     if (this.hunger <= 0) this.hp -= 0.05 * s;

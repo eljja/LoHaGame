@@ -8,7 +8,9 @@ import { WorldMap } from "./WorldMap";
 import { LIGHT_RADIUS, LIGHT_SOURCE_TYPES } from "../data/tiles";
 import type { EntityType } from "../data/tiles";
 import type { WorldEntity } from "./WorldMap";
-import type { GameState } from "../types";
+import type { GameState, ItemId } from "../types";
+import { ACHIEVEMENTS, type Achievement } from "../data/achievements";
+import { RECIPE_UNLOCK_TRIGGERS } from "../data/recipes";
 
 /**
  * 모든 시스템과 게임 상태의 단일 소유자. Phaser game.registry에 'store'로 저장.
@@ -31,6 +33,12 @@ export class GameStore extends Phaser.Events.EventEmitter {
     hasBonfire: false,
     firstTimeVisited: {},
     bossesDefeated: [],
+    unlockedAchievements: [],
+    discoveredRecipes: [
+      "wood_club", "stone_axe", "stone_spear", "rope", "torch",
+      "stone_pickaxe", "bandage", "bonfire", "tent",
+    ],
+    fishCaught: 0,
   };
 
   caveDepth: 0 | 1 | 2 | 3 = 0;
@@ -43,6 +51,7 @@ export class GameStore extends Phaser.Events.EventEmitter {
     this.crafting = new Crafting(this.inv, () => ({
       hasBonfire: this.isNearStructure("bonfire_placed", this.playerTx, this.playerTy),
       hasTent: this.isNearStructure("tent_placed", this.playerTx, this.playerTy),
+      discoveredRecipes: this.flags.discoveredRecipes,
     }));
     this.placePlayerAtStart();
     this.time.on("dayChange", () => this.save());
@@ -69,8 +78,88 @@ export class GameStore extends Phaser.Events.EventEmitter {
     return this.map.entities.filter((e) => LIGHT_SOURCE_TYPES.includes(e.type));
   }
 
+  // ── Achievement system ────────────────────────────────────────────
+
+  hasAchievement(id: string): boolean {
+    return (this.flags.unlockedAchievements ?? []).includes(id);
+  }
+
+  unlockAchievement(id: string): void {
+    if (this.hasAchievement(id)) return;
+    const ach = ACHIEVEMENTS.find((a) => a.id === id);
+    if (!ach) return;
+    (this.flags.unlockedAchievements ??= []).push(id);
+    this.pushLog(`🏆 도전 과제 달성: ${ach.icon} ${ach.name}${ach.perk ? ` — ${ach.perk.desc}` : ""}`);
+    this.emit("achievement", ach);
+    this.updatePerkMultipliers();
+  }
+
+  checkTimedAchievements(): void {
+    if (this.time.day >= 25) this.unlockAchievement("day25");
+    if ((this.flags.bossesDefeated ?? []).length >= 3) this.unlockAchievement("boss_x3");
+  }
+
+  private updatePerkMultipliers(): void {
+    let hungerMult = 1.0;
+    if (this.hasAchievement("first_fire")) hungerMult *= 0.9;
+    if (this.hasAchievement("master_chef")) hungerMult *= 0.85;
+    this.stats.hungerMult = hungerMult;
+
+    let energyMult = 1.0;
+    if (this.hasAchievement("day25")) energyMult *= 0.9;
+    if (this.hasAchievement("stargazer")) energyMult *= 0.5;
+    this.stats.energyMult = energyMult;
+  }
+
+  // ── Perk getters ────────────────────────────────────────────────
+
+  /** 채집 시 10% 확률로 아이템 +1 (first_hunt 특성) */
+  get perkGatherBonus(): number {
+    return this.hasAchievement("first_hunt") ? 0.10 : 0;
+  }
+
+  /** 전투 공격력 보너스 (boss_x3 특성) */
+  get perkBonusDmg(): number {
+    return this.hasAchievement("boss_x3") ? 5 : 0;
+  }
+
+  /** 잠 잘 때 HP 회복 보너스 (cave_floor3 특성) */
+  get perkBonusRestHp(): number {
+    return this.hasAchievement("cave_floor3") ? 10 : 0;
+  }
+
+  /** 낚시 판정 시간 보너스(ms) (fish5 특성) */
+  get perkFishExtraMs(): number {
+    return this.hasAchievement("fish5") ? 500 : 0;
+  }
+
+  /** 희귀 드롭 보너스 확률 (treasure_dug 특성) */
+  get perkRareDropBonus(): number {
+    return this.hasAchievement("treasure_dug") ? 0.05 : 0;
+  }
+
+  // ── Recipe discovery ─────────────────────────────────────────────
+
+  /** 아이템을 처음 획득할 때 호출. 새로 해금된 레시피 id 목록을 반환하고 이벤트를 발생시킨다. */
+  discoverRecipes(itemId: ItemId): string[] {
+    const discovered = this.flags.discoveredRecipes;
+    const newOnes: string[] = [];
+    const recipeIds = RECIPE_UNLOCK_TRIGGERS[itemId];
+    if (recipeIds) {
+      for (const recipeId of recipeIds) {
+        if (!discovered.includes(recipeId)) {
+          discovered.push(recipeId);
+          newOnes.push(recipeId);
+        }
+      }
+    }
+    if (newOnes.length > 0) this.emit("recipesDiscovered", newOnes);
+    return newOnes;
+  }
+
+  // ── Lifecycle ────────────────────────────────────────────────────
+
   private placePlayerAtStart(): void {
-    // 시작 위치: 난파선 근처 해변에서 한 칸 안쪽
     const ship = this.map.entities.find((e) => e.type === "shipwreck");
     if (ship) {
       const candidates: Array<[number, number]> = [
@@ -87,7 +176,6 @@ export class GameStore extends Phaser.Events.EventEmitter {
         }
       }
     }
-    // 폴백: 중앙
     const c = Math.floor(this.map.size / 2);
     this.playerTx = c;
     this.playerTy = c;
@@ -109,10 +197,17 @@ export class GameStore extends Phaser.Events.EventEmitter {
       hasBonfire: false,
       firstTimeVisited: {},
       bossesDefeated: [],
+      unlockedAchievements: [],
+      discoveredRecipes: [
+        "wood_club", "stone_axe", "stone_spear", "rope", "torch",
+        "stone_pickaxe", "bandage", "bonfire", "tent",
+      ],
+      fishCaught: 0,
     };
     this.crafting = new Crafting(this.inv, () => ({
       hasBonfire: this.isNearStructure("bonfire_placed", this.playerTx, this.playerTy),
       hasTent: this.isNearStructure("tent_placed", this.playerTx, this.playerTy),
+      discoveredRecipes: this.flags.discoveredRecipes,
     }));
     this.map = new WorldMap();
     this.placePlayerAtStart();
@@ -140,6 +235,16 @@ export class GameStore extends Phaser.Events.EventEmitter {
     this.stats.fromJSON(blob.stats);
     this.inv.fromJSON(blob.inventory);
     this.flags = blob.flags;
+    // backwards compatibility for older saves
+    if (!this.flags.unlockedAchievements) this.flags.unlockedAchievements = [];
+    if (!this.flags.discoveredRecipes) {
+      this.flags.discoveredRecipes = [
+        "wood_club", "stone_axe", "stone_spear", "rope", "torch",
+        "stone_pickaxe", "bandage", "bonfire", "tent",
+      ];
+    }
+    if (this.flags.fishCaught == null) this.flags.fishCaught = 0;
+
     this.caveDepth = blob.caveDepth;
     if (blob.map) {
       this.map = WorldMap.fromJSON(blob.map);
@@ -153,6 +258,7 @@ export class GameStore extends Phaser.Events.EventEmitter {
       this.placePlayerAtStart();
     }
     this.migrateLegacyStructures();
+    this.updatePerkMultipliers();
   }
 
   /** 구버전 저장(전역 hasBonfire/hasTent 플래그)을 엔티티로 마이그레이션. */
