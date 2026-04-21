@@ -39,7 +39,8 @@ export type ItemId =
   | "smoked_fish"
   | "energy_tonic"
   | "trail_mix"
-  | "coconut";
+  | "coconut"
+  | "treasure_map";
 
 export interface ItemDef {
   id: ItemId;
@@ -55,6 +56,8 @@ export interface ItemDef {
   pickaxeTier?: 0 | 1 | 2;
   tool?: "axe" | "pickaxe" | "rod" | "gun";
   placeable?: "bonfire" | "tent";
+  /** 사용 시 특수 이벤트 트리거. 씬이 onUseCallback에서 분기 처리. */
+  onUse?: "treasure_map";
   category: "material" | "food" | "tool" | "weapon" | "build" | "misc";
 }
 

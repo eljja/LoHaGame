@@ -5,6 +5,9 @@ import { Inventory } from "./Inventory";
 import { Crafting } from "./Crafting";
 import { SaveManager, type SaveBlob } from "./SaveManager";
 import { WorldMap } from "./WorldMap";
+import { LIGHT_RADIUS, LIGHT_SOURCE_TYPES } from "../data/tiles";
+import type { EntityType } from "../data/tiles";
+import type { WorldEntity } from "./WorldMap";
 import type { GameState } from "../types";
 
 /**
@@ -37,9 +40,33 @@ export class GameStore extends Phaser.Events.EventEmitter {
 
   constructor() {
     super();
-    this.crafting = new Crafting(this.inv, () => ({ hasBonfire: this.flags.hasBonfire, hasTent: this.flags.hasTent }));
+    this.crafting = new Crafting(this.inv, () => ({
+      hasBonfire: this.isNearStructure("bonfire_placed", this.playerTx, this.playerTy),
+      hasTent: this.isNearStructure("tent_placed", this.playerTx, this.playerTy),
+    }));
     this.placePlayerAtStart();
     this.time.on("dayChange", () => this.save());
+  }
+
+  /** 좌표 (tx,ty)가 주어진 타입의 설치물로부터 LIGHT_RADIUS 이내에 있는가 (체비셰프 거리). */
+  isNearStructure(type: EntityType, tx: number, ty: number, radius = LIGHT_RADIUS): boolean {
+    return this.map.entities.some(
+      (e) => e.type === type && Math.max(Math.abs(e.tx - tx), Math.abs(e.ty - ty)) <= radius
+    );
+  }
+
+  /** 좌표 주변에 설치된 광원(모닥불/천막)이 있는지. 밤 밝음·몹 차단 체크용. */
+  isInLightArea(tx: number, ty: number, radius = LIGHT_RADIUS): boolean {
+    return this.map.entities.some(
+      (e) =>
+        LIGHT_SOURCE_TYPES.includes(e.type) &&
+        Math.max(Math.abs(e.tx - tx), Math.abs(e.ty - ty)) <= radius
+    );
+  }
+
+  /** 현재 맵의 모든 광원 엔티티 목록. */
+  getLightSources(): WorldEntity[] {
+    return this.map.entities.filter((e) => LIGHT_SOURCE_TYPES.includes(e.type));
   }
 
   private placePlayerAtStart(): void {
@@ -83,7 +110,10 @@ export class GameStore extends Phaser.Events.EventEmitter {
       firstTimeVisited: {},
       bossesDefeated: [],
     };
-    this.crafting = new Crafting(this.inv, () => ({ hasBonfire: this.flags.hasBonfire, hasTent: this.flags.hasTent }));
+    this.crafting = new Crafting(this.inv, () => ({
+      hasBonfire: this.isNearStructure("bonfire_placed", this.playerTx, this.playerTy),
+      hasTent: this.isNearStructure("tent_placed", this.playerTx, this.playerTy),
+    }));
     this.map = new WorldMap();
     this.placePlayerAtStart();
     this.caveDepth = 0;
@@ -122,6 +152,38 @@ export class GameStore extends Phaser.Events.EventEmitter {
     } else {
       this.placePlayerAtStart();
     }
+    this.migrateLegacyStructures();
+  }
+
+  /** 구버전 저장(전역 hasBonfire/hasTent 플래그)을 엔티티로 마이그레이션. */
+  private migrateLegacyStructures(): void {
+    const camp = this.map.entities.find((e) => e.type === "camp_spot");
+    if (this.flags.hasBonfire && !this.map.entities.some((e) => e.type === "bonfire_placed")) {
+      const spot = this.findLegacySpawnTile(camp, "bonfire_placed");
+      if (spot) this.map.entities.push({ id: this.allocEntityId(), type: "bonfire_placed", tx: spot[0], ty: spot[1] });
+    }
+    if (this.flags.hasTent && !this.map.entities.some((e) => e.type === "tent_placed")) {
+      const spot = this.findLegacySpawnTile(camp, "tent_placed");
+      if (spot) this.map.entities.push({ id: this.allocEntityId(), type: "tent_placed", tx: spot[0], ty: spot[1] });
+    }
+  }
+
+  private findLegacySpawnTile(camp: WorldEntity | undefined, _kind: EntityType): [number, number] | null {
+    if (camp) {
+      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = camp.tx + dx;
+        const ny = camp.ty + dy;
+        if (this.map.in(nx, ny) && !this.map.entityAt(nx, ny)) return [nx, ny];
+      }
+    }
+    if (this.map.in(this.playerTx, this.playerTy)) return [this.playerTx, this.playerTy];
+    return null;
+  }
+
+  private allocEntityId(): number {
+    let maxId = 0;
+    for (const e of this.map.entities) if (e.id > maxId) maxId = e.id;
+    return maxId + 1;
   }
 }
 

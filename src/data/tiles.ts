@@ -55,7 +55,10 @@ export type EntityType =
   | "cliff_lookout"
   | "river_spring"
   | "camp_spot"
-  | "fishing_spot";
+  | "fishing_spot"
+  | "bonfire_placed"
+  | "tent_placed"
+  | "buried_treasure";
 
 export interface EntityTypeDef {
   icon: string;
@@ -88,4 +91,14 @@ export const ENTITIES: Record<EntityType, EntityTypeDef> = {
   river_spring: { icon: "💧", label: "샘",         terrain: ["sand", "grass"],    cap: 2,   respawn: false, blocksMovement: false, reach: 1 },
   camp_spot:    { icon: "🏕", label: "거점 자리",  terrain: ["grass"],            cap: 1,   respawn: false, blocksMovement: false, reach: 0 },
   fishing_spot: { icon: "🎣", label: "낚시 포인트",terrain: ["sand", "grass"],    cap: 3,   respawn: false, blocksMovement: false, reach: 1 },
+  // 설치 구조물 — 플레이어가 특정 타일에 배치, 효과는 주변 2칸 이내에서만 적용
+  bonfire_placed: { icon: "🔥", label: "모닥불",   terrain: ["grass", "sand", "forest"], cap: 99, respawn: false, blocksMovement: false, reach: 1 },
+  tent_placed:    { icon: "⛺", label: "설치된 천막", terrain: ["grass", "sand", "forest"], cap: 99, respawn: false, blocksMovement: false, reach: 1 },
+  // 숨겨진 보물 — 지도로만 드러나며, 곡괭이로 파낼 수 있다
+  buried_treasure:{ icon: "❌", label: "수상한 흔적", terrain: ["grass", "sand", "forest"], cap: 99, respawn: false, blocksMovement: false, reach: 1 },
 };
+
+/** 광원이 되는 설치물 타입. 주변 2칸 이내를 밝게 하고 몹 조우를 막는다. */
+export const LIGHT_SOURCE_TYPES: EntityType[] = ["bonfire_placed", "tent_placed"];
+/** 광원 효과 반경 (타일). 2 = 3x3 (자기 포함) */
+export const LIGHT_RADIUS = 2;

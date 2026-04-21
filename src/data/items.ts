@@ -129,6 +129,12 @@ export const ITEMS: Record<ItemId, ItemDef> = {
 
   bonfire: { id: "bonfire", name: "모닥불", icon: "🏕", desc: "요리·온기·경계.", stack: 1, placeable: "bonfire", category: "build" },
   tent:    { id: "tent",    name: "천막",   icon: "⛺", desc: "편히 잠들 수 있다.", stack: 1, placeable: "tent",    category: "build" },
+
+  treasure_map: {
+    id: "treasure_map", name: "낡은 보물 지도", icon: "🗺",
+    desc: "사용하면 섬 어딘가에 묻힌 보물의 위치가 밝혀진다. 곡괭이로 파내자.",
+    stack: 5, category: "misc", onUse: "treasure_map",
+  },
 };
 
 export const ITEM_IDS = Object.keys(ITEMS) as ItemId[];

@@ -32,6 +32,7 @@ export class WorldScene extends Phaser.Scene {
   private menuBar!: Phaser.GameObjects.Container;
   private dpad!: Phaser.GameObjects.Container;
   private nightOverlay!: Phaser.GameObjects.Rectangle;
+  private lightsGfx!: Phaser.GameObjects.Graphics;
 
   private inventoryPanel!: InventoryPanel;
   private craftingPanel!: CraftingPanel;
@@ -135,6 +136,12 @@ export class WorldScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setDepth(40);
     this.uiContainer.add(this.nightOverlay);
+
+    // 설치된 모닥불/천막 주변을 밝히는 광원 레이어 (밤에만 표시).
+    // 어둠 위에 ADD 블렌드로 노란색 원을 그려 국소적으로 밝기를 보탠다.
+    this.lightsGfx = this.add.graphics().setDepth(41);
+    this.lightsGfx.setBlendMode(Phaser.BlendModes.ADD);
+    this.uiContainer.add(this.lightsGfx);
 
     // Build D-pad and menu bar
     this.dpad = this.add.container(0, 0);
@@ -323,6 +330,36 @@ export class WorldScene extends Phaser.Scene {
           yoyo: true,
           repeat: -1,
         });
+      } else if (entity.type === "bonfire_placed") {
+        // 불꽃이 살짝 크기·색으로 일렁임
+        this.tweens.add({
+          targets: t,
+          scale: 1.12,
+          duration: 380,
+          ease: "Sine.InOut",
+          yoyo: true,
+          repeat: -1,
+        });
+      } else if (entity.type === "tent_placed") {
+        this.tweens.add({
+          targets: t,
+          scaleY: 1.06,
+          duration: 1800,
+          ease: "Sine.InOut",
+          yoyo: true,
+          repeat: -1,
+        });
+      } else if (entity.type === "buried_treasure") {
+        // 살짝 반짝이는 효과
+        t.setAlpha(0.85);
+        this.tweens.add({
+          targets: t,
+          alpha: 1,
+          duration: 700,
+          ease: "Sine.InOut",
+          yoyo: true,
+          repeat: -1,
+        });
       }
 
       this.entityObjects.set(entity.id, t);
@@ -413,7 +450,8 @@ export class WorldScene extends Phaser.Scene {
     }
 
     // Night mob encounter chance (횃불 없으면 더 위험)
-    const nightEncounterChance = store.time.phase === "night"
+    // 모닥불/천막 2칸 이내에서는 몹이 접근하지 않는다
+    const nightEncounterChance = store.time.phase === "night" && !store.isInLightArea(nx, ny)
       ? (store.inv.has("torch") ? 0.025 : 0.06)
       : 0;
     if (nightEncounterChance > 0 && Math.random() < nightEncounterChance) {
@@ -624,23 +662,96 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "camp_spot": {
-        if (store.flags.hasTent) {
-          this.sleepAt("tent");
-        } else if (store.inv.has("tent")) {
-          // 인벤토리에 천막이 있으면 자동 설치
+        // 이 타일에 바로 천막을 설치 (플레이어가 camp_spot과 같은 칸에 서 있을 때)
+        const onCamp = store.playerTx === entity.tx && store.playerTy === entity.ty;
+        if (onCamp && store.inv.has("tent")) {
+          store.map.removeEntity(entity.id);
+          let maxId = 0;
+          for (const e of store.map.entities) if (e.id > maxId) maxId = e.id;
+          store.map.entities.push({ id: maxId + 1, type: "tent_placed", tx: entity.tx, ty: entity.ty });
           store.inv.remove("tent", 1);
           store.flags.hasTent = true;
-          store.pushLog("⛺ 거점에 천막을 설치했다! 이곳에서 편히 잠들 수 있다.");
-          audio.play("craft");
+          store.pushLog("⛺ 거점 자리에 천막을 설치했다! 이 자리에서 잘 수 있고, 주변 2칸 이내는 밤에도 밝고 안전하다.");
           if (store.inv.has("bonfire")) {
-            store.inv.remove("bonfire", 1);
-            store.flags.hasBonfire = true;
-            store.pushLog("🔥 모닥불도 함께 설치했다! 이제 요리가 가능하다.");
+            // 천막 옆 빈 칸에 모닥불을 함께 설치
+            const neighbors: Array<[number, number]> = [
+              [entity.tx + 1, entity.ty], [entity.tx - 1, entity.ty],
+              [entity.tx, entity.ty + 1], [entity.tx, entity.ty - 1],
+            ];
+            for (const [nx, ny] of neighbors) {
+              if (!store.map.in(nx, ny)) continue;
+              const t = store.map.terrain[ny][nx];
+              if (t !== "grass" && t !== "sand" && t !== "forest") continue;
+              if (store.map.entityAt(nx, ny)) continue;
+              let mid = 0;
+              for (const e of store.map.entities) if (e.id > mid) mid = e.id;
+              store.map.entities.push({ id: mid + 1, type: "bonfire_placed", tx: nx, ty: ny });
+              store.inv.remove("bonfire", 1);
+              store.flags.hasBonfire = true;
+              store.pushLog("🔥 천막 옆에 모닥불도 피웠다! 이제 요리가 가능하다.");
+              break;
+            }
           }
+          audio.play("craft");
+        } else if (!onCamp) {
+          store.pushLog("🏕 거점 자리다. 이 타일 위로 이동해 천막(⛺)을 설치하자.");
         } else {
           store.pushLog(
             "🏕 거점 자리를 발견했다! 천막(⛺)을 제작해서 여기에 설치하면 매일 밤 쉴 수 있다.\n" +
             "   제작 패널(C키) → 천막: 천 조각×4 + 나뭇가지×6 + 밧줄×2"
+          );
+        }
+        break;
+      }
+
+      case "tent_placed": {
+        this.sleepAt("tent");
+        break;
+      }
+
+      case "bonfire_placed": {
+        store.pushLog("🔥 모닥불이 은은한 열기를 내뿜는다. 주변 2칸 이내에서 요리할 수 있다.");
+        break;
+      }
+
+      case "buried_treasure": {
+        if (store.inv.bestPickaxeTier() < 1) {
+          store.pushLog("❌ 땅이 수상하게 부풀어있다. 곡괭이(⛏)가 있어야 파낼 수 있다.");
+          break;
+        }
+        store.time.advanceMinutes(30);
+        store.stats.apply({ energy: -12 });
+        store.map.removeEntity(entity.id);
+
+        const roll = Math.random();
+        const drops: Array<{ id: import("../types").ItemId; count: number }> = [];
+        if (roll < 0.25) {
+          drops.push({ id: "medkit", count: 1 });
+          drops.push({ id: "can_food", count: 4 });
+          drops.push({ id: "water_clean", count: 2 });
+        } else if (roll < 0.5) {
+          drops.push({ id: "pistol", count: 1 });
+          drops.push({ id: "bullet", count: 10 });
+          drops.push({ id: "large_bandage", count: 2 });
+        } else if (roll < 0.8) {
+          drops.push({ id: "diamond", count: 2 });
+          drops.push({ id: "iron_ore", count: 5 });
+          drops.push({ id: "metal_scrap", count: 4 });
+        } else {
+          drops.push({ id: "iron_sword", count: 1 });
+          drops.push({ id: "treasure_map", count: 1 });
+          drops.push({ id: "energy_tonic", count: 1 });
+        }
+
+        for (const d of drops) store.inv.add(d.id, d.count);
+        const text = drops.map((d) => `${ITEMS[d.id].icon}${ITEMS[d.id].name}×${d.count}`).join(", ");
+        store.pushLog(`💰 묻혀있던 보물을 발견했다! ${text}`);
+        audio.play("victory");
+        this.spawnPickupFx(entity.tx, entity.ty, "💰💰💰", "#ffd700");
+        // 황금빛 파티클 몇 개
+        for (let i = 0; i < 6; i++) {
+          this.time.delayedCall(i * 80, () =>
+            this.spawnPickupFx(entity.tx, entity.ty, "✨", "#ffe58a")
           );
         }
         break;
@@ -675,6 +786,7 @@ export class WorldScene extends Phaser.Scene {
         { id: "cloth" as const, count: 3 },
         { id: "water_clean" as const, count: 1 },
         { id: "large_bandage" as const, count: 1 },
+        { id: "treasure_map" as const, count: 1 },
       ],
     ];
 
@@ -817,7 +929,7 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  /** 플레이어 인접 타일에서 잠들 수 있는 장소(천막 거점/수색 완료된 난파선)를 찾는다. */
+  /** 플레이어 인접 타일에서 잠들 수 있는 장소(설치된 천막/수색 완료된 난파선)를 찾는다. */
   private findSleepSpot(): { where: "tent" | "shipwreck"; entity: WorldEntity } | null {
     const store = getStore(this);
     const { playerTx, playerTy } = store;
@@ -825,7 +937,7 @@ export class WorldScene extends Phaser.Scene {
       for (let dx = -1; dx <= 1; dx++) {
         const e = store.map.entityAt(playerTx + dx, playerTy + dy);
         if (!e) continue;
-        if (e.type === "camp_spot" && store.flags.hasTent) {
+        if (e.type === "tent_placed") {
           return { where: "tent", entity: e };
         }
         if (e.type === "shipwreck" && (e.meta?.lootLeft ?? 0) <= 0) {
@@ -846,19 +958,22 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     // 없는 경우: 왜 못 자는지, 어떻게 해야 하는지 안내
-    if (!store.flags.hasTent) {
+    const placedTents = store.map.entities.filter((e) => e.type === "tent_placed");
+    if (placedTents.length === 0) {
       const camp = store.map.entities.find((e) => e.type === "camp_spot");
       const hint = camp
         ? `   → 거점 자리(🏕)는 대략 ${camp.tx - store.playerTx > 0 ? "동" : "서"}${camp.ty - store.playerTy > 0 ? "남" : "북"}쪽에 있다.`
         : "";
       store.pushLog(
-        "💤 아직 쉼터가 없다.\n" +
-        "   → 거점 자리(🏕)에 천막(⛺)을 설치하거나, 난파선(🚢) 수색을 마쳐야 잠들 수 있다.\n" +
+        "💤 아직 설치된 천막이 없다.\n" +
+        "   → 거점 자리(🏕)로 이동해 천막(⛺)을 설치하거나, 난파선(🚢) 수색을 마치자.\n" +
         "   → 천막 제작: 천 조각×4 + 나뭇가지×6 + 밧줄×2 (C: 제작 패널)\n" +
         hint
       );
     } else {
-      store.pushLog("💤 거점(🏕)에 인접해야 잠들 수 있다. 거점 자리로 이동하자.");
+      const t = placedTents[0];
+      const dir = `${t.tx - store.playerTx > 0 ? "동" : "서"}${t.ty - store.playerTy > 0 ? "남" : "북"}`;
+      store.pushLog(`💤 설치된 천막(⛺)에 인접해야 잠들 수 있다. 대략 ${dir}쪽에 있다.`);
     }
   }
 
@@ -887,6 +1002,51 @@ export class WorldScene extends Phaser.Scene {
     this.tweens.add({ targets: this.nightOverlay, fillAlpha: targetAlpha, duration: 2000 });
   }
 
+  /** 매 프레임 호출: 설치된 광원 주변의 밝기를 그린다. */
+  update(): void {
+    this.drawLightSources();
+  }
+
+  private drawLightSources(): void {
+    if (!this.lightsGfx) return;
+    this.lightsGfx.clear();
+    const store = getStore(this);
+    // 낮이면 광원이 필요 없음
+    if (store.time.phase !== "night") return;
+
+    const sources = store.getLightSources();
+    if (sources.length === 0) return;
+
+    const camX = this.worldCam.scrollX;
+    const camY = this.worldCam.scrollY;
+
+    for (const s of sources) {
+      // 월드→스크린 변환 (worldCam 뷰포트가 VP_X/Y에서 시작)
+      const sx = s.tx * TILE_PX + TILE_PX / 2 - camX + VP_X;
+      const sy = s.ty * TILE_PX + TILE_PX / 2 - camY + VP_Y;
+
+      // 뷰포트 바깥이면 그릴 필요 없음
+      if (sx < VP_X - 120 || sx > VP_X + VP_W + 120) continue;
+      if (sy < VP_Y - 120 || sy > VP_Y + VP_H + 120) continue;
+
+      // 바깥 → 안쪽 순으로 겹쳐 그려 은은한 그라디언트 효과
+      const baseColor = s.type === "bonfire_placed" ? 0xffb060 : 0xaec7ff;
+      const flicker = s.type === "bonfire_placed" ? 1 + Math.sin(this.time.now * 0.012 + s.id) * 0.06 : 1;
+
+      // 3단 그림자: 외곽(어둠 해제) → 중간 → 중심(가장 밝음)
+      const rings: Array<[number, number]> = [
+        [TILE_PX * 2.8 * flicker, 0.10],
+        [TILE_PX * 2.0 * flicker, 0.16],
+        [TILE_PX * 1.2 * flicker, 0.28],
+        [TILE_PX * 0.55 * flicker, 0.35],
+      ];
+      for (const [r, a] of rings) {
+        this.lightsGfx.fillStyle(baseColor, a);
+        this.lightsGfx.fillCircle(sx, sy, r);
+      }
+    }
+  }
+
   // ── Combat triggers ────────────────────────────────────────────
   private triggerSeaBoss(day: number): void {
     const idx = Math.min(SEA_BOSSES.length - 1, Math.floor(day / 10) - 1);
@@ -910,7 +1070,40 @@ export class WorldScene extends Phaser.Scene {
   private toggleInventory(): void {
     audio.play("menu");
     if (this.inventoryPanel.isOpen) this.inventoryPanel.close();
-    else this.inventoryPanel.open(() => this.updateActionHint());
+    else this.inventoryPanel.open((id) => {
+      if (id === "treasure_map") this.revealTreasure();
+      this.renderEntities();
+      this.updateActionHint();
+    });
+  }
+
+  /** 낡은 지도 사용 시: 섬 어딘가의 빈 타일에 buried_treasure 엔티티를 생성하고 방향 힌트를 준다. */
+  private revealTreasure(): void {
+    const store = getStore(this);
+    const map = store.map;
+    for (let i = 0; i < 300; i++) {
+      const tx = Math.floor(Math.random() * map.size);
+      const ty = Math.floor(Math.random() * map.size);
+      const t = map.terrainAt(tx, ty);
+      if (t !== "grass" && t !== "sand" && t !== "forest") continue;
+      if (map.entityAt(tx, ty)) continue;
+      // 너무 가까우면 별로 재미없음 — 최소 8칸은 떨어지게
+      const d = Math.max(Math.abs(tx - store.playerTx), Math.abs(ty - store.playerTy));
+      if (d < 8) continue;
+      let maxId = 0;
+      for (const e of map.entities) if (e.id > maxId) maxId = e.id;
+      map.entities.push({ id: maxId + 1, type: "buried_treasure", tx, ty });
+      const dx = tx - store.playerTx;
+      const dy = ty - store.playerTy;
+      const ns = dy < 0 ? "북" : "남";
+      const ew = dx < 0 ? "서" : "동";
+      const approxDist = Math.round(Math.sqrt(dx * dx + dy * dy));
+      store.pushLog(`🗺 지도를 펼쳤다. 보물은 ${ns}${ew}쪽 약 ${approxDist}칸 거리 (${t === "sand" ? "해변" : t === "forest" ? "숲 안쪽" : "풀밭"})에 묻혀있다.`);
+      store.pushLog("💡 곡괭이(⛏)를 들고 찾아가 파내보자.");
+      audio.play("menu");
+      return;
+    }
+    store.pushLog("🗺 지도가 너무 낡아 아무것도 읽을 수 없었다.");
   }
 
   private toggleCrafting(): void {
@@ -1312,6 +1505,13 @@ export class WorldScene extends Phaser.Scene {
         // 기묘한 꿈
         store.pushLog("💭 지난밤 꿈에서 구조선을 보았다. 왠지 의지가 솟구친다.");
         store.stats.apply({ energy: 20 });
+      },
+      () => {
+        // 낡은 보물 지도가 든 유리병
+        store.inv.add("treasure_map", 1);
+        store.pushLog("🫙 파도에 떠밀려온 유리병 안에서 낡은 보물 지도(🗺)를 발견했다!");
+        this.spawnPickupFx(store.playerTx, store.playerTy - 1, "+🗺×1", "#ffd97a");
+        audio.play("pickup");
       },
       () => {
         // 해풍 속 표류물

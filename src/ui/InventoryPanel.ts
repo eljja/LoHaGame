@@ -20,8 +20,8 @@ export class InventoryPanel {
     if (this.container) this.close();
     this.onUseCallback = onUse;
     this.selectedSlotIdx = null;
-    const w = 760;
-    const h = 570;
+    const w = 780;
+    const h = 620;
     const x = (GAME_WIDTH - w) / 2;
     const y = (GAME_HEIGHT - h) / 2;
 
@@ -77,11 +77,11 @@ export class InventoryPanel {
     const store = getStore(this.scene);
 
     const cols = 5;
-    const slotSize = 90;
-    const gap = 10;
+    const slotSize = 74;
+    const gap = 8;
     const gridW = cols * slotSize + (cols - 1) * gap;
     const startX = panelX + (panelW - gridW) / 2;
-    const startY = panelY + 86;
+    const startY = panelY + 84;
 
     for (let i = 0; i < 20; i++) {
       const cx = startX + (i % cols) * (slotSize + gap);
@@ -100,12 +100,12 @@ export class InventoryPanel {
       if (item) {
         const def = ITEMS[item.id];
         const emoji = this.scene.add
-          .text(cx + slotSize / 2, cy + slotSize / 2 - 8, def.icon, { fontSize: "38px" })
+          .text(cx + slotSize / 2, cy + slotSize / 2 - 6, def.icon, { fontSize: "30px" })
           .setOrigin(0.5);
         const count = this.scene.add
-          .text(cx + slotSize - 5, cy + 4, `×${item.count}`, {
+          .text(cx + slotSize - 4, cy + 2, `×${item.count}`, {
             fontFamily: "Galmuri11, monospace",
-            fontSize: "12px",
+            fontSize: "11px",
             color: "#ffd97a",
           })
           .setOrigin(1, 0);
@@ -113,9 +113,9 @@ export class InventoryPanel {
           food: "#8be58b", weapon: "#ff9a9a", tool: "#ffd97a", material: "#a3b4e8", misc: "#cfd8ff", build: "#e8c860",
         };
         const cat = this.scene.add
-          .text(cx + slotSize / 2, cy + slotSize - 14, def.name, {
+          .text(cx + slotSize / 2, cy + slotSize - 11, def.name, {
             fontFamily: "Galmuri11, monospace",
-            fontSize: "11px",
+            fontSize: "10px",
             color: catColors[def.category] ?? "#cfd8ff",
           })
           .setOrigin(0.5);
@@ -131,8 +131,8 @@ export class InventoryPanel {
             this.selectedSlotIdx = i;
             audio.play("click");
           }
-          const w = 760;
-          const h = 570;
+          const w = 780;
+          const h = 620;
           const x = (GAME_WIDTH - w) / 2;
           const y = (GAME_HEIGHT - h) / 2;
           this.renderGrid(x, y, w);
@@ -158,8 +158,10 @@ export class InventoryPanel {
     slot.removeAll(true);
     const store = getStore(this.scene);
 
-    const detailY = panelY + 86 + 4 * 100; // 아래 영역
-    const detailH = panelH - (detailY - panelY) - 16;
+    // 그리드: startY=panelY+84, 4행 × (slotSize 74 + gap 8 = 82), 트레일링 gap 제거
+    const gridBottomOffset = 84 + 4 * 82 - 8; // 404
+    const detailY = panelY + gridBottomOffset + 14;
+    const detailH = panelH - (detailY - panelY) - 20;
     const dX = panelX + 16;
     const dW = panelW - 32;
 
@@ -243,9 +245,12 @@ export class InventoryPanel {
     const btnY = detailY + detailH - 4;
     const buttons: Array<{ label: string; action: () => void; disabled?: boolean; color?: number }> = [];
 
-    if (def.consume || def.placeable) {
+    if (def.consume || def.placeable || def.onUse) {
+      const label = def.placeable ? "🏕 설치"
+        : def.onUse === "treasure_map" ? "🗺 펼치기"
+        : "✅ 사용";
       buttons.push({
-        label: def.placeable ? "🏕 설치" : "✅ 사용",
+        label,
         action: () => this.useItem(item.id),
         color: 0x1e4a2a,
       });
@@ -278,25 +283,48 @@ export class InventoryPanel {
   private useItem(id: ItemId): void {
     const store = getStore(this.scene);
     const def = ITEMS[id];
+    if (def.onUse === "treasure_map") {
+      store.inv.remove(id, 1);
+      audio.play("menu");
+      this.close();
+      if (this.onUseCallback) this.onUseCallback(id);
+      return;
+    }
     if (def.placeable) {
       const map = store.map;
-      const terrain = map.terrainAt(store.playerTx, store.playerTy);
+      const tx = store.playerTx;
+      const ty = store.playerTy;
+      const terrain = map.terrainAt(tx, ty);
       if (terrain !== "grass" && terrain !== "sand" && terrain !== "forest") {
-        store.pushLog("이곳에는 설치할 수 없다. 풀밭이나 해변에서 설치 가능.");
+        store.pushLog("이곳에는 설치할 수 없다. 풀밭/해변/숲에서만 설치 가능.");
         return;
       }
-      if (def.placeable === "bonfire" && !store.flags.hasBonfire) {
-        store.inv.remove(id, 1);
+      // 현재 타일에 이미 설치물이 있는지 확인
+      const existing = map.entityAt(tx, ty);
+      if (existing && (existing.type === "bonfire_placed" || existing.type === "tent_placed")) {
+        store.pushLog("이 타일에는 이미 구조물이 있다. 한 칸 옆으로 이동해 설치하자.");
+        return;
+      }
+      // camp_spot 위에 설치하면 camp_spot은 대체된다
+      if (existing && existing.type === "camp_spot") {
+        map.removeEntity(existing.id);
+      }
+
+      const placedType: "bonfire_placed" | "tent_placed" =
+        def.placeable === "bonfire" ? "bonfire_placed" : "tent_placed";
+      let maxId = 0;
+      for (const e of map.entities) if (e.id > maxId) maxId = e.id;
+      map.entities.push({ id: maxId + 1, type: placedType, tx, ty });
+      store.inv.remove(id, 1);
+
+      if (def.placeable === "bonfire") {
         store.flags.hasBonfire = true;
-        store.pushLog("🔥 모닥불을 피웠다. 요리가 가능하다.");
-      } else if (def.placeable === "tent" && !store.flags.hasTent) {
-        store.inv.remove(id, 1);
-        store.flags.hasTent = true;
-        store.pushLog("⛺ 천막을 세웠다. 거점이 확장됐다.");
+        store.pushLog("🔥 이 자리에 모닥불을 피웠다! 주변 2칸 이내에서 요리가 가능하다.");
       } else {
-        store.pushLog("이미 설치되어 있다.");
-        return;
+        store.flags.hasTent = true;
+        store.pushLog("⛺ 이 자리에 천막을 세웠다! 주변 2칸 이내는 밤에도 밝고 몹이 접근하지 않는다.");
       }
+      audio.play("craft");
       this.close();
       if (this.onUseCallback) this.onUseCallback(id);
       return;
@@ -312,8 +340,8 @@ export class InventoryPanel {
       store.pushLog(`${def.icon} ${def.name} 사용. ${effects.join(" ")}`);
       audio.play("heal");
       this.selectedSlotIdx = null;
-      const w = 760;
-      const h = 570;
+      const w = 780;
+      const h = 620;
       const x = (GAME_WIDTH - w) / 2;
       const y = (GAME_HEIGHT - h) / 2;
       this.renderGrid(x, y, w);
