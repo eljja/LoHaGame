@@ -3,7 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT, WIN_DAY, COLORS } from "../config";
 import { TERRAIN, ENTITIES, TILE_PX, WORLD_PX } from "../data/tiles";
 import { ITEMS } from "../data/items";
 import { RECIPES } from "../data/recipes";
-import { SEA_BOSSES, NIGHT_MOBS, DAY_GAME } from "../data/enemies";
+import { SEA_BOSSES, NIGHT_MOBS, DAY_GAME, MINI_BOSSES } from "../data/enemies";
 import type { EnemyDef, ItemId } from "../types";
 import { getStore } from "../systems/GameStore";
 import type { WorldEntity } from "../systems/WorldMap";
@@ -162,6 +162,8 @@ export class WorldScene extends Phaser.Scene {
 
     // ── UI Camera ignores world objects ───────────────────
     this.uiCam.ignore(this.worldObjects);
+    // ── World Camera ignores UI objects (prevents duplicated buttons scrolling with map) ───
+    this.worldCam.ignore(this.uiContainer);
 
     // ── Render world ──────────────────────────────────────
     this.renderTerrain();
@@ -202,6 +204,8 @@ export class WorldScene extends Phaser.Scene {
     store.time.on("dayChange", (d: number) => {
       store.pushLog(`☀ Day ${d}가 밝았다.`);
       store.checkTimedAchievements();
+      // 심은 씨앗 2일 뒤 수확 가능 단계로 성장
+      this.matureGardenPlants();
       if (d > WIN_DAY) {
         this.scene.stop("HUDScene");
         this.scene.start("VictoryScene");
@@ -591,6 +595,19 @@ export class WorldScene extends Phaser.Scene {
       ? (store.inv.has("torch") ? 0.025 : 0.06)
       : 0;
     if (nightEncounterChance > 0 && Math.random() < nightEncounterChance) {
+      // 미니보스 특수 조우 (day 5+부터, 야간 횃불 없을 때 확률↑)
+      if (store.time.day >= 5 && Math.random() < 0.12) {
+        const terrain = store.map.terrainAt(nx, ny);
+        let mini: EnemyDef | null = null;
+        if (terrain === "forest") mini = MINI_BOSSES.thorn_vine;
+        else if (terrain === "sand") mini = MINI_BOSSES.abyss_scrap;
+        if (mini) {
+          store.pushLog(`⚠ 심상치 않은 기척... ${mini.name}이(가) 나타났다!`);
+          audio.play("boss_alert");
+          this.triggerCombat(mini);
+          return;
+        }
+      }
       const mob = Phaser.Utils.Array.GetRandom(NIGHT_MOBS) as EnemyDef;
       this.triggerCombat(mob);
     }
@@ -627,7 +644,15 @@ export class WorldScene extends Phaser.Scene {
         store.inv.add("berry", count);
         store.map.removeEntity(entity.id);
         store.time.advanceMinutes(10);
-        store.pushLog(`🫐 열매덤불에서 열매를 땄다. 열매 ×${count}`);
+        let msg = `🫐 열매덤불에서 열매를 땄다. 열매 ×${count}`;
+        // 씨앗 드롭 (30%)
+        if (Math.random() < 0.30) {
+          store.inv.add("seed", 1);
+          msg += ` (+🌱 씨앗×1)`;
+          this.spawnPickupFx(entity.tx, entity.ty - 1, "+🌱×1", "#a8ee60");
+          store.discoverRecipes("seed");
+        }
+        store.pushLog(msg);
         this.spawnPickupFx(entity.tx, entity.ty, `+🫐×${count}`);
         this.gatherPerkBonus(entity.tx, entity.ty, "berry");
         store.discoverRecipes("berry");
@@ -868,6 +893,52 @@ export class WorldScene extends Phaser.Scene {
 
       case "bonfire_placed": {
         store.pushLog("🔥 모닥불이 은은한 열기를 내뿜는다. 주변 2칸 이내에서 요리할 수 있다.");
+        break;
+      }
+
+      case "planted_seed": {
+        const plantedDay = entity.meta?.plantedDay ?? store.time.day;
+        const elapsed = store.time.day - plantedDay;
+        store.pushLog(`🌱 심은 씨앗이다. (${elapsed}/2일 경과)`);
+        break;
+      }
+
+      case "ripe_plant": {
+        store.map.removeEntity(entity.id);
+        store.time.advanceMinutes(5);
+        const berryCount = Phaser.Math.Between(2, 4);
+        const seedCount = Math.random() < 0.6 ? 1 : 0;
+        store.inv.add("berry", berryCount);
+        if (seedCount > 0) store.inv.add("seed", seedCount);
+        store.pushLog(`🌿 텃밭에서 열매를 수확했다! 열매 ×${berryCount}${seedCount > 0 ? `, 씨앗 ×${seedCount}` : ""}`);
+        this.spawnPickupFx(entity.tx, entity.ty, `+🫐×${berryCount}`);
+        store.discoverRecipes("berry");
+        audio.play("pickup");
+        break;
+      }
+
+      case "signal_fire_unlit": {
+        if (!store.inv.has("torch")) {
+          store.pushLog("🗼 봉화대에 불을 붙이려면 횃불(🔥)이 필요하다.");
+          break;
+        }
+        store.inv.remove("torch", 1);
+        // 같은 위치에 lit 엔티티로 교체
+        const tx = entity.tx;
+        const ty = entity.ty;
+        store.map.removeEntity(entity.id);
+        let maxId = 0;
+        for (const e of store.map.entities) if (e.id > maxId) maxId = e.id;
+        store.map.entities.push({ id: maxId + 1, type: "signal_fire_lit", tx, ty });
+        store.pushLog("🔥 봉화대에 불을 붙였다! 해양 보스의 힘이 약해진다.");
+        audio.play("craft");
+        this.spawnPickupFx(tx, ty, "🔥🔥🔥", "#ffcc44");
+        break;
+      }
+
+      case "signal_fire_lit": {
+        const lit = store.map.entities.filter((e) => e.type === "signal_fire_lit").length;
+        store.pushLog(`🔥 타오르는 봉화대. 점화된 봉화 ${lit}개 — 다음 해양 보스 공격력 ${Math.min(60, lit * 30)}% 감소.`);
         break;
       }
 
@@ -1216,11 +1287,52 @@ export class WorldScene extends Phaser.Scene {
 
   // ── Combat triggers ────────────────────────────────────────────
   private triggerSeaBoss(day: number): void {
+    const store = getStore(this);
     const idx = Math.min(SEA_BOSSES.length - 1, Math.floor(day / 10) - 1);
-    const boss = SEA_BOSSES[idx];
-    getStore(this).pushLog(`⚠ ${boss.name}이(가) 해안에 나타났다!`);
+    const baseBoss = SEA_BOSSES[idx];
+
+    // 점화된 봉화대 개수에 따라 보스 능력치 감소 (최대 60%)
+    const litCount = store.map.entities.filter((e) => e.type === "signal_fire_lit").length;
+    const debuffPct = Math.min(60, litCount * 30);
+    const boss: EnemyDef = debuffPct > 0
+      ? {
+          ...baseBoss,
+          hp: Math.round(baseBoss.hp * (1 - debuffPct / 100)),
+          atk: Math.round(baseBoss.atk * (1 - debuffPct / 100)),
+          name: `${baseBoss.name} (약화)`,
+        }
+      : baseBoss;
+
+    store.pushLog(`⚠ ${baseBoss.name}이(가) 해안에 나타났다!`);
+    if (debuffPct > 0) {
+      store.pushLog(`🗼 점화된 봉화 ${litCount}개의 빛이 괴물을 방해한다. HP·공격력 ${debuffPct}% 감소.`);
+      // 봉화는 1회성 — 점화된 봉화는 꺼져서 사라진다
+      for (const e of [...store.map.entities]) {
+        if (e.type === "signal_fire_lit") store.map.removeEntity(e.id);
+      }
+      this.renderEntities();
+    }
     audio.play("boss_alert");
     this.triggerCombat(boss);
+  }
+
+  /** 심은 씨앗(planted_seed)을 심은 지 2일 뒤 ripe_plant로 변환 */
+  private matureGardenPlants(): void {
+    const store = getStore(this);
+    let matured = 0;
+    for (const e of store.map.entities) {
+      if (e.type === "planted_seed") {
+        const planted = e.meta?.plantedDay ?? store.time.day;
+        if (store.time.day - planted >= 2) {
+          e.type = "ripe_plant";
+          matured++;
+        }
+      }
+    }
+    if (matured > 0) {
+      store.pushLog(`🌿 심어놓은 새싹 ${matured}개가 수확 가능한 상태로 자랐다.`);
+      this.renderEntities();
+    }
   }
 
   private triggerCombat(enemy: EnemyDef): void {
@@ -1466,6 +1578,20 @@ export class WorldScene extends Phaser.Scene {
     store.flags.fishCaught = (store.flags.fishCaught ?? 0) + 1;
     if (store.flags.fishCaught >= 5) store.unlockAchievement("fish5");
     audio.play("pickup");
+
+    // 낚싯대 내구도 감소
+    const rodSlot = store.inv.findToolSlot("rod");
+    if (rodSlot >= 0) {
+      const rodItem = store.inv.slots[rodSlot];
+      const rodName = rodItem ? ITEMS[rodItem.id].name : "낚싯대";
+      const res = store.inv.useDurability(rodSlot);
+      if (res.broken) {
+        store.pushLog(`💥 ${rodName}이(가) 끊어졌다!`);
+      } else if (res.hasDurability && res.dur! <= 3) {
+        store.pushLog(`⚠ ${rodName} 내구도 ${res.dur}/${res.max}`);
+      }
+    }
+
     this.renderEntities();
     this.updateActionHint();
   }

@@ -8,17 +8,19 @@ export const RECIPE_UNLOCK_TRIGGERS: Partial<Record<ItemId, string[]>> = {
   stick:       ["wood_club", "fishing_rod"],
   stone:       ["stone_axe", "stone_spear", "stone_pickaxe", "bonfire"],
   vine:        ["rope", "stone_axe", "stone_spear", "stone_pickaxe"],
-  cloth:       ["torch", "bandage", "tent"],
+  cloth:       ["torch", "bandage", "tent", "signal_fire"],
+  rope:        ["signal_fire"],
   iron_ore:    ["iron_pickaxe", "iron_sword"],
   fish_raw:    ["cook_fish"],
   fish_cooked: ["smoked_fish"],
   meat_raw:    ["cook_meat"],
   meat_cooked: ["meat_stew"],
   water_dirty: ["purify_water"],
-  berry:       ["herbal_drink", "trail_mix"],
+  berry:       ["herbal_drink", "trail_mix", "seed"],
   mushroom:    ["trail_mix"],
   bandage:     ["large_bandage", "medkit"],
   herbal_drink:["energy_tonic", "medkit"],
+  seed:        ["seed"],
 };
 
 export const RECIPES: Recipe[] = [
@@ -248,5 +250,25 @@ export const RECIPES: Recipe[] = [
     ],
     requires: ["bonfire"],
     desc: "행동력(⚡) +50 회복. 탈진 상태에서 특히 유용.",
+  },
+  {
+    id: "seed",
+    name: "열매 씨앗",
+    icon: "🌱",
+    result: { id: "seed", count: 2 },
+    inputs: [{ id: "berry", count: 3 }],
+    desc: "열매를 말려 씨앗을 만든다. 풀밭에 심을 수 있다.",
+  },
+  {
+    id: "signal_fire",
+    name: "봉화대",
+    icon: "🗼",
+    result: { id: "signal_fire", count: 1 },
+    inputs: [
+      { id: "stick", count: 8 },
+      { id: "cloth", count: 3 },
+      { id: "rope", count: 2 },
+    ],
+    desc: "절벽에 세우고 횃불로 점화하면 해양 보스 HP·공격력 30% 감소. 1회성.",
   },
 ];

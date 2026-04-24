@@ -110,7 +110,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   },
 
   // ── 기타 / 무기 ──────────────────────────────────────────────────────────────
-  pistol:  { id: "pistol",  name: "낡은 권총", icon: "🔫", desc: "탄이 필요하다.", stack: 1, weaponDamage: 40, category: "weapon", tool: "gun" },
+  pistol:  { id: "pistol",  name: "낡은 권총", icon: "🔫", desc: "사격마다 탄약을 소비하고 기계가 마모된다. 내구도 0이면 부서진다.", stack: 1, weaponDamage: 40, category: "weapon", tool: "gun", maxDurability: 12 },
   bullet:  { id: "bullet",  name: "탄약",      icon: "•",  desc: "권총용 탄.",    stack: 99, category: "misc" },
 
   iron_ore:   { id: "iron_ore",   name: "철광석",  icon: "⛓",  desc: "정련하면 더 강해진다.", stack: 99, category: "material" },
@@ -119,13 +119,13 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   rope:       { id: "rope",       name: "밧줄",     icon: "🪢",  desc: "덩굴을 꼬아 만든 줄.", stack: 20, category: "material" },
 
   torch:        { id: "torch",        name: "횃불",       icon: "🔥", desc: "어둠을 밝힌다.",             stack: 10, category: "tool" },
-  wood_club:    { id: "wood_club",    name: "나무몽둥이", icon: "🏏", desc: "원시적이지만 유용.",          stack: 1,  weaponDamage: 8,  category: "weapon" },
-  stone_axe:    { id: "stone_axe",    name: "돌도끼",     icon: "🪓", desc: "나무를 빠르게 벤다.",         stack: 1,  weaponDamage: 12, tool: "axe", category: "weapon" },
-  stone_spear:  { id: "stone_spear",  name: "돌창",       icon: "🗡", desc: "찌르기 공격.",                stack: 1,  weaponDamage: 16, category: "weapon" },
-  iron_sword:   { id: "iron_sword",   name: "철검",       icon: "⚔", desc: "벼려낸 철로 만든 강력한 검.", stack: 1,  weaponDamage: 30, category: "weapon" },
-  fishing_rod:  { id: "fishing_rod",  name: "나무 낚싯대",icon: "🎣", desc: "강과 바다에서 낚시.",          stack: 1,  tool: "rod",     category: "tool" },
-  stone_pickaxe:{ id: "stone_pickaxe",name: "돌 곡괭이",  icon: "⛏", desc: "돌과 약한 광석을 캔다.",      stack: 1,  tool: "pickaxe", pickaxeTier: 1, category: "tool" },
-  iron_pickaxe: { id: "iron_pickaxe", name: "철 곡괭이",  icon: "⚒", desc: "깊은 광맥을 캔다.",           stack: 1,  tool: "pickaxe", pickaxeTier: 2, category: "tool" },
+  wood_club:    { id: "wood_club",    name: "나무몽둥이", icon: "🏏", desc: "원시적이지만 유용. 몇 번 휘두르면 부서진다.", stack: 1,  weaponDamage: 8,  category: "weapon", maxDurability: 20 },
+  stone_axe:    { id: "stone_axe",    name: "돌도끼",     icon: "🪓", desc: "나무를 빠르게 벤다.",         stack: 1,  weaponDamage: 12, tool: "axe", category: "weapon", maxDurability: 35 },
+  stone_spear:  { id: "stone_spear",  name: "돌창",       icon: "🗡", desc: "찌르기 공격.",                stack: 1,  weaponDamage: 16, category: "weapon", maxDurability: 30 },
+  iron_sword:   { id: "iron_sword",   name: "철검",       icon: "⚔", desc: "벼려낸 철로 만든 강력한 검.", stack: 1,  weaponDamage: 30, category: "weapon", maxDurability: 80 },
+  fishing_rod:  { id: "fishing_rod",  name: "나무 낚싯대",icon: "🎣", desc: "강과 바다에서 낚시.",          stack: 1,  tool: "rod",     category: "tool", maxDurability: 30 },
+  stone_pickaxe:{ id: "stone_pickaxe",name: "돌 곡괭이",  icon: "⛏", desc: "돌과 약한 광석을 캔다.",      stack: 1,  tool: "pickaxe", pickaxeTier: 1, category: "tool", maxDurability: 45 },
+  iron_pickaxe: { id: "iron_pickaxe", name: "철 곡괭이",  icon: "⚒", desc: "깊은 광맥을 캔다.",           stack: 1,  tool: "pickaxe", pickaxeTier: 2, category: "tool", maxDurability: 100 },
 
   bonfire: { id: "bonfire", name: "모닥불", icon: "🏕", desc: "요리·온기·경계.", stack: 1, placeable: "bonfire", category: "build" },
   tent:    { id: "tent",    name: "천막",   icon: "⛺", desc: "편히 잠들 수 있다.", stack: 1, placeable: "tent",    category: "build" },
@@ -134,6 +134,17 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     id: "treasure_map", name: "낡은 보물 지도", icon: "🗺",
     desc: "사용하면 섬 어딘가에 묻힌 보물의 위치가 밝혀진다. 곡괭이로 파내자.",
     stack: 5, category: "misc", onUse: "treasure_map",
+  },
+
+  seed: {
+    id: "seed", name: "열매 씨앗", icon: "🌱",
+    desc: "풀밭에 심으면 2일 뒤 열매덤불로 자라 수확할 수 있다.",
+    stack: 20, category: "material", placeable: "seed",
+  },
+  signal_fire: {
+    id: "signal_fire", name: "봉화대", icon: "🗼",
+    desc: "절벽에 설치 후 횃불로 점화하면 해양 보스의 전투력을 30% 낮춘다.",
+    stack: 3, category: "build", placeable: "signal_fire",
   },
 };
 

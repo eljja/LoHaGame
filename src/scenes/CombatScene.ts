@@ -173,11 +173,16 @@ export class CombatScene extends Phaser.Scene {
     this.buttons.forEach((b) => b.destroy());
     this.buttons = [];
     const store = getStore(this);
-    const weapon = store.inv.bestWeapon();
+    const weapon = this.effectiveWeapon();
     const weaponName = ITEMS[weapon.id as ItemId]?.name ?? "맨손";
+    const slot = weapon.slotIdx >= 0 ? store.inv.slots[weapon.slotIdx] : null;
+    const durStr = slot?.dur != null && ITEMS[weapon.id].maxDurability != null
+      ? ` [${slot.dur}/${ITEMS[weapon.id].maxDurability}]`
+      : "";
+    const ammoStr = weapon.id === "pistol" ? ` (🔫${store.inv.count("bullet")}발)` : "";
 
     const actions: Array<[string, () => void, boolean?]> = [
-      [`🎲 공격 (${weaponName})`, () => this.playerAttack()],
+      [`🎲 공격 (${weaponName}${durStr}${ammoStr})`, () => this.playerAttack()],
       ["🛡 방어", () => this.playerDefend()],
       ["🎒 아이템", () => this.useItemPrompt()],
       [`🏃 도망 (${this.enemy.canFlee ? "50%" : "불가"})`, () => this.playerFlee(), !this.enemy.canFlee],
@@ -300,18 +305,35 @@ export class CombatScene extends Phaser.Scene {
     this.time.delayedCall(50, doTick);
   }
 
+  /** 실제로 이번 턴 사용할 무기. 권총인데 탄이 없으면 다음 무기로 폴백. */
+  private effectiveWeapon(): { id: ItemId; dmg: number; slotIdx: number } {
+    const store = getStore(this);
+    const best = store.inv.bestWeapon();
+    if (best.id === "pistol" && !store.inv.has("bullet")) {
+      return store.inv.bestWeaponExcept("pistol");
+    }
+    return best;
+  }
+
   // ── 플레이어 행동 ──────────────────────────────────────
   private playerAttack(): void {
     this.turnLock = true;
     this.rollDice((d1, d2) => {
       const store = getStore(this);
-      const weapon = store.inv.bestWeapon();
+      const weapon = this.effectiveWeapon();
+      const weaponDef = ITEMS[weapon.id];
 
-      // 데미지: 기본 × 에너지 보정 × 주사위 배율 (0.7~1.3)
+      // 권총 사용 시 탄약 1 소비
+      if (weapon.id === "pistol") {
+        store.inv.remove("bullet", 1);
+      }
+
+      // 데미지: 기본 × 에너지 보정 × 주사위 배율 (0.7~1.3) + 특성 보너스
       const diceSum = d1 + d2; // 2~12
       const diceMult = 0.7 + ((diceSum - 2) / 10) * 0.6;
       const energyMult = 1 + store.stats.energy / 200;
-      const dmg = Math.max(1, Math.round(weapon.dmg * energyMult * diceMult));
+      const baseDmg = weapon.dmg + store.perkBonusDmg;
+      const dmg = Math.max(1, Math.round(baseDmg * energyMult * diceMult));
 
       this.enemyHp = Math.max(0, this.enemyHp - dmg);
 
@@ -324,6 +346,20 @@ export class CombatScene extends Phaser.Scene {
       this.tweens.add({ targets: this.enemySprite, angle: -10, duration: 80, yoyo: true });
       this.tweens.add({ targets: this.enemySprite, alpha: 0.3, duration: 60, yoyo: true });
       this.updateEnemyHpBar();
+
+      // 내구도 감소
+      if (weapon.slotIdx >= 0 && weaponDef.maxDurability != null) {
+        const r = store.inv.useDurability(weapon.slotIdx);
+        if (r.broken) {
+          this.pushLog(`💥 ${weaponDef.name}이(가) 부서졌다!`);
+          audio.play("error");
+        } else if (r.hasDurability && r.dur! <= 5) {
+          this.pushLog(`⚠ ${weaponDef.name} 내구도 ${r.dur}/${r.max} (거의 부서짐)`);
+        }
+        // 무기가 부서졌거나 폴백 됐을 수 있어 버튼 라벨 갱신
+        this.buildButtons();
+      }
+
       this.afterPlayerTurn();
     });
   }

@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { GAME_WIDTH, GAME_HEIGHT, COLORS } from "../config";
 import { ITEMS } from "../data/items";
+import { MINI_BOSSES } from "../data/enemies";
 import { getStore } from "../systems/GameStore";
 import { makeButton } from "../ui/Button";
 import { drawPanel } from "../ui/Panel";
@@ -330,6 +331,19 @@ export class CaveScene extends Phaser.Scene {
     store.pushLog(`⛏ ${ITEMS[ore].icon} ${ITEMS[ore].name} ×${yieldCount} 획득!`);
     this.time.delayedCall(150, () => audio.play("pickup"));
 
+    // 곡괭이 내구도 감소
+    const pickSlot = store.inv.bestPickaxeSlot();
+    if (pickSlot >= 0) {
+      const pickItem = store.inv.slots[pickSlot];
+      const pickName = pickItem ? ITEMS[pickItem.id].name : "곡괭이";
+      const r = store.inv.useDurability(pickSlot);
+      if (r.broken) {
+        store.pushLog(`💥 ${pickName}이(가) 마모되어 부서졌다!`);
+      } else if (r.hasDurability && r.dur! <= 5) {
+        store.pushLog(`⚠ ${pickName} 내구도 ${r.dur}/${r.max}`);
+      }
+    }
+
     // 깊은 층 조각상 조우 → 전투!
     if (depth >= 2 && Math.random() < 0.07) {
       store.pushLog("🗿 …어둠 속에서 돌 조각상이 움직인다! 피해야 한다!");
@@ -347,6 +361,15 @@ export class CaveScene extends Phaser.Scene {
             kind: "land",
           }
         });
+        this.scene.pause("CaveScene");
+      });
+    }
+    // 2층 이상에서 희귀하게 창백한 광부 미니보스 조우
+    else if (depth >= 2 && Math.random() < 0.04) {
+      store.pushLog("👷 …곡괭이 소리가 들린다. 창백한 광부가 다가온다!");
+      audio.play("boss_alert");
+      this.time.delayedCall(800, () => {
+        this.scene.launch("CombatScene", { enemy: MINI_BOSSES.pale_miner });
         this.scene.pause("CaveScene");
       });
     }

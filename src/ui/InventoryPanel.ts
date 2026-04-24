@@ -241,12 +241,35 @@ export class InventoryPanel {
       slot.add(dmgTxt);
     }
 
+    // 내구도 표시 (무기·도구)
+    if (def.maxDurability != null) {
+      const cur = item.dur ?? def.maxDurability;
+      const pct = cur / def.maxDurability;
+      const barX = dX + 76;
+      const barY = detailY + 110;
+      const barW = 220;
+      const barH = 10;
+      const color = pct > 0.5 ? 0x6adc4a : pct > 0.25 ? 0xffcc44 : 0xff5a6a;
+      const durBg = this.scene.add.rectangle(barX, barY, barW, barH, 0x1a2040, 1)
+        .setOrigin(0, 0).setStrokeStyle(1, 0x4a5a8a);
+      const durFill = this.scene.add.rectangle(barX, barY, barW * pct, barH, color, 1).setOrigin(0, 0);
+      const durTxt = this.scene.add.text(barX + barW + 10, barY - 2, `내구도 ${cur}/${def.maxDurability}`, {
+        fontFamily: "Galmuri11, monospace",
+        fontSize: "12px",
+        color: pct > 0.25 ? "#a3b4e8" : "#ff9a9a",
+      });
+      slot.add([durBg, durFill, durTxt]);
+    }
+
     // 액션 버튼들
     const btnY = detailY + detailH - 4;
     const buttons: Array<{ label: string; action: () => void; disabled?: boolean; color?: number }> = [];
 
     if (def.consume || def.placeable || def.onUse) {
-      const label = def.placeable ? "🏕 설치"
+      const label =
+        def.placeable === "seed" ? "🌱 심기"
+        : def.placeable === "signal_fire" ? "🗼 봉화 세우기"
+        : def.placeable ? "🏕 설치"
         : def.onUse === "treasure_map" ? "🗺 펼치기"
         : "✅ 사용";
       buttons.push({
@@ -295,14 +318,34 @@ export class InventoryPanel {
       const tx = store.playerTx;
       const ty = store.playerTy;
       const terrain = map.terrainAt(tx, ty);
-      if (terrain !== "grass" && terrain !== "sand" && terrain !== "forest") {
-        store.pushLog("이곳에는 설치할 수 없다. 풀밭/해변/숲에서만 설치 가능.");
-        return;
+
+      // 지형 체크 (설치물별로 다름)
+      if (def.placeable === "signal_fire") {
+        if (terrain !== "cliff_rock") {
+          store.pushLog("🗼 봉화대는 절벽(cliff) 지형에만 설치할 수 있다.");
+          return;
+        }
+      } else if (def.placeable === "seed") {
+        if (terrain !== "grass") {
+          store.pushLog("🌱 씨앗은 풀밭에만 심을 수 있다.");
+          return;
+        }
+      } else {
+        if (terrain !== "grass" && terrain !== "sand" && terrain !== "forest") {
+          store.pushLog("이곳에는 설치할 수 없다. 풀밭/해변/숲에서만 설치 가능.");
+          return;
+        }
       }
+
       // 현재 타일에 이미 설치물이 있는지 확인
       const existing = map.entityAt(tx, ty);
-      if (existing && (existing.type === "bonfire_placed" || existing.type === "tent_placed")) {
-        store.pushLog("이 타일에는 이미 구조물이 있다. 한 칸 옆으로 이동해 설치하자.");
+      const blocking = existing && (
+        existing.type === "bonfire_placed" || existing.type === "tent_placed" ||
+        existing.type === "signal_fire_unlit" || existing.type === "signal_fire_lit" ||
+        existing.type === "planted_seed" || existing.type === "ripe_plant"
+      );
+      if (blocking) {
+        store.pushLog("이 타일에는 이미 무언가 있다. 한 칸 옆으로 이동해 설치하자.");
         return;
       }
       // camp_spot 위에 설치하면 camp_spot은 대체된다
@@ -310,19 +353,27 @@ export class InventoryPanel {
         map.removeEntity(existing.id);
       }
 
-      const placedType: "bonfire_placed" | "tent_placed" =
-        def.placeable === "bonfire" ? "bonfire_placed" : "tent_placed";
+      const placedType =
+        def.placeable === "bonfire" ? "bonfire_placed" :
+        def.placeable === "tent" ? "tent_placed" :
+        def.placeable === "signal_fire" ? "signal_fire_unlit" :
+        "planted_seed";
       let maxId = 0;
       for (const e of map.entities) if (e.id > maxId) maxId = e.id;
-      map.entities.push({ id: maxId + 1, type: placedType, tx, ty });
+      const meta = def.placeable === "seed" ? { plantedDay: store.time.day } : undefined;
+      map.entities.push({ id: maxId + 1, type: placedType, tx, ty, meta });
       store.inv.remove(id, 1);
 
       if (def.placeable === "bonfire") {
         store.flags.hasBonfire = true;
         store.pushLog("🔥 이 자리에 모닥불을 피웠다! 주변 2칸 이내에서 요리가 가능하다.");
-      } else {
+      } else if (def.placeable === "tent") {
         store.flags.hasTent = true;
         store.pushLog("⛺ 이 자리에 천막을 세웠다! 주변 2칸 이내는 밤에도 밝고 몹이 접근하지 않는다.");
+      } else if (def.placeable === "signal_fire") {
+        store.pushLog("🗼 봉화대를 세웠다. 횃불(🔥)이 있을 때 탭하면 점화할 수 있다.");
+      } else {
+        store.pushLog("🌱 씨앗을 심었다. 2일 뒤 자라면 수확할 수 있다.");
       }
       audio.play("craft");
       this.close();

@@ -117,6 +117,58 @@ export const NIGHT_MOBS: EnemyDef[] = [
   },
 ];
 
+/** 미니보스 3종 — 해양 보스 사이를 채우는 중간 난이도 적. */
+export const MINI_BOSSES: Record<"thorn_vine" | "pale_miner" | "abyss_scrap", EnemyDef> = {
+  thorn_vine: {
+    id: "thorn_vine",
+    name: "엉킨 가시덤불",
+    icon: "🌵",
+    hp: 90,
+    atk: 9,
+    canFlee: true,
+    kind: "land",
+    loot: [
+      { id: "vine", count: 5, chance: 1 },
+      { id: "stick", count: 4, chance: 1 },
+      { id: "berry", count: 3, chance: 0.7 },
+      { id: "rope", count: 1, chance: 0.4 },
+    ],
+    flavor: "숲 밑에서 가시가 스스로 꿈틀거리며 솟아올랐다.",
+  },
+  pale_miner: {
+    id: "pale_miner",
+    name: "창백한 광부",
+    icon: "👷",
+    hp: 140,
+    atk: 14,
+    canFlee: false,
+    kind: "land",
+    loot: [
+      { id: "iron_ore", count: 5, chance: 1 },
+      { id: "diamond", count: 1, chance: 0.5 },
+      { id: "stone_pickaxe", count: 1, chance: 0.3 },
+      { id: "large_bandage", count: 1, chance: 0.4 },
+    ],
+    flavor: "창백한 얼굴의 광부가 곡괭이를 들고 다가온다. 눈이 없다.",
+  },
+  abyss_scrap: {
+    id: "abyss_scrap",
+    name: "심해의 잔해",
+    icon: "🕳",
+    hp: 120,
+    atk: 12,
+    canFlee: true,
+    kind: "land",
+    loot: [
+      { id: "metal_scrap", count: 5, chance: 1 },
+      { id: "cloth", count: 3, chance: 0.8 },
+      { id: "bullet", count: 8, chance: 0.6 },
+      { id: "treasure_map", count: 1, chance: 0.3 },
+    ],
+    flavor: "해변에 쏟아진 고철 더미가 저절로 모여 형체를 이룬다.",
+  },
+};
+
 /** 낮 사냥용 동물 */
 export const DAY_GAME: EnemyDef[] = [
   {

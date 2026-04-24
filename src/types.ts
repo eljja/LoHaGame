@@ -40,7 +40,9 @@ export type ItemId =
   | "energy_tonic"
   | "trail_mix"
   | "coconut"
-  | "treasure_map";
+  | "treasure_map"
+  | "seed"
+  | "signal_fire";
 
 export interface ItemDef {
   id: ItemId;
@@ -55,7 +57,9 @@ export interface ItemDef {
   /** 광물 채굴 가능 단계(1: 돌 곡괭이, 2: 철 곡괭이) */
   pickaxeTier?: 0 | 1 | 2;
   tool?: "axe" | "pickaxe" | "rod" | "gun";
-  placeable?: "bonfire" | "tent";
+  /** 내구도(사용 가능 횟수). 0이 되면 부서진다. stackable 아이템엔 적용 안됨. */
+  maxDurability?: number;
+  placeable?: "bonfire" | "tent" | "signal_fire" | "seed";
   /** 사용 시 특수 이벤트 트리거. 씬이 onUseCallback에서 분기 처리. */
   onUse?: "treasure_map";
   category: "material" | "food" | "tool" | "weapon" | "build" | "misc";

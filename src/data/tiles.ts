@@ -58,7 +58,11 @@ export type EntityType =
   | "fishing_spot"
   | "bonfire_placed"
   | "tent_placed"
-  | "buried_treasure";
+  | "buried_treasure"
+  | "planted_seed"
+  | "ripe_plant"
+  | "signal_fire_unlit"
+  | "signal_fire_lit";
 
 export interface EntityTypeDef {
   icon: string;
@@ -96,6 +100,12 @@ export const ENTITIES: Record<EntityType, EntityTypeDef> = {
   tent_placed:    { icon: "⛺", label: "설치된 천막", terrain: ["grass", "sand", "forest"], cap: 99, respawn: false, blocksMovement: false, reach: 1 },
   // 숨겨진 보물 — 지도로만 드러나며, 곡괭이로 파낼 수 있다
   buried_treasure:{ icon: "❌", label: "수상한 흔적", terrain: ["grass", "sand", "forest"], cap: 99, respawn: false, blocksMovement: false, reach: 1 },
+  // 심은 씨앗 — 2일 뒤 ripe_plant로 자란다
+  planted_seed:   { icon: "🌱", label: "새싹",       terrain: ["grass"], cap: 99, respawn: false, blocksMovement: false, reach: 0 },
+  ripe_plant:     { icon: "🌿", label: "수확 가능",  terrain: ["grass"], cap: 99, respawn: false, blocksMovement: false, reach: 0 },
+  // 봉화대 — 절벽에 세우고 횃불로 점화하면 해양 보스를 약화시킨다
+  signal_fire_unlit: { icon: "🗼", label: "봉화대(꺼짐)", terrain: ["cliff_rock"], cap: 5, respawn: false, blocksMovement: false, reach: 1 },
+  signal_fire_lit:   { icon: "🔥", label: "타오르는 봉화", terrain: ["cliff_rock"], cap: 5, respawn: false, blocksMovement: false, reach: 1 },
 };
 
 /** 광원이 되는 설치물 타입. 주변 2칸 이내를 밝게 하고 몹 조우를 막는다. */
