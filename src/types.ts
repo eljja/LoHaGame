@@ -42,7 +42,9 @@ export type ItemId =
   | "coconut"
   | "treasure_map"
   | "seed"
-  | "signal_fire";
+  | "signal_fire"
+  | "raft"
+  | "glass_bottle";
 
 export interface ItemDef {
   id: ItemId;
@@ -59,9 +61,9 @@ export interface ItemDef {
   tool?: "axe" | "pickaxe" | "rod" | "gun";
   /** 내구도(사용 가능 횟수). 0이 되면 부서진다. stackable 아이템엔 적용 안됨. */
   maxDurability?: number;
-  placeable?: "bonfire" | "tent" | "signal_fire" | "seed";
+  placeable?: "bonfire" | "tent" | "signal_fire" | "seed" | "raft";
   /** 사용 시 특수 이벤트 트리거. 씬이 onUseCallback에서 분기 처리. */
-  onUse?: "treasure_map";
+  onUse?: "treasure_map" | "bottle_trade";
   category: "material" | "food" | "tool" | "weapon" | "build" | "misc";
 }
 
@@ -147,6 +149,8 @@ export interface GameState {
     fishCaught: number;
     nightSkyBuff?: boolean; // next sleep at tent gives bonus HP
     lastNightSkyDay?: number; // game-day key of last sky observation
+    /** 바다에 띄운 유리병 (2~3일 뒤 돌아옴) */
+    sentBottle?: { itemId: ItemId; sentDay: number };
   };
   caveDepth: 0 | 1 | 2 | 3;
   savedAt?: number;

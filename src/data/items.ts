@@ -146,6 +146,16 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     desc: "절벽에 설치 후 횃불로 점화하면 해양 보스의 전투력을 30% 낮춘다.",
     stack: 3, category: "build", placeable: "signal_fire",
   },
+  raft: {
+    id: "raft", name: "뗏목", icon: "⛵",
+    desc: "해변에 띄우고 정화수·조리된 음식을 충분히 모아 탑승하면 섬을 탈출한다.",
+    stack: 1, category: "build", placeable: "raft",
+  },
+  glass_bottle: {
+    id: "glass_bottle", name: "유리병", icon: "🫙",
+    desc: "사용해 재료를 담아 바다에 띄우면, 2~3일 뒤 더 귀한 것이 담겨 돌아올지도 모른다.",
+    stack: 10, category: "misc", onUse: "bottle_trade",
+  },
 };
 
 export const ITEM_IDS = Object.keys(ITEMS) as ItemId[];

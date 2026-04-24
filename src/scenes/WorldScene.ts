@@ -11,6 +11,7 @@ import { makeButton, type ButtonNode } from "../ui/Button";
 import { InventoryPanel } from "../ui/InventoryPanel";
 import { CraftingPanel } from "../ui/CraftingPanel";
 import { JournalPanel } from "../ui/JournalPanel";
+import { BottleTradePanel } from "../ui/BottleTradePanel";
 import { audio } from "../systems/AudioManager";
 import { showAchievementToast } from "../ui/AchievementToast";
 import type { Achievement } from "../data/achievements";
@@ -40,6 +41,7 @@ export class WorldScene extends Phaser.Scene {
   private inventoryPanel!: InventoryPanel;
   private craftingPanel!: CraftingPanel;
   private journalPanel!: JournalPanel;
+  private bottleTradePanel!: BottleTradePanel;
 
   // Cameras
   private worldCam!: Phaser.Cameras.Scene2D.Camera;
@@ -159,6 +161,7 @@ export class WorldScene extends Phaser.Scene {
     this.inventoryPanel = new InventoryPanel(this);
     this.craftingPanel = new CraftingPanel(this);
     this.journalPanel = new JournalPanel(this);
+    this.bottleTradePanel = new BottleTradePanel(this);
 
     // ── UI Camera ignores world objects ───────────────────
     this.uiCam.ignore(this.worldObjects);
@@ -206,9 +209,11 @@ export class WorldScene extends Phaser.Scene {
       store.checkTimedAchievements();
       // 심은 씨앗 2일 뒤 수확 가능 단계로 성장
       this.matureGardenPlants();
+      // 바다에 띄운 유리병 귀환 체크
+      this.processBottleReturn();
       if (d > WIN_DAY) {
         this.scene.stop("HUDScene");
-        this.scene.start("VictoryScene");
+        this.scene.start("VictoryScene", { raftEscape: false, days: d });
       }
     });
 
@@ -942,6 +947,11 @@ export class WorldScene extends Phaser.Scene {
         break;
       }
 
+      case "raft_placed": {
+        this.tryRaftEscape(entity);
+        return;
+      }
+
       case "buried_treasure": {
         if (store.inv.bestPickaxeTier() < 1) {
           store.pushLog("❌ 땅이 수상하게 부풀어있다. 곡괭이(⛏)가 있어야 파낼 수 있다.");
@@ -1316,6 +1326,106 @@ export class WorldScene extends Phaser.Scene {
     this.triggerCombat(boss);
   }
 
+  /** 뗏목 탈출 시도 — 충분한 보급품이 있으면 VictoryScene(raft) 분기 */
+  private tryRaftEscape(_entity: WorldEntity): void {
+    const store = getStore(this);
+    const COOKED_FOODS: import("../types").ItemId[] = [
+      "can_food", "meat_cooked", "fish_cooked",
+      "smoked_fish", "meat_stew", "trail_mix",
+    ];
+    const waterCount = store.inv.count("water_clean");
+    const foodCount = COOKED_FOODS.reduce((acc, id) => acc + store.inv.count(id), 0);
+    const waterOK = waterCount >= 5;
+    const foodOK = foodCount >= 8;
+
+    if (!waterOK || !foodOK) {
+      store.pushLog(
+        "⛵ 뗏목 위에 올랐지만 항해 보급품이 부족하다.\n" +
+        `   💧 정화수 ${waterCount}/5 ${waterOK ? "✓" : "✗"}\n` +
+        `   🍖 조리된 음식 (통조림·구운 것 등) ${foodCount}/8 ${foodOK ? "✓" : "✗"}`
+      );
+      return;
+    }
+
+    // 보급품 소비
+    store.inv.remove("water_clean", 5);
+    let needFood = 8;
+    for (const id of COOKED_FOODS) {
+      const have = store.inv.count(id);
+      if (have <= 0) continue;
+      const take = Math.min(have, needFood);
+      store.inv.remove(id, take);
+      needFood -= take;
+      if (needFood <= 0) break;
+    }
+
+    store.pushLog("⛵ 뗏목을 띄웠다! 파도가 섬을 멀리 밀어낸다...");
+    audio.play("victory");
+    this.cameras.main.fadeOut(1500, 0, 0, 0);
+    this.time.delayedCall(1600, () => {
+      this.scene.stop("HUDScene");
+      this.scene.start("VictoryScene", { raftEscape: true, days: store.time.day });
+    });
+  }
+
+  /** 바다에 띄운 유리병의 귀환 처리. dayChange마다 호출. */
+  private processBottleReturn(): void {
+    const store = getStore(this);
+    const sent = store.flags.sentBottle;
+    if (!sent) return;
+    const elapsed = store.time.day - sent.sentDay;
+    if (elapsed < 2) return;
+    // 2일 뒤: 60% 복귀, 3일 뒤: 100% 복귀
+    if (elapsed === 2 && Math.random() < 0.4) return; // 하루 더 기다려봄
+
+    if (Math.random() < 0.15) {
+      store.pushLog("🫙 띄워 보낸 유리병이 끝내 돌아오지 않았다...");
+    } else {
+      const rewards = this.bottleRewardFor(sent.itemId);
+      for (const r of rewards) {
+        store.inv.add(r.id, r.count);
+        store.discoverRecipes(r.id);
+      }
+      const txt = rewards.map((r) => `${ITEMS[r.id].icon}${ITEMS[r.id].name}×${r.count}`).join(", ");
+      store.pushLog(`🫙 파도에 유리병이 떠밀려왔다! 안에서 ${txt}을(를) 발견했다.`);
+      this.spawnPickupFx(store.playerTx, store.playerTy - 1, "🫙✨", "#a0e0ff");
+      audio.play("pickup");
+    }
+    store.flags.sentBottle = undefined;
+  }
+
+  /** 보낸 아이템의 희귀도에 따라 돌아올 보상 풀. */
+  private bottleRewardFor(sent: ItemId): Array<{ id: ItemId; count: number }> {
+    const basicPool: Array<{ id: ItemId; count: number }[]> = [
+      [{ id: "rope", count: 2 }, { id: "cloth", count: 2 }],
+      [{ id: "bandage", count: 2 }, { id: "berry", count: 3 }],
+      [{ id: "stick", count: 6 }, { id: "vine", count: 4 }],
+    ];
+    const midPool: Array<{ id: ItemId; count: number }[]> = [
+      [{ id: "iron_ore", count: 3 }, { id: "rope", count: 2 }],
+      [{ id: "bullet", count: 8 }, { id: "cloth", count: 3 }],
+      [{ id: "fishing_rod", count: 1 }, { id: "bandage", count: 2 }],
+      [{ id: "treasure_map", count: 1 }, { id: "can_food", count: 2 }],
+    ];
+    const rarePool: Array<{ id: ItemId; count: number }[]> = [
+      [{ id: "iron_sword", count: 1 }, { id: "large_bandage", count: 1 }],
+      [{ id: "medkit", count: 1 }, { id: "energy_tonic", count: 1 }],
+      [{ id: "diamond", count: 2 }, { id: "treasure_map", count: 2 }],
+      [{ id: "blanket", count: 1 }, { id: "smoked_fish", count: 3 }],
+    ];
+
+    const tierByItem: Record<string, "basic" | "mid" | "rare"> = {
+      stick: "basic", stone: "basic", vine: "basic", cloth: "basic",
+      berry: "basic", mushroom: "basic", seed: "basic",
+      rope: "mid", metal_scrap: "mid", iron_ore: "mid", bullet: "mid",
+      bandage: "mid",
+      diamond: "rare", herbal_drink: "rare",
+    };
+    const tier = tierByItem[sent] ?? "basic";
+    const pool = tier === "rare" ? rarePool : tier === "mid" ? midPool : basicPool;
+    return Phaser.Utils.Array.GetRandom(pool) as Array<{ id: ItemId; count: number }>;
+  }
+
   /** 심은 씨앗(planted_seed)을 심은 지 2일 뒤 ripe_plant로 변환 */
   private matureGardenPlants(): void {
     const store = getStore(this);
@@ -1351,6 +1461,7 @@ export class WorldScene extends Phaser.Scene {
     if (this.inventoryPanel.isOpen) this.inventoryPanel.close();
     else this.inventoryPanel.open((id) => {
       if (id === "treasure_map") this.revealTreasure();
+      if (id === "glass_bottle") this.bottleTradePanel.open();
       this.renderEntities();
       this.updateActionHint();
     });
@@ -1821,6 +1932,13 @@ export class WorldScene extends Phaser.Scene {
           store.inv.add("cloth", 2);
           store.pushLog("🧵 바람에 실려온 낡은 천 조각을 주웠다. 천 조각 ×2.");
         }
+        audio.play("pickup");
+      },
+      () => {
+        // 빈 유리병 표류 — 유리병 무역의 입구
+        store.inv.add("glass_bottle", 1);
+        store.pushLog("🫙 해변에 빈 유리병이 떠밀려왔다. 인벤토리에서 재료를 담아 띄우면 선물이 돌아올지도...");
+        this.spawnPickupFx(store.playerTx, store.playerTy - 1, "+🫙×1", "#a0e0ff");
         audio.play("pickup");
       },
     ];

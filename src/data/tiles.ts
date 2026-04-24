@@ -62,7 +62,8 @@ export type EntityType =
   | "planted_seed"
   | "ripe_plant"
   | "signal_fire_unlit"
-  | "signal_fire_lit";
+  | "signal_fire_lit"
+  | "raft_placed";
 
 export interface EntityTypeDef {
   icon: string;
@@ -106,6 +107,8 @@ export const ENTITIES: Record<EntityType, EntityTypeDef> = {
   // 봉화대 — 절벽에 세우고 횃불로 점화하면 해양 보스를 약화시킨다
   signal_fire_unlit: { icon: "🗼", label: "봉화대(꺼짐)", terrain: ["cliff_rock"], cap: 5, respawn: false, blocksMovement: false, reach: 1 },
   signal_fire_lit:   { icon: "🔥", label: "타오르는 봉화", terrain: ["cliff_rock"], cap: 5, respawn: false, blocksMovement: false, reach: 1 },
+  // 뗏목 — 해변에 설치, 탑승 시 조기 탈출 엔딩
+  raft_placed:       { icon: "⛵", label: "뗏목",         terrain: ["sand"],       cap: 3, respawn: false, blocksMovement: false, reach: 1 },
 };
 
 /** 광원이 되는 설치물 타입. 주변 2칸 이내를 밝게 하고 몹 조우를 막는다. */

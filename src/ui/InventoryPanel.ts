@@ -269,8 +269,10 @@ export class InventoryPanel {
       const label =
         def.placeable === "seed" ? "🌱 심기"
         : def.placeable === "signal_fire" ? "🗼 봉화 세우기"
+        : def.placeable === "raft" ? "⛵ 뗏목 띄우기"
         : def.placeable ? "🏕 설치"
         : def.onUse === "treasure_map" ? "🗺 펼치기"
+        : def.onUse === "bottle_trade" ? "🫙 재료 담기"
         : "✅ 사용";
       buttons.push({
         label,
@@ -313,6 +315,13 @@ export class InventoryPanel {
       if (this.onUseCallback) this.onUseCallback(id);
       return;
     }
+    if (def.onUse === "bottle_trade") {
+      // 유리병은 트레이드 패널에서 "보내기" 버튼으로 실제 소비된다.
+      audio.play("menu");
+      this.close();
+      if (this.onUseCallback) this.onUseCallback(id);
+      return;
+    }
     if (def.placeable) {
       const map = store.map;
       const tx = store.playerTx;
@@ -330,6 +339,11 @@ export class InventoryPanel {
           store.pushLog("🌱 씨앗은 풀밭에만 심을 수 있다.");
           return;
         }
+      } else if (def.placeable === "raft") {
+        if (terrain !== "sand") {
+          store.pushLog("⛵ 뗏목은 해변(sand)에만 띄울 수 있다.");
+          return;
+        }
       } else {
         if (terrain !== "grass" && terrain !== "sand" && terrain !== "forest") {
           store.pushLog("이곳에는 설치할 수 없다. 풀밭/해변/숲에서만 설치 가능.");
@@ -342,7 +356,8 @@ export class InventoryPanel {
       const blocking = existing && (
         existing.type === "bonfire_placed" || existing.type === "tent_placed" ||
         existing.type === "signal_fire_unlit" || existing.type === "signal_fire_lit" ||
-        existing.type === "planted_seed" || existing.type === "ripe_plant"
+        existing.type === "planted_seed" || existing.type === "ripe_plant" ||
+        existing.type === "raft_placed"
       );
       if (blocking) {
         store.pushLog("이 타일에는 이미 무언가 있다. 한 칸 옆으로 이동해 설치하자.");
@@ -357,6 +372,7 @@ export class InventoryPanel {
         def.placeable === "bonfire" ? "bonfire_placed" :
         def.placeable === "tent" ? "tent_placed" :
         def.placeable === "signal_fire" ? "signal_fire_unlit" :
+        def.placeable === "raft" ? "raft_placed" :
         "planted_seed";
       let maxId = 0;
       for (const e of map.entities) if (e.id > maxId) maxId = e.id;
@@ -372,6 +388,8 @@ export class InventoryPanel {
         store.pushLog("⛺ 이 자리에 천막을 세웠다! 주변 2칸 이내는 밤에도 밝고 몹이 접근하지 않는다.");
       } else if (def.placeable === "signal_fire") {
         store.pushLog("🗼 봉화대를 세웠다. 횃불(🔥)이 있을 때 탭하면 점화할 수 있다.");
+      } else if (def.placeable === "raft") {
+        store.pushLog("⛵ 뗏목을 해변에 띄웠다. 정화수 5개 + 조리된 음식 8개를 가지고 탭하면 탈출한다.");
       } else {
         store.pushLog("🌱 씨앗을 심었다. 2일 뒤 자라면 수확할 수 있다.");
       }

@@ -21,6 +21,7 @@ export const RECIPE_UNLOCK_TRIGGERS: Partial<Record<ItemId, string[]>> = {
   bandage:     ["large_bandage", "medkit"],
   herbal_drink:["energy_tonic", "medkit"],
   seed:        ["seed"],
+  metal_scrap: ["raft"],
 };
 
 export const RECIPES: Recipe[] = [
@@ -270,5 +271,18 @@ export const RECIPES: Recipe[] = [
       { id: "rope", count: 2 },
     ],
     desc: "절벽에 세우고 횃불로 점화하면 해양 보스 HP·공격력 30% 감소. 1회성.",
+  },
+  {
+    id: "raft",
+    name: "뗏목",
+    icon: "⛵",
+    result: { id: "raft", count: 1 },
+    inputs: [
+      { id: "stick", count: 20 },
+      { id: "rope", count: 6 },
+      { id: "cloth", count: 4 },
+      { id: "metal_scrap", count: 5 },
+    ],
+    desc: "해변에 설치. 정화수×5 + 조리된 음식 8개를 모아 탑승하면 섬을 탈출한다.",
   },
 ];
