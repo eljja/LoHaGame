@@ -48,7 +48,11 @@ export function makeButton(
     (container as any).disabled = d;
   };
 
-  container.setInteractive({ useHandCursor: true });
+  container.setInteractive(
+    new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h),
+    Phaser.Geom.Rectangle.Contains
+  );
+  if (container.input) container.input.cursor = "pointer";
   container.on("pointerover", () => {
     if ((container as any).disabled) return;
     rect.setFillStyle(hover);
