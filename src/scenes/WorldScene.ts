@@ -194,6 +194,8 @@ export class WorldScene extends Phaser.Scene {
         const count = store.map.nightRespawn();
         this.renderEntities();
         store.pushLog(`☀ 새벽이 밝아왔다. 자원 ${count}개가 재생됐다.`);
+        this.time.delayedCall(800, () => audio.play("bird"));
+        this.time.delayedCall(2200, () => audio.play("bird"));
       } else {
         const hasTorch = store.inv.count("torch") > 0;
         if (!hasTorch) {
@@ -640,7 +642,7 @@ export class WorldScene extends Phaser.Scene {
         this.spawnPickupFx(entity.tx, entity.ty, `+🪵×${count}`);
         this.gatherPerkBonus(entity.tx, entity.ty, "stick");
         store.discoverRecipes("stick");
-        audio.play("pickup");
+        audio.play("wood_chop");
         break;
       }
 
@@ -833,7 +835,7 @@ export class WorldScene extends Phaser.Scene {
         if (store.inv.hasTool("rod")) {
           store.pushLog("💡 근처에 낚시 포인트(🎣)가 있다면 탭해서 낚시할 수 있다.");
         }
-        audio.play("pickup");
+        audio.play("water_splash");
         break;
       }
 
@@ -1688,7 +1690,7 @@ export class WorldScene extends Phaser.Scene {
     // fish5 achievement tracking
     store.flags.fishCaught = (store.flags.fishCaught ?? 0) + 1;
     if (store.flags.fishCaught >= 5) store.unlockAchievement("fish5");
-    audio.play("pickup");
+    audio.play("water_splash");
 
     // 낚싯대 내구도 감소
     const rodSlot = store.inv.findToolSlot("rod");
