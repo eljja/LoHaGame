@@ -1670,8 +1670,8 @@ export class WorldScene extends Phaser.Scene {
     // 월드 카메라 무시
     this.worldCam.ignore(c);
 
-    // 무작위 3~8초 뒤 찌가 잠김
-    const waitMs = 3000 + Math.random() * 5000;
+    // 무작위 1.5~4초 뒤 찌가 잠김
+    const waitMs = 1500 + Math.random() * 2500;
     let missTimer: ReturnType<typeof setTimeout>;
 
     this.time.delayedCall(waitMs, () => {

@@ -123,6 +123,8 @@ export class HUDScene extends Phaser.Scene {
     if (!worldActive || anyPanelOpen) return;
     store.time.update(delta);
     store.stats.tick(delta * store.time.speedMultiplier, store.time.phase);
+    // 매 프레임 시계 갱신 — 시간이 자연스럽게 흐르는 것을 시각적으로 보여줌
+    this.clockText.setText(store.time.clockString());
   }
 
   private onStatDepleted(stat: string): void {
