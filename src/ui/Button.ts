@@ -53,8 +53,14 @@ export function makeButton(
   // worldCam이 button container를 여전히 hit test한다. scrollFactor=0으로
   // worldCam도 screen-space 좌표로 판정하도록 강제한다.
   container.setScrollFactor(0);
+  // Hit area는 Rectangle(0, 0, w, h)로 잡는다. Phaser InputManager는 hit-test 시
+  // gameObject.displayOriginX/Y를 좌표에 더하는데, Container의 displayOrigin은
+  // 항상 width*0.5, height*0.5이다 (Container.js의 readonly getter). 따라서 setSize(w,h)
+  // 이후 로컬 hit-test 좌표가 (w/2, h/2)만큼 양수 방향으로 보정되므로
+  // (0,0,w,h)로 잡아야 화면상의 버튼 영역과 정확히 일치한다.
+  // (-w/2, -h/2, w, h)로 잡으면 (w/2, h/2)만큼 좌상으로 어긋난다.
   container.setInteractive(
-    new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h),
+    new Phaser.Geom.Rectangle(0, 0, w, h),
     Phaser.Geom.Rectangle.Contains
   );
   if (container.input) container.input.cursor = "pointer";
