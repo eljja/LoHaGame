@@ -115,22 +115,21 @@ export class WorldScene extends Phaser.Scene {
     const bottomBg = this.add.rectangle(0, 608, GAME_WIDTH, 192, 0x060a18, 0.95).setOrigin(0, 0);
     this.uiContainer.add(bottomBg);
 
-    // Action hint text (left side of bottom UI)
-    this.actionHintText = this.add.text(20, 624, "", {
+    // Action hint text (메뉴 그리드와 D-pad 사이의 중앙 영역, 상단)
+    this.actionHintText = this.add.text(310, 620, "", {
       fontFamily: "Galmuri11, monospace",
       fontSize: "13px",
       color: "#9fb7ff",
-      wordWrap: { width: 700 },
+      wordWrap: { width: 760 },
     });
     this.uiContainer.add(this.actionHintText);
 
-    // 장비 상태 표시 (우측 중단)
-    this.equipBarText = this.add.text(GAME_WIDTH - 260, 624, "", {
+    // 장비 상태 표시 (중앙 영역 하단)
+    this.equipBarText = this.add.text(310, 730, "", {
       fontFamily: "Galmuri11, monospace",
       fontSize: "13px",
       color: "#ffd97a",
-      align: "right",
-      wordWrap: { width: 240 },
+      wordWrap: { width: 760 },
     });
     this.uiContainer.add(this.equipBarText);
     this.refreshEquipBar();
@@ -257,12 +256,15 @@ export class WorldScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-C", () => this.toggleCrafting());
     this.input.keyboard?.on("keydown-J", () => this.toggleJournal());
     this.input.keyboard?.on("keydown-Z", () => this.trySleep());
+    this.input.keyboard?.on("keydown-NUMPAD_FIVE", () => this.pickupAtPlayer());
+    this.input.keyboard?.on("keydown-ENTER", () => this.pickupAtPlayer());
+    this.input.keyboard?.on("keydown-SPACE", () => this.pickupAtPlayer());
 
     // First visit hint
     const store2 = getStore(this);
     if (!store2.flags.firstTimeVisited["world" as never]) {
       (store2.flags.firstTimeVisited as Record<string, boolean>)["world"] = true;
-      store2.pushLog("💡 화살표 키 또는 D-패드로 이동, 근처 오브젝트를 탭(클릭)하면 상호작용.");
+      store2.pushLog("💡 화살표/D-패드로 이동. 가운데 ✋ 버튼·Numpad5·Enter·Space로 현재 위치 또는 인접 자원을 줍는다.");
       store2.pushLog("💤 쉴 곳: 🏕 거점 자리에 ⛺ 천막을 설치하거나, 🚢 난파선 수색을 마치면 근처에서 Z 키/잠자기 버튼으로 잘 수 있다.");
       store2.pushLog("🚢 근처에 좌초된 배가 있다! 가까이 다가가 탭하면 내부를 수색할 수 있다.");
       // shipwreck 위치 힌트
@@ -618,6 +620,29 @@ export class WorldScene extends Phaser.Scene {
       const mob = Phaser.Utils.Array.GetRandom(NIGHT_MOBS) as EnemyDef;
       this.triggerCombat(mob);
     }
+  }
+
+  /** 현재 플레이어 위치(같은 타일 우선) 또는 4방향 인접 타일의 엔티티에 상호작용한다. */
+  private pickupAtPlayer(): void {
+    const store = getStore(this);
+    const tx = store.playerTx;
+    const ty = store.playerTy;
+
+    // 1) 같은 타일 (씨앗·수확·발자국 등)
+    const here = store.map.entityAt(tx, ty);
+    if (here) { this.tapEntity(here); return; }
+
+    // 2) 4방향 인접 — 가까운 순서로 첫 번째 상호작용 가능한 엔티티
+    const offsets: Array<[number, number]> = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+    for (const [dx, dy] of offsets) {
+      const adj = store.map.entityAt(tx + dx, ty + dy);
+      if (adj) {
+        const reachable = store.map.reachableEntity(tx, ty, adj.tx, adj.ty);
+        if (reachable) { this.tapEntity(adj); return; }
+      }
+    }
+
+    store.pushLog("✋ 주변에 상호작용할 게 없다.");
   }
 
   // ── Entity interaction ─────────────────────────────────────────
@@ -1115,11 +1140,22 @@ export class WorldScene extends Phaser.Scene {
       });
       this.dpad.add(btn);
     }
+
+    // Center pickup button
+    const pickupBtn = makeButton(this, cx, cy, {
+      label: "✋",
+      width: btnSize,
+      height: btnSize,
+      fontSize: 24,
+      bg: 0x1c2a44,
+      hover: 0x2a3e5e,
+      onClick: () => this.pickupAtPlayer(),
+    });
+    this.dpad.add(pickupBtn);
   }
 
   private buildMenuBar(): void {
     this.menuBar.removeAll(true);
-    const y = GAME_HEIGHT - 28;
     const buttons: Array<[string, () => void]> = [
       ["🎒 인벤(I)", () => this.toggleInventory()],
       ["🔨 제작(C)", () => this.toggleCrafting()],
@@ -1128,15 +1164,22 @@ export class WorldScene extends Phaser.Scene {
       ["💾 저장", () => this.manualSave()],
       ["🏠 타이틀", () => this.backToTitle()],
     ];
+    // 3행 2열 그리드, 컨트롤러 영역의 왼쪽
     const bw = 130;
-    const gap = 8;
-    const total = buttons.length * bw + (buttons.length - 1) * gap;
-    const startX = (GAME_WIDTH - total) / 2 + bw / 2;
+    const bh = 38;
+    const gapX = 8;
+    const gapY = 6;
+    const startX = 20 + bw / 2; // left padding
+    const startY = 632; // top of bottom UI panel area
     buttons.forEach(([label, cb], i) => {
-      const b = makeButton(this, startX + i * (bw + gap), y, {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const x = startX + col * (bw + gapX);
+      const y = startY + row * (bh + gapY);
+      const b = makeButton(this, x, y, {
         label,
         width: bw,
-        height: 36,
+        height: bh,
         fontSize: 12,
         onClick: cb,
       });
