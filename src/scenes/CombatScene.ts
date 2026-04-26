@@ -257,8 +257,8 @@ export class CombatScene extends Phaser.Scene {
     this.diceLabel.setText("🎲 굴리는 중...").setColor("#f0e040");
     this.diceSum.setText("").setColor("#ffffff");
 
-    // 굴리기 단계별 인터벌 (빠르게 시작 → 점점 느려짐)
-    const intervals = [50, 55, 60, 70, 85, 100, 120, 150, 185, 220, 270, 350];
+    // 굴리기 단계별 인터벌 (2배 빠르게: 원래의 절반)
+    const intervals = [25, 28, 30, 35, 42, 50, 60, 75, 92, 110, 135, 175];
     let tick = 0;
 
     const doTick = () => {
@@ -291,14 +291,14 @@ export class CombatScene extends Phaser.Scene {
           ease: "Back.Out",
         });
 
-        this.time.delayedCall(650, () => {
+        this.time.delayedCall(320, () => {
           // 결과를 잠시 표시한 후 원래 상태로 희미하게
           this.tweens.add({
             targets: [this.diceD1, this.diceD2, this.dicePlus],
             alpha: 0.45,
-            duration: 250,
+            duration: 150,
           });
-          this.time.delayedCall(100, () => onComplete(d1Final, d2Final));
+          this.time.delayedCall(60, () => onComplete(d1Final, d2Final));
         });
       }
     };

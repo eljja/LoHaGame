@@ -48,6 +48,11 @@ export function makeButton(
     (container as any).disabled = d;
   };
 
+  // scrollFactor 0: worldCam이 스크롤 좌표로 hit test하지 않도록.
+  // Phaser의 Camera.ignore()는 Container 자체가 아닌 자식에만 cameraFilter를 적용해
+  // worldCam이 button container를 여전히 hit test한다. scrollFactor=0으로
+  // worldCam도 screen-space 좌표로 판정하도록 강제한다.
+  container.setScrollFactor(0);
   container.setInteractive(
     new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h),
     Phaser.Geom.Rectangle.Contains
