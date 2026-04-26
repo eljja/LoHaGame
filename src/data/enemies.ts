@@ -169,7 +169,7 @@ export const MINI_BOSSES: Record<"thorn_vine" | "pale_miner" | "abyss_scrap", En
   },
 };
 
-/** 낮 사냥용 동물 */
+/** 낮 사냥용 동물 — id 순서로 entity type과 매핑 */
 export const DAY_GAME: EnemyDef[] = [
   {
     id: "rabbit",
@@ -184,5 +184,36 @@ export const DAY_GAME: EnemyDef[] = [
       { id: "cloth", count: 1, chance: 0.4 },
     ],
     flavor: "재빠른 갈색 토끼.",
+  },
+  {
+    id: "wolf",
+    name: "야생 늑대",
+    icon: "🐺",
+    hp: 40,
+    atk: 14,
+    canFlee: true,
+    kind: "land",
+    loot: [
+      { id: "meat_raw", count: 3, chance: 1 },
+      { id: "cloth", count: 2, chance: 0.7 },
+      { id: "rope", count: 1, chance: 0.3 },
+    ],
+    flavor: "이빨을 드러낸 굶주린 늑대가 달려든다.",
+  },
+  {
+    id: "boar",
+    name: "성난 멧돼지",
+    icon: "🐗",
+    hp: 55,
+    atk: 11,
+    canFlee: false,
+    kind: "land",
+    loot: [
+      { id: "meat_raw", count: 4, chance: 1 },
+      { id: "meat_raw", count: 2, chance: 0.5 },
+      { id: "stick", count: 2, chance: 0.6 },
+      { id: "bandage", count: 1, chance: 0.25 },
+    ],
+    flavor: "엄니가 번들거리는 멧돼지가 땅을 박차며 돌진한다.",
   },
 ];

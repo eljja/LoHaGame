@@ -601,7 +601,7 @@ export class WorldScene extends Phaser.Scene {
     // Night mob encounter chance (횃불 없으면 더 위험)
     // 모닥불/천막 2칸 이내에서는 몹이 접근하지 않는다
     const nightEncounterChance = store.time.phase === "night" && !store.isInLightArea(nx, ny)
-      ? (store.inv.has("torch") ? 0.025 : 0.06)
+      ? (store.inv.has("torch") ? 0.0125 : 0.03)
       : 0;
     if (nightEncounterChance > 0 && Math.random() < nightEncounterChance) {
       // 미니보스 특수 조우 (day 5+부터, 야간 횃불 없을 때 확률↑)
@@ -785,11 +785,34 @@ export class WorldScene extends Phaser.Scene {
         const target = DAY_GAME[0] as EnemyDef;
         store.pushLog(`🐇 토끼를 발견했다!`);
         store.unlockAchievement("first_hunt");
-        // 토끼는 전투가 시작되는 순간 도망치거나 잡히므로 맵에서 제거
         store.map.removeEntity(entity.id);
         this.renderEntities();
         this.triggerCombat(target);
-        return; // skip renderEntities below (combat will resume)
+        return;
+      }
+
+      case "wolf": {
+        store.time.advanceMinutes(30);
+        store.stats.apply({ energy: -12 });
+        const wolfDef = DAY_GAME.find((d) => d.id === "wolf")!;
+        store.pushLog("🐺 굶주린 늑대가 달려든다! 공격력이 높으니 조심하라.");
+        audio.play("boss_alert");
+        store.map.removeEntity(entity.id);
+        this.renderEntities();
+        this.triggerCombat(wolfDef);
+        return;
+      }
+
+      case "boar": {
+        store.time.advanceMinutes(35);
+        store.stats.apply({ energy: -14 });
+        const boarDef = DAY_GAME.find((d) => d.id === "boar")!;
+        store.pushLog("🐗 성난 멧돼지가 엄니를 들이댄다! 도망은 불가능하다.");
+        audio.play("boss_alert");
+        store.map.removeEntity(entity.id);
+        this.renderEntities();
+        this.triggerCombat(boarDef);
+        return;
       }
 
       case "flower": {
