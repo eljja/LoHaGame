@@ -138,7 +138,7 @@ export class CombatScene extends Phaser.Scene {
     });
 
     this.updatePlayerHp();
-    store.stats.on("change", () => this.updatePlayerHp(), this);
+    store.stats.on("change", this.updatePlayerHp, this);
 
     // ── 로그 & 버튼 ───────────────────────────────────────
     drawPanel(this, 0, GAME_HEIGHT - 180, GAME_WIDTH, 180, { fill: 0x0a0f1e, alpha: 0.88 });
@@ -451,7 +451,7 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private endCombat(_won: boolean, dead = false): void {
-    getStore(this).stats.off("change", undefined, this);
+    getStore(this).stats.off("change", this.updatePlayerHp, this);
     this.cameras.main.fadeOut(500, 0, 0, 0);
     this.time.delayedCall(520, () => {
       if (dead) {

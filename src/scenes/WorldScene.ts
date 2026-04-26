@@ -57,6 +57,11 @@ export class WorldScene extends Phaser.Scene {
   create(): void {
     const store = getStore(this);
 
+    // HUDScene이 실행 중이 아니면 런치 (TitleScene/IntroScene에서 이미 런치했으면 무시됨)
+    if (!this.scene.isActive("HUDScene")) {
+      this.scene.launch("HUDScene");
+    }
+
     // ── Cameras ──────────────────────────────────────────
     // Main (world) camera: shows the tile world
     this.worldCam = this.cameras.main;
@@ -115,21 +120,21 @@ export class WorldScene extends Phaser.Scene {
     const bottomBg = this.add.rectangle(0, 608, GAME_WIDTH, 192, 0x060a18, 0.95).setOrigin(0, 0);
     this.uiContainer.add(bottomBg);
 
-    // Action hint text (메뉴 그리드와 D-pad 사이의 중앙 영역, 상단)
-    this.actionHintText = this.add.text(310, 620, "", {
+    // Action hint text — 버튼/D-pad 아래 하단 영역에 표시 (y=762)
+    this.actionHintText = this.add.text(16, 762, "", {
       fontFamily: "Galmuri11, monospace",
-      fontSize: "13px",
+      fontSize: "12px",
       color: "#9fb7ff",
-      wordWrap: { width: 760 },
+      wordWrap: { width: GAME_WIDTH - 32 },
     });
     this.uiContainer.add(this.actionHintText);
 
-    // 장비 상태 표시 (중앙 영역 하단)
-    this.equipBarText = this.add.text(310, 730, "", {
+    // 장비 상태 표시 — 힌트 아래 (y=782)
+    this.equipBarText = this.add.text(16, 782, "", {
       fontFamily: "Galmuri11, monospace",
-      fontSize: "13px",
+      fontSize: "12px",
       color: "#ffd97a",
-      wordWrap: { width: 760 },
+      wordWrap: { width: GAME_WIDTH - 32 },
     });
     this.uiContainer.add(this.equipBarText);
     this.refreshEquipBar();
@@ -1102,14 +1107,20 @@ export class WorldScene extends Phaser.Scene {
   private sleepAt(where: "tent" | "shipwreck"): void {
     const store = getStore(this);
 
-    // 낮이면 먼저 낮 구간을 건너뜀
-    if (store.time.phase === "day") {
-      const dayLeft = Math.floor((1 - store.time.phaseProgress) * 12 * 60);
-      if (dayLeft > 0) store.time.advanceMinutes(dayLeft + 1);
+    // 다음 아침(phase=day 시작)까지 시간을 건너뜀. while로 처리해 edge case 방지.
+    let safety = 0;
+    while (safety++ < 4) {
+      if (store.time.phase === "day") {
+        // 현재 낮의 남은 분 + 1로 밤으로 전환
+        const remaining = Math.ceil((1 - store.time.phaseProgress) * 12 * 60);
+        store.time.advanceMinutes(remaining + 1);
+      } else {
+        // 밤 → 아침으로
+        const remaining = Math.ceil((1 - store.time.phaseProgress) * 12 * 60);
+        store.time.advanceMinutes(remaining + 1);
+        break; // 밤을 건너뛰면 아침 → 종료
+      }
     }
-    // 밤 구간을 건너뜀 (아침까지)
-    const nightLeft = Math.floor((1 - store.time.phaseProgress) * 12 * 60);
-    if (nightLeft > 0) store.time.advanceMinutes(nightLeft + 1);
 
     // 행동력 완전 회복
     const energyNeeded = 100 - store.stats.energy;
@@ -1135,7 +1146,7 @@ export class WorldScene extends Phaser.Scene {
   private buildDpad(): void {
     this.dpad.removeAll(true);
     const cx = GAME_WIDTH - 120;
-    const cy = 688; // center of dpad in bottom UI
+    const cy = 678; // center of dpad in bottom UI (힌트 공간 확보 위해 10px 위로)
     const btnSize = 52;
     const gap = 4;
 
@@ -1193,7 +1204,7 @@ export class WorldScene extends Phaser.Scene {
     const gapX = 8;
     const gapY = 6;
     const startX = 20 + bw / 2; // left padding
-    const startY = 632; // top of bottom UI panel area
+    const startY = 624; // 힌트 공간 확보 위해 위로
     buttons.forEach(([label, cb], i) => {
       const col = i % 2;
       const row = Math.floor(i / 2);
