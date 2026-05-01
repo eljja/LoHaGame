@@ -257,8 +257,8 @@ export class CombatScene extends Phaser.Scene {
     this.diceLabel.setText("🎲 굴리는 중...").setColor("#f0e040");
     this.diceSum.setText("").setColor("#ffffff");
 
-    // 굴리기 단계별 인터벌 (2배 빠르게: 원래의 절반)
-    const intervals = [25, 28, 30, 35, 42, 50, 60, 75, 92, 110, 135, 175];
+    // 굴리기 단계별 인터벌 (다시 절반: 이전 대비 1/2)
+    const intervals = [13, 14, 15, 18, 21, 25, 30, 38, 46, 55, 68, 88];
     let tick = 0;
 
     const doTick = () => {
@@ -291,18 +291,18 @@ export class CombatScene extends Phaser.Scene {
           ease: "Back.Out",
         });
 
-        this.time.delayedCall(320, () => {
+        this.time.delayedCall(160, () => {
           // 결과를 잠시 표시한 후 원래 상태로 희미하게
           this.tweens.add({
             targets: [this.diceD1, this.diceD2, this.dicePlus],
             alpha: 0.45,
-            duration: 150,
+            duration: 100,
           });
-          this.time.delayedCall(60, () => onComplete(d1Final, d2Final));
+          this.time.delayedCall(30, () => onComplete(d1Final, d2Final));
         });
       }
     };
-    this.time.delayedCall(50, doTick);
+    this.time.delayedCall(25, doTick);
   }
 
   /** 실제로 이번 턴 사용할 무기. 권총인데 탄이 없으면 다음 무기로 폴백. */
