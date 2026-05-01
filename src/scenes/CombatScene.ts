@@ -38,6 +38,19 @@ export class CombatScene extends Phaser.Scene {
   private diceD2!: Phaser.GameObjects.Text;
   private diceSum!: Phaser.GameObjects.Text;
 
+  // 패리 시스템 — 적 공격 윈드업 시 좌→우 게이지가 차오르며,
+  // 플레이어가 ⚔ 패리 버튼 / 스페이스바를 누른 위치에 따라 결과가 달라진다.
+  private parryActive = false;
+  private parryStartTime = 0;
+  private parryDurationMs = 1500;
+  private parryGfx?: Phaser.GameObjects.Graphics;
+  private parryCursor?: Phaser.GameObjects.Rectangle;
+  private parryLabel?: Phaser.GameObjects.Text;
+  private parryBtn?: ButtonNode;
+  private parryResolve?: (quality: "perfect" | "good" | "miss") => void;
+  /** 다음 공격 ×2 데미지 (퍼펙트 패리 보상) */
+  private nextAttackCrit = false;
+
   constructor() {
     super("CombatScene");
   }
@@ -333,11 +346,15 @@ export class CombatScene extends Phaser.Scene {
       const diceMult = 0.7 + ((diceSum - 2) / 10) * 0.6;
       const energyMult = 1 + store.stats.energy / 200;
       const baseDmg = weapon.dmg + store.perkBonusDmg;
-      const dmg = Math.max(1, Math.round(baseDmg * energyMult * diceMult));
+      const critMult = this.nextAttackCrit ? 2 : 1;
+      const dmg = Math.max(1, Math.round(baseDmg * energyMult * diceMult * critMult));
+      const wasCrit = this.nextAttackCrit;
+      this.nextAttackCrit = false;
 
       this.enemyHp = Math.max(0, this.enemyHp - dmg);
 
       const comment =
+        wasCrit       ? " ⚡크리티컬!" :
         diceSum >= 10 ? " ✨대성공!" :
         diceSum <= 4  ? " 😬빗나갈 뻔..." : "";
       this.pushLog(`🎲 ${d1}+${d2}=${diceSum}${comment} → 🩸 ${dmg} 데미지!`);
@@ -407,23 +424,182 @@ export class CombatScene extends Phaser.Scene {
 
   private enemyTurn(): void {
     const store = getStore(this);
-    let dmg = Math.round(this.enemy.atk * Phaser.Math.FloatBetween(0.85, 1.25));
-    if (this.defending) {
-      dmg = Math.round(dmg * 0.5);
-      this.defending = false;
-    }
-    store.stats.apply({ hp: -dmg });
-    this.cameras.main.shake(200, 0.008);
-    audio.play("hurt");
-    this.pushLog(`💥 ${this.enemy.name}의 공격! ${dmg} 피해.`);
-    this.time.delayedCall(400, () => {
-      if (store.stats.hp <= 0) {
-        this.pushLog("… 의식이 멀어진다.");
-        this.time.delayedCall(900, () => this.endCombat(false, true));
-      } else {
-        this.turnLock = false;
-      }
+    const baseDmg = Math.round(this.enemy.atk * Phaser.Math.FloatBetween(0.85, 1.25));
+
+    // 적 공격 텔레그래프 (적이 빨갛게 깜박임)
+    this.tweens.add({
+      targets: this.enemySprite,
+      tint: 0xff3050,
+      duration: 200,
+      yoyo: true,
+      repeat: 2,
     });
+    this.enemySprite.setTint(0xff5060);
+
+    // 패리 게이지 시작
+    this.startParry((quality) => {
+      this.enemySprite.clearTint();
+
+      let dmg = baseDmg;
+      let logMsg = "";
+      if (quality === "perfect") {
+        dmg = 0;
+        const reflect = Math.max(2, Math.round(baseDmg * 0.4));
+        this.enemyHp = Math.max(0, this.enemyHp - reflect);
+        this.updateEnemyHpBar();
+        this.nextAttackCrit = true;
+        logMsg = `✨ 퍼펙트 패리! 피해 0, 반격 🩸${reflect}, 다음 공격 ×2!`;
+        audio.play("pickup");
+        this.cameras.main.flash(180, 200, 240, 255);
+      } else if (quality === "good") {
+        dmg = Math.max(1, Math.round(baseDmg * 0.4));
+        logMsg = `🛡 굿 패리! 피해 ${dmg} (감소).`;
+        audio.play("click");
+      } else {
+        if (this.defending) {
+          dmg = Math.round(baseDmg * 0.5);
+          logMsg = `🛡 방어! 피해 ${dmg} (절반).`;
+        } else {
+          logMsg = `💥 ${this.enemy.name}의 공격! ${dmg} 피해.`;
+        }
+        audio.play("hurt");
+        this.cameras.main.shake(200, 0.008);
+      }
+      this.defending = false;
+      this.pushLog(logMsg);
+      if (dmg > 0) store.stats.apply({ hp: -dmg });
+
+      this.time.delayedCall(quality === "perfect" ? 600 : 400, () => {
+        if (this.enemyHp <= 0) {
+          this.victory();
+          return;
+        }
+        if (store.stats.hp <= 0) {
+          this.pushLog("… 의식이 멀어진다.");
+          this.time.delayedCall(900, () => this.endCombat(false, true));
+        } else {
+          this.turnLock = false;
+        }
+      });
+    });
+  }
+
+  /**
+   * 패리 게이지를 표시하고 플레이어 입력을 기다린다.
+   * 게이지는 좌→우로 1.5초간 차오른다.
+   *  - 50~60%: PERFECT
+   *  - 40~50% 또는 60~70%: GOOD
+   *  - 그 외 / 미입력: MISS
+   */
+  private startParry(onResolve: (q: "perfect" | "good" | "miss") => void): void {
+    if (this.parryActive) return;
+    this.parryActive = true;
+    this.parryStartTime = this.time.now;
+    this.parryResolve = onResolve;
+
+    const cx = GAME_WIDTH / 2;
+    const cy = GAME_HEIGHT / 2 + 170; // flavor 아래
+    const barW = 480;
+    const barH = 28;
+    const barX = cx - barW / 2;
+    const barY = cy;
+
+    // 백그라운드 게이지 (영역 색칠)
+    const gfx = this.add.graphics();
+    gfx.fillStyle(0x202840, 1);
+    gfx.fillRect(barX, barY, barW, barH);
+    // 패배 영역 (좌측 0-40%)
+    gfx.fillStyle(0x3a1018, 1);
+    gfx.fillRect(barX, barY, barW * 0.40, barH);
+    // GOOD 영역 (40-50%)
+    gfx.fillStyle(0x4a4810, 1);
+    gfx.fillRect(barX + barW * 0.40, barY, barW * 0.10, barH);
+    // PERFECT 영역 (50-60%)
+    gfx.fillStyle(0x186a30, 1);
+    gfx.fillRect(barX + barW * 0.50, barY, barW * 0.10, barH);
+    // GOOD 영역 (60-70%)
+    gfx.fillStyle(0x4a4810, 1);
+    gfx.fillRect(barX + barW * 0.60, barY, barW * 0.10, barH);
+    // 패배 영역 (70-100%)
+    gfx.fillStyle(0x3a1018, 1);
+    gfx.fillRect(barX + barW * 0.70, barY, barW * 0.30, barH);
+    gfx.lineStyle(2, 0x6a7ab0, 1);
+    gfx.strokeRect(barX, barY, barW, barH);
+    this.parryGfx = gfx;
+
+    // 커서 (좌→우로 이동)
+    const cursor = this.add.rectangle(barX, barY - 4, 6, barH + 8, 0xffffff, 1)
+      .setOrigin(0, 0)
+      .setStrokeStyle(1, 0x000000);
+    this.parryCursor = cursor;
+
+    // 라벨
+    this.parryLabel = this.add.text(cx, barY - 28, "⚠ 패리! 초록 영역에서 탭!", {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "16px",
+      color: "#ffd97a",
+    }).setOrigin(0.5);
+    this.tweens.add({ targets: this.parryLabel, alpha: 0.6, duration: 300, yoyo: true, repeat: -1 });
+
+    // 임시 패리 버튼 (기존 버튼 위)
+    const btn = makeButton(this, GAME_WIDTH / 2, GAME_HEIGHT - 40, {
+      label: "🛡 패리! (스페이스/클릭)",
+      width: 360,
+      height: 56,
+      fontSize: 18,
+      bg: 0x2a4a18,
+      hover: 0x3a6a28,
+      border: 0x6adc4a,
+      onClick: () => this.resolveParry(),
+    }) as ButtonNode;
+    this.parryBtn = btn;
+    // 기존 액션 버튼 숨기기
+    this.buttons.forEach((b) => b.setVisible(false));
+
+    // 스페이스바 단축키
+    const spaceHandler = () => this.resolveParry();
+    this.input.keyboard?.once("keydown-SPACE", spaceHandler);
+
+    // 시간 초과 시 MISS
+    this.time.delayedCall(this.parryDurationMs + 50, () => {
+      if (this.parryActive) this.resolveParry();
+    });
+  }
+
+  /** 게이지 커서 위치를 매 프레임 업데이트 */
+  update(): void {
+    if (!this.parryActive || !this.parryCursor || !this.parryGfx) return;
+    const elapsed = this.time.now - this.parryStartTime;
+    const t = Phaser.Math.Clamp(elapsed / this.parryDurationMs, 0, 1);
+    const cx = GAME_WIDTH / 2;
+    const barW = 480;
+    const barX = cx - barW / 2;
+    this.parryCursor.x = barX + barW * t - 3;
+  }
+
+  private resolveParry(): void {
+    if (!this.parryActive || !this.parryResolve) return;
+    const elapsed = this.time.now - this.parryStartTime;
+    const t = Phaser.Math.Clamp(elapsed / this.parryDurationMs, 0, 1);
+
+    let quality: "perfect" | "good" | "miss";
+    if (t >= 0.50 && t <= 0.60) quality = "perfect";
+    else if ((t >= 0.40 && t < 0.50) || (t > 0.60 && t <= 0.70)) quality = "good";
+    else quality = "miss";
+
+    this.parryActive = false;
+    // UI 정리
+    this.parryGfx?.destroy(); this.parryGfx = undefined;
+    this.parryCursor?.destroy(); this.parryCursor = undefined;
+    this.parryLabel?.destroy(); this.parryLabel = undefined;
+    this.parryBtn?.destroy(); this.parryBtn = undefined;
+    this.buttons.forEach((b) => b.setVisible(true));
+    // 스페이스바 핸들러 정리 (한 번만 등록되었지만 안전하게)
+    this.input.keyboard?.off("keydown-SPACE");
+
+    const resolve = this.parryResolve;
+    this.parryResolve = undefined;
+    resolve(quality);
   }
 
   private victory(): void {

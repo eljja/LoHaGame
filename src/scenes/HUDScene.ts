@@ -16,6 +16,7 @@ export class HUDScene extends Phaser.Scene {
   private tint!: Phaser.GameObjects.Rectangle;
   private logText!: Phaser.GameObjects.Text;
   private speedIndicator!: Phaser.GameObjects.Text;
+  private comboBadge!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: "HUDScene", active: false });
@@ -59,6 +60,13 @@ export class HUDScene extends Phaser.Scene {
       this.statBars[id] = { bar, label };
       void bgBar;
     });
+
+    // 활성 콤보 뱃지 (클럭 옆)
+    this.comboBadge = this.add
+      .text(290, 28, "", { fontFamily: "Galmuri11, monospace", fontSize: "16px", color: "#a3e0ff" })
+      .setOrigin(0, 0.5);
+    this.refreshCombos();
+    store.on("combosChanged", () => this.refreshCombos());
 
     // 배속 인디케이터
     this.speedIndicator = this.add
@@ -171,5 +179,17 @@ export class HUDScene extends Phaser.Scene {
   private refreshLog(): void {
     const logs = getStore(this).logs.slice(0, 3).reverse();
     this.logText.setText(logs.join("\n"));
+  }
+
+  private refreshCombos(): void {
+    const store = getStore(this);
+    const icons: Record<string, string> = {
+      forge: "🏭",
+      home_base: "🏠",
+      farm: "🌾",
+      signal_network: "📡",
+    };
+    const list = [...store.activeCombos].map((c) => icons[c]).join(" ");
+    this.comboBadge.setText(list);
   }
 }

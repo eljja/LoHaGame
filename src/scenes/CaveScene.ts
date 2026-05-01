@@ -27,6 +27,15 @@ export class CaveScene extends Phaser.Scene {
   private rolled: ItemId[] = [];
   private chestIdx = -1; // 이번 그리드의 보물 상자 타일
 
+  // 푸시-유어-럭 위험도 — 다이브 동안 누적, 탈출 시 리셋.
+  // 채굴마다 +1, 강하 시 +2. 6 이상부터 사고 확률 시작 (위험도 × 5%).
+  // 사고 = 인벤 무작위 자원 1개 분실 + (드물게) 미니보스 조우.
+  private dangerMeter = 0;
+  private dangerBg?: Phaser.GameObjects.Rectangle;
+  private dangerFill?: Phaser.GameObjects.Rectangle;
+  private dangerLabel?: Phaser.GameObjects.Text;
+  private readonly dangerMax = 10;
+
   constructor() {
     super("CaveScene");
   }
@@ -71,10 +80,31 @@ export class CaveScene extends Phaser.Scene {
     this.updateDepthHint(store.caveDepth);
 
     // 사용법 안내
-    this.add.text(GAME_WIDTH / 2, 100, "💡 어두운 돌 타일을 클릭하면 광석을 캔다!", {
+    this.add.text(GAME_WIDTH / 2, 100, "💡 어두운 돌 타일을 캐면 광석. ⚠ 위험도 6+ 부터 사고 확률! 즉시 탈출 안전.", {
       fontFamily: "Galmuri11, monospace",
       fontSize: "12px",
       color: "#aaccff",
+    }).setOrigin(0.5);
+
+    // 다이브 위험도 초기화 (이번 다이브 시작)
+    this.dangerMeter = 0;
+
+    // 위험도 미터 UI (우측 상단)
+    const dmX = GAME_WIDTH - 280;
+    const dmY = 28;
+    this.add.text(dmX - 8, dmY + 6, "⚠ 위험도", {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "13px",
+      color: "#ffaa66",
+    }).setOrigin(1, 0);
+    this.dangerBg = this.add.rectangle(dmX, dmY, 240, 18, 0x1a0a10, 1)
+      .setOrigin(0, 0).setStrokeStyle(2, 0x6a3030);
+    this.dangerFill = this.add.rectangle(dmX, dmY, 0, 18, 0x4adc6a, 1)
+      .setOrigin(0, 0);
+    this.dangerLabel = this.add.text(dmX + 120, dmY + 9, "0/10 안전", {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "11px",
+      color: "#cfd8ff",
     }).setOrigin(0.5);
 
     // 횃불 소지 여부
@@ -293,10 +323,15 @@ export class CaveScene extends Phaser.Scene {
       return;
     }
 
-    // 채굴 성공
+    // 채굴 성공 — 위험도 누적 후 사고 판정
     audio.play("mine");
     store.time.advanceMinutes(10);
     store.stats.apply({ energy: -3 });
+    this.addDanger(1);
+    // 사고 판정 — 위험도 6 이상부터 (위험도 × 5%) 확률
+    if (this.dangerMeter >= 6 && Math.random() < this.dangerMeter * 0.05) {
+      this.triggerIncident();
+    }
 
     // 채굴 스파크 이펙트
     const sparks = this.add.particles(
@@ -390,10 +425,67 @@ export class CaveScene extends Phaser.Scene {
     store.caveDepth = next;
     store.time.advanceMinutes(20);
     store.stats.apply({ energy: -8 });
-    store.pushLog(`⬇ ${store.caveDepth}층으로 내려왔다.`);
+    this.addDanger(2);
+    store.pushLog(`⬇ ${store.caveDepth}층으로 내려왔다. (위험도 +2)`);
     this.depthText.setText(`깊이 ${store.caveDepth}층`);
     this.updateDepthHint(store.caveDepth);
     this.regenerateGrid();
+  }
+
+  private addDanger(amount: number): void {
+    this.dangerMeter = Phaser.Math.Clamp(this.dangerMeter + amount, 0, this.dangerMax);
+    this.renderDanger();
+  }
+
+  private renderDanger(): void {
+    if (!this.dangerFill || !this.dangerLabel) return;
+    const pct = this.dangerMeter / this.dangerMax;
+    const w = 240 * pct;
+    this.dangerFill.width = w;
+    let col = 0x4adc6a;
+    let label = "안전";
+    if (this.dangerMeter >= 6) { col = 0xffaa44; label = "위험!"; }
+    if (this.dangerMeter >= 9) { col = 0xff5a6a; label = "치명적!"; }
+    this.dangerFill.setFillStyle(col);
+    this.dangerLabel.setText(`${this.dangerMeter}/${this.dangerMax} ${label}`);
+  }
+
+  /** 위험도 사고 — 인벤 무작위 자원 1개 분실 또는 미니보스 조우 */
+  private triggerIncident(): void {
+    const store = getStore(this);
+    audio.play("error");
+    this.cameras.main.shake(300, 0.012);
+
+    // 30% 확률로 미니보스 조우, 70% 확률로 자원 손실
+    if (Math.random() < 0.30) {
+      store.pushLog("💥 천장이 무너지며 어둠 속에서 무언가 기어 나왔다!");
+      this.time.delayedCall(800, () => {
+        this.scene.launch("CombatScene", { enemy: MINI_BOSSES.pale_miner });
+        this.scene.pause("CaveScene");
+      });
+      return;
+    }
+
+    // 자원 손실 — 인벤에서 무작위 슬롯 1개 1개 차감 (도구 제외)
+    const droppableSlots: number[] = [];
+    for (let i = 0; i < store.inv.slots.length; i++) {
+      const s = store.inv.slots[i];
+      if (!s) continue;
+      const def = ITEMS[s.id];
+      if (def.category === "tool" || def.category === "weapon") continue;
+      droppableSlots.push(i);
+    }
+    if (droppableSlots.length === 0) {
+      store.pushLog("💥 천장 일부가 무너졌다! (떨어뜨릴 자원이 없어 다행)");
+      return;
+    }
+    const idx = droppableSlots[Math.floor(Math.random() * droppableSlots.length)];
+    const slot = store.inv.slots[idx]!;
+    const def = ITEMS[slot.id];
+    slot.count -= 1;
+    if (slot.count <= 0) store.inv.slots[idx] = null;
+    store.inv.emit("change");
+    store.pushLog(`💥 천장이 흔들리며 ${def.icon} ${def.name} 1개를 떨어뜨렸다!`);
   }
 
   private leave(): void {

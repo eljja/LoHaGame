@@ -309,6 +309,9 @@ export class WorldScene extends Phaser.Scene {
   private renderEntities(): void {
     const store = getStore(this);
 
+    // 엔티티 상태가 바뀌었을 수 있으므로 콤보 재계산 (변동 시 로그 발생)
+    store.recomputeCombos();
+
     // Remove all existing entity sprites
     this.entityObjects.forEach((t) => t.destroy());
     this.entityObjects.clear();
@@ -698,12 +701,17 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "stone_outcrop": {
-        const count = Phaser.Math.Between(1, 2);
+        const baseCount = Phaser.Math.Between(1, 2);
+        const forgeBonus = store.activeCombos.has("forge") ? baseCount : 0;
+        const count = baseCount + forgeBonus;
         store.inv.add("stone", count);
         store.map.removeEntity(entity.id);
         store.time.advanceMinutes(20);
         store.stats.apply({ energy: -5 });
-        store.pushLog(`🪨 돌을 캤다. 돌 ×${count}`);
+        const msg = forgeBonus > 0
+          ? `🪨 돌을 캤다. 돌 ×${count} (🏭화로 보너스 +${forgeBonus})`
+          : `🪨 돌을 캤다. 돌 ×${count}`;
+        store.pushLog(msg);
         this.spawnPickupFx(entity.tx, entity.ty, `+🪨×${count}`);
         this.gatherPerkBonus(entity.tx, entity.ty, "stone");
         store.discoverRecipes("stone");
@@ -1129,12 +1137,15 @@ export class WorldScene extends Phaser.Scene {
     const nightBuff = store.flags.nightSkyBuff && where === "tent";
     if (nightBuff) store.flags.nightSkyBuff = false;
 
+    const homeBaseBonus = where === "tent" && store.activeCombos.has("home_base") ? 30 : 0;
+
     if (where === "tent") {
-      const hpGain = 40 + store.perkBonusRestHp + (nightBuff ? 20 : 0);
+      const hpGain = 40 + store.perkBonusRestHp + (nightBuff ? 20 : 0) + homeBaseBonus;
       store.stats.apply({ hp: hpGain });
+      const homeMsg = homeBaseBonus > 0 ? " 🏠거점 보너스!" : "";
       store.pushLog(nightBuff
-        ? `⛺ 달무리의 축복 아래 달콤하게 잠들었다. HP +${hpGain}, 행동력 완전 회복!`
-        : `⛺ 천막에서 편히 잠들었다. 체력과 행동력이 완전히 회복됐다!`);
+        ? `⛺ 달무리의 축복 아래 달콤하게 잠들었다. HP +${hpGain}, 행동력 완전 회복!${homeMsg}`
+        : `⛺ 천막에서 편히 잠들었다. HP +${hpGain}, 행동력 완전 회복!${homeMsg}`);
     } else {
       store.stats.apply({ hp: 20 + store.perkBonusRestHp });
       store.pushLog("🚢 배 안에서 잠들었다. 체력과 행동력이 어느정도 회복됐다.");
@@ -1380,9 +1391,10 @@ export class WorldScene extends Phaser.Scene {
     const idx = Math.min(SEA_BOSSES.length - 1, Math.floor(day / 10) - 1);
     const baseBoss = SEA_BOSSES[idx];
 
-    // 점화된 봉화대 개수에 따라 보스 능력치 감소 (최대 60%)
+    // 점화된 봉화대 개수에 따라 보스 능력치 감소
+    // - 1개: 20%, 2개: 40%, 봉화망(3개+): 70% (콤보 발동)
     const litCount = store.map.entities.filter((e) => e.type === "signal_fire_lit").length;
-    const debuffPct = Math.min(60, litCount * 30);
+    const debuffPct = store.activeCombos.has("signal_network") ? 70 : Math.min(40, litCount * 20);
     const boss: EnemyDef = debuffPct > 0
       ? {
           ...baseBoss,
@@ -1505,21 +1517,24 @@ export class WorldScene extends Phaser.Scene {
     return Phaser.Utils.Array.GetRandom(pool) as Array<{ id: ItemId; count: number }>;
   }
 
-  /** 심은 씨앗(planted_seed)을 심은 지 2일 뒤 ripe_plant로 변환 */
+  /** 심은 씨앗(planted_seed)을 심은 지 2일 뒤 ripe_plant로 변환.
+   *  🌾 텃밭 콤보 활성 시 1일 만에 성장. */
   private matureGardenPlants(): void {
     const store = getStore(this);
+    const requiredDays = store.activeCombos.has("farm") ? 1 : 2;
     let matured = 0;
     for (const e of store.map.entities) {
       if (e.type === "planted_seed") {
         const planted = e.meta?.plantedDay ?? store.time.day;
-        if (store.time.day - planted >= 2) {
+        if (store.time.day - planted >= requiredDays) {
           e.type = "ripe_plant";
           matured++;
         }
       }
     }
     if (matured > 0) {
-      store.pushLog(`🌿 심어놓은 새싹 ${matured}개가 수확 가능한 상태로 자랐다.`);
+      const fastNote = requiredDays === 1 ? " (🌾텃밭 가속)" : "";
+      store.pushLog(`🌿 심어놓은 새싹 ${matured}개가 수확 가능한 상태로 자랐다.${fastNote}`);
       this.renderEntities();
     }
   }

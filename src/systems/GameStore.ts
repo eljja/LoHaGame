@@ -157,6 +157,79 @@ export class GameStore extends Phaser.Events.EventEmitter {
     return newOnes;
   }
 
+  // ── Spatial Combos ──────────────────────────────────────────────
+  // 설치물 인접 패턴이 자동 발동하는 보너스. 엔티티 변동 시 recomputeCombos() 재호출.
+  //  - forge: 모닥불 + 인접 8칸에 돌무더기 3개 이상 → 돌무더기 채집 ×2
+  //  - home_base: 천막과 모닥불이 2칸 이내에 모두 존재 → 잠자기 HP +30
+  //  - farm: 씨앗(planted/ripe) 4개가 3x3 안에 존재 → 씨앗 1일 빠르게 성장
+  //  - signal_network: 점화된 봉화 3개 이상 → 다음 해양 보스 HP/atk ×0.75
+
+  /** 현재 활성화된 콤보 id 집합 (휘발성 — 엔티티에서 매번 재계산). */
+  activeCombos: Set<"forge" | "home_base" | "farm" | "signal_network"> = new Set();
+
+  /** 엔티티가 변할 때마다 호출. 활성 콤보를 다시 계산한다.
+   *  silent=true면 발동/해제 로그를 출력하지 않음 (초기/로드 시 사용). */
+  recomputeCombos(silent = false): void {
+    const before = new Set(this.activeCombos);
+    const next = new Set<"forge" | "home_base" | "farm" | "signal_network">();
+
+    const ents = this.map.entities;
+    const bonfires = ents.filter((e) => e.type === "bonfire_placed");
+    const tents = ents.filter((e) => e.type === "tent_placed");
+    const stones = ents.filter((e) => e.type === "stone_outcrop");
+    const seeds = ents.filter((e) => e.type === "planted_seed" || e.type === "ripe_plant");
+    const litFires = ents.filter((e) => e.type === "signal_fire_lit");
+
+    // forge: 어떤 모닥불 주변 8칸 안에 stone_outcrop 3개 이상
+    for (const bf of bonfires) {
+      const cnt = stones.filter(
+        (s) => Math.max(Math.abs(s.tx - bf.tx), Math.abs(s.ty - bf.ty)) <= 1
+      ).length;
+      if (cnt >= 3) { next.add("forge"); break; }
+    }
+
+    // home_base: 천막 ↔ 모닥불 체비셰프 거리 2 이내
+    outer: for (const tent of tents) {
+      for (const bf of bonfires) {
+        if (Math.max(Math.abs(tent.tx - bf.tx), Math.abs(tent.ty - bf.ty)) <= 2) {
+          next.add("home_base"); break outer;
+        }
+      }
+    }
+
+    // farm: 어떤 씨앗을 중심으로 3x3(체비셰프 1) 영역 안에 씨앗 4개 이상
+    for (const seed of seeds) {
+      const cnt = seeds.filter(
+        (s) => Math.max(Math.abs(s.tx - seed.tx), Math.abs(s.ty - seed.ty)) <= 1
+      ).length;
+      if (cnt >= 4) { next.add("farm"); break; }
+    }
+
+    // signal_network: 점화된 봉화 3개 이상
+    if (litFires.length >= 3) next.add("signal_network");
+
+    this.activeCombos = next;
+
+    // 새로 켜진 콤보가 있으면 로그
+    const labels: Record<string, string> = {
+      forge: "🏭 화로 가동! (모닥불 + 돌무더기 3개) 돌 채집 ×2",
+      home_base: "🏠 거점 연결! (천막 + 모닥불) 잠자기 HP +30",
+      farm: "🌾 텃밭 형성! (씨앗 4개) 성장 1일 단축",
+      signal_network: "📡 봉화망 가동! (점화된 봉화 3개) 다음 보스 약화",
+    };
+    if (!silent) {
+      for (const id of next) {
+        if (!before.has(id)) this.pushLog(labels[id]);
+      }
+      for (const id of before) {
+        if (!next.has(id)) this.pushLog(`💨 콤보 해제: ${id}`);
+      }
+    }
+    if (next.size !== before.size || [...next].some((c) => !before.has(c))) {
+      this.emit("combosChanged", next);
+    }
+  }
+
   // ── Lifecycle ────────────────────────────────────────────────────
 
   private placePlayerAtStart(): void {
@@ -213,6 +286,8 @@ export class GameStore extends Phaser.Events.EventEmitter {
     this.placePlayerAtStart();
     this.caveDepth = 0;
     this.logs = [];
+    this.activeCombos = new Set();
+    this.recomputeCombos(true); // 신규 게임은 콤보 없을 것이지만 명시적으로 동기화
     this.time.on("dayChange", () => this.save());
     this.emit("reset");
   }
@@ -259,6 +334,8 @@ export class GameStore extends Phaser.Events.EventEmitter {
     }
     this.migrateLegacyStructures();
     this.updatePerkMultipliers();
+    this.activeCombos = new Set();
+    this.recomputeCombos(true); // 로드 시 silent로 콤보 동기화 (로그 스팸 방지)
   }
 
   /** 구버전 저장(전역 hasBonfire/hasTent 플래그)을 엔티티로 마이그레이션. */
