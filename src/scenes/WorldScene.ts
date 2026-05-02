@@ -120,21 +120,21 @@ export class WorldScene extends Phaser.Scene {
     const bottomBg = this.add.rectangle(0, 608, GAME_WIDTH, 192, 0x060a18, 0.95).setOrigin(0, 0);
     this.uiContainer.add(bottomBg);
 
-    // Action hint text — 버튼/D-pad 아래 하단 영역에 표시 (y=762)
-    this.actionHintText = this.add.text(16, 762, "", {
+    // Action hint text — 메뉴 버튼(좌측 x≤290) 오른쪽 + D-pad(우측 x≥1060) 왼쪽의 중앙 영역
+    this.actionHintText = this.add.text(305, 620, "", {
       fontFamily: "Galmuri11, monospace",
-      fontSize: "12px",
+      fontSize: "13px",
       color: "#9fb7ff",
-      wordWrap: { width: GAME_WIDTH - 32 },
+      wordWrap: { width: 740 },
     });
     this.uiContainer.add(this.actionHintText);
 
-    // 장비 상태 표시 — 힌트 아래 (y=782)
-    this.equipBarText = this.add.text(16, 782, "", {
+    // 장비 상태 표시 — 힌트 아래
+    this.equipBarText = this.add.text(305, 720, "", {
       fontFamily: "Galmuri11, monospace",
-      fontSize: "12px",
+      fontSize: "13px",
       color: "#ffd97a",
-      wordWrap: { width: GAME_WIDTH - 32 },
+      wordWrap: { width: 740 },
     });
     this.uiContainer.add(this.equipBarText);
     this.refreshEquipBar();

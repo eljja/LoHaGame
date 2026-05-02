@@ -17,6 +17,8 @@ export class HUDScene extends Phaser.Scene {
   private logText!: Phaser.GameObjects.Text;
   private speedIndicator!: Phaser.GameObjects.Text;
   private comboBadge!: Phaser.GameObjects.Text;
+  /** 시간 진행 인터벌 — RAF가 스로틀되어도 setInterval은 active tab에서 안정적으로 실행됨. */
+  private timeIntervalId?: number;
 
   constructor() {
     super({ key: "HUDScene", active: false });
@@ -86,13 +88,13 @@ export class HUDScene extends Phaser.Scene {
       },
     });
 
-    // 하단 로그 (최근 3줄)
+    // 하단 로그 (최근 3줄) — 메뉴 버튼(x≤290) 오른쪽으로 이동
     this.logText = this.add
-      .text(16, GAME_HEIGHT - 16, "", {
+      .text(305, GAME_HEIGHT - 16, "", {
         fontFamily: "Galmuri11, monospace",
         fontSize: "14px",
         color: "#9fb7ff",
-        wordWrap: { width: GAME_WIDTH - 32 },
+        wordWrap: { width: 740 },
       })
       .setOrigin(0, 1);
 
@@ -121,17 +123,34 @@ export class HUDScene extends Phaser.Scene {
       store.time.speedMultiplier = cur === 1 ? 10 : cur === 10 ? 60 : 1;
       this.speedIndicator.setText(store.time.speedMultiplier > 1 ? `⏩ x${store.time.speedMultiplier}` : "");
     });
+
+    // 시간 진행 — Phaser update()가 아닌 setInterval로 처리.
+    // 일부 환경에서 RAF가 입력이 없을 때 스로틀되어 시간이 멈춰 보이는 문제 해결.
+    // 100ms 주기 (active tab에서 정확히 보장됨, 백그라운드 탭에서만 throttle).
+    const TICK_MS = 100;
+    this.timeIntervalId = window.setInterval(() => this.advanceTime(TICK_MS), TICK_MS);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (this.timeIntervalId !== undefined) {
+        clearInterval(this.timeIntervalId);
+        this.timeIntervalId = undefined;
+      }
+    });
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => {
+      if (this.timeIntervalId !== undefined) {
+        clearInterval(this.timeIntervalId);
+        this.timeIntervalId = undefined;
+      }
+    });
   }
 
-  update(_t: number, delta: number): void {
+  private advanceTime(deltaMs: number): void {
     const store = getStore(this);
     // 월드가 일시정지(오버레이 씬 활성)되어 있으면 시간도 정지.
     const worldActive = this.scene.isActive("WorldScene") && !this.scene.isPaused("WorldScene");
     const anyPanelOpen = this.scene.isVisible("CaveScene") || this.scene.isActive("CombatScene");
     if (!worldActive || anyPanelOpen) return;
-    store.time.update(delta);
-    store.stats.tick(delta * store.time.speedMultiplier, store.time.phase);
-    // 매 프레임 시계 갱신 — 시간이 자연스럽게 흐르는 것을 시각적으로 보여줌
+    store.time.update(deltaMs);
+    store.stats.tick(deltaMs * store.time.speedMultiplier, store.time.phase);
     this.clockText.setText(store.time.clockString());
   }
 
