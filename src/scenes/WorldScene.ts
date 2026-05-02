@@ -121,7 +121,7 @@ export class WorldScene extends Phaser.Scene {
     this.uiContainer.add(bottomBg);
 
     // Action hint text — 메뉴 버튼(좌측 x≤290) 오른쪽 + D-pad(우측 x≥1060) 왼쪽의 중앙 영역
-    this.actionHintText = this.add.text(305, 620, "", {
+    this.actionHintText = this.add.text(305, 614, "", {
       fontFamily: "Galmuri11, monospace",
       fontSize: "13px",
       color: "#9fb7ff",
@@ -129,8 +129,8 @@ export class WorldScene extends Phaser.Scene {
     });
     this.uiContainer.add(this.actionHintText);
 
-    // 장비 상태 표시 — 힌트 아래
-    this.equipBarText = this.add.text(305, 720, "", {
+    // 장비 상태 표시 — 액션 힌트 바로 아래 (작은 간격)
+    this.equipBarText = this.add.text(305, 660, "", {
       fontFamily: "Galmuri11, monospace",
       fontSize: "13px",
       color: "#ffd97a",
@@ -1157,7 +1157,7 @@ export class WorldScene extends Phaser.Scene {
   private buildDpad(): void {
     this.dpad.removeAll(true);
     const cx = GAME_WIDTH - 120;
-    const cy = 678; // center of dpad in bottom UI (힌트 공간 확보 위해 10px 위로)
+    const cy = 688; // 지도와 겹치지 않도록 +10px 내림
     const btnSize = 52;
     const gap = 4;
 
@@ -1215,7 +1215,7 @@ export class WorldScene extends Phaser.Scene {
     const gapX = 8;
     const gapY = 6;
     const startX = 20 + bw / 2; // left padding
-    const startY = 624; // 힌트 공간 확보 위해 위로
+    const startY = 634; // 지도와 겹치지 않도록 +10px 내림
     buttons.forEach(([label, cb], i) => {
       const col = i % 2;
       const row = Math.floor(i / 2);

@@ -88,15 +88,15 @@ export class HUDScene extends Phaser.Scene {
       },
     });
 
-    // 하단 로그 (최근 3줄) — 메뉴 버튼(x≤290) 오른쪽으로 이동
+    // 로그 (최근 3줄) — 메뉴 버튼 오른쪽, equipBar 아래에 top-anchored로 배치
     this.logText = this.add
-      .text(305, GAME_HEIGHT - 16, "", {
+      .text(305, 706, "", {
         fontFamily: "Galmuri11, monospace",
-        fontSize: "14px",
+        fontSize: "13px",
         color: "#9fb7ff",
         wordWrap: { width: 740 },
       })
-      .setOrigin(0, 1);
+      .setOrigin(0, 0);
 
     // 이벤트 바인딩
     store.time.on("dayChange", (d: number) => this.dayText.setText(`Day ${d}`));
