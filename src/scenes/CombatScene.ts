@@ -195,9 +195,9 @@ export class CombatScene extends Phaser.Scene {
     const ammoStr = weapon.id === "pistol" ? ` (🔫${store.inv.count("bullet")}발)` : "";
 
     const actions: Array<[string, () => void, boolean?]> = [
+      ["🎒 아이템", () => this.useItemPrompt()],
       [`🎲 공격 (${weaponName}${durStr}${ammoStr})`, () => this.playerAttack()],
       ["🛡 방어", () => this.playerDefend()],
-      ["🎒 아이템", () => this.useItemPrompt()],
       [`🏃 도망 (${this.enemy.canFlee ? "50%" : "불가"})`, () => this.playerFlee(), !this.enemy.canFlee],
     ];
     const bw = 250;
