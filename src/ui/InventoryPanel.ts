@@ -18,6 +18,8 @@ export class InventoryPanel {
 
   open(onUse?: (id: ItemId) => void): void {
     if (this.container) this.close();
+    // 패널이 HUDScene(상단 바·로그) 위에 그려지도록 WorldScene을 최상단으로 이동
+    this.scene.scene.bringToTop();
     this.onUseCallback = onUse;
     this.selectedSlotIdx = null;
     const w = 780;
@@ -442,6 +444,8 @@ export class InventoryPanel {
     this.selectedSlotIdx = null;
     this.detailContainer = undefined;
     this.gridContainer = undefined;
+    // HUDScene을 다시 최상단으로 (Day/시계/스탯 바가 항상 보이도록)
+    this.scene.scene.bringToTop("HUDScene");
   }
 
   get isOpen(): boolean {

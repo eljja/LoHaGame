@@ -11,6 +11,7 @@ export class JournalPanel {
 
   open(): void {
     if (this.container) this.close();
+    this.scene.scene.bringToTop();
     const store = getStore(this.scene);
     const w = 700;
     const h = 560;
@@ -111,6 +112,7 @@ export class JournalPanel {
     }
     this.container?.destroy();
     this.container = undefined;
+    this.scene.scene.bringToTop("HUDScene");
   }
 
   get isOpen(): boolean {

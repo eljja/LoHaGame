@@ -20,6 +20,7 @@ export class BottleTradePanel {
 
   open(): void {
     if (this.container) this.close();
+    this.scene.scene.bringToTop();
     const store = getStore(this.scene);
 
     // 보낼 수 있는 아이템만 필터
@@ -134,6 +135,7 @@ export class BottleTradePanel {
   close(): void {
     this.container?.destroy();
     this.container = undefined;
+    this.scene.scene.bringToTop("HUDScene");
   }
 
   get isOpen(): boolean {

@@ -21,6 +21,7 @@ export class CraftingPanel {
 
   open(): void {
     if (this.container) this.close();
+    this.scene.scene.bringToTop();
     const w = 920;
     const h = 600;
     const x = (GAME_WIDTH - w) / 2;
@@ -303,6 +304,7 @@ export class CraftingPanel {
     this.selected = null;
     this.listSlot = undefined;
     this.detailSlot = undefined;
+    this.scene.scene.bringToTop("HUDScene");
   }
 
   get isOpen(): boolean {
