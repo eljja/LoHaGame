@@ -192,9 +192,11 @@ export class CombatScene extends Phaser.Scene {
       lineSpacing: 4,
     });
 
-    this.buildButtons();
     this.pushLog(`⚠ ${this.enemy.name} 조우! 교전 시작.`);
-    this.pushLog("💡 공격하면 주사위 2개를 굴려 데미지가 결정된다.");
+    this.pushLog("💡 공격(↔)→방어(→) 자동 반복. 가운데에서 멈출수록 효과적.");
+
+    // 자동 전투 루프 시작 — 잠시 대기 후 첫 공격 단계
+    this.time.delayedCall(900, () => this.playerAttack());
   }
 
   // ── 플레이어 HP 갱신 ───────────────────────────────────
@@ -423,10 +425,14 @@ export class CombatScene extends Phaser.Scene {
         } else if (r.hasDurability && r.dur! <= 5) {
           this.pushLog(`⚠ ${weaponDef.name} 내구도 ${r.dur}/${r.max} (거의 부서짐)`);
         }
-        this.buildButtons();
       }
 
-      this.afterPlayerTurn();
+      // 다음 단계: 적이 살아있으면 방어 단계로 자동 전환
+      if (this.enemyHp <= 0) {
+        this.time.delayedCall(500, () => this.victory());
+        return;
+      }
+      this.time.delayedCall(700, () => this.playerDefend());
     });
   }
 
@@ -483,7 +489,7 @@ export class CombatScene extends Phaser.Scene {
     });
   }
 
-  /** 방어 종료 후 처리 — 적 턴 없이 다음 플레이어 턴으로. */
+  /** 방어 종료 후 처리 — 다음 공격 단계로 자동 전환. */
   private endDefenseTurn(): void {
     const store = getStore(this);
     if (this.enemyHp <= 0) { this.victory(); return; }
@@ -492,8 +498,8 @@ export class CombatScene extends Phaser.Scene {
       this.time.delayedCall(900, () => this.endCombat(false, true));
       return;
     }
-    this.buttons.forEach((b) => b.setVisible(true));
-    this.turnLock = false;
+    // 다음 단계: 공격 단계로
+    this.time.delayedCall(700, () => this.playerAttack());
   }
 
   // ── 공격 타이밍 게이지 ──────────────────────────────────
