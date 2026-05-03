@@ -16,6 +16,8 @@ export class CraftingPanel {
   private panelY = 0;
   private panelW = 0;
   private panelH = 0;
+  private listScrollY = 0;
+  private listMaxScroll = 0;
 
   constructor(private scene: Phaser.Scene) {}
 
@@ -53,11 +55,30 @@ export class CraftingPanel {
 
     c.add([overlay, panel, title, hint, divider]);
 
-    // 목록 슬롯 컨테이너
+    // 목록 슬롯 컨테이너 + 스크롤 마스크
     const listSlot = this.scene.add.container(0, 0);
     c.add(listSlot);
     this.listSlot = listSlot;
+
+    // 목록 영역: 좌측 너비 560, 상단 y+92, 하단은 패널 끝 - 60(여백)
+    const listAreaTop = y + 96;
+    const listAreaH = h - (listAreaTop - y) - 30;
+    const listMask = this.scene.make.graphics({ x: 0, y: 0 });
+    listMask.fillStyle(0xffffff);
+    listMask.fillRect(x + 16, listAreaTop, 580, listAreaH);
+    listSlot.setMask(listMask.createGeometryMask());
+
+    this.listScrollY = 0;
     this.renderList();
+
+    // 휠 스크롤 핸들러 (목록 영역에서만 동작)
+    const wheelHandler = (_p: unknown, _gs: unknown, _dx: number, dy: number) => {
+      if (this.listMaxScroll <= 0) return;
+      this.listScrollY = Phaser.Math.Clamp(this.listScrollY + dy * 0.4, 0, this.listMaxScroll);
+      listSlot.setY(-this.listScrollY);
+    };
+    this.scene.input.on("wheel", wheelHandler);
+    (c as any)._wheelHandler = wheelHandler;
 
     // 디테일 슬롯 컨테이너
     const detailSlot = this.scene.add.container(0, 0);
@@ -141,6 +162,15 @@ export class CraftingPanel {
         this.renderDetail();
       });
     });
+
+    // 스크롤 범위 계산 + 위치 보존 (위 forEach의 cardH/gap과 동일)
+    const totalRows = Math.ceil(recipes.length / 4);
+    const totalH = totalRows * 88 + (totalRows - 1) * 10;
+    const listAreaTop = this.panelY + 96;
+    const listAreaH = this.panelH - (listAreaTop - this.panelY) - 30;
+    this.listMaxScroll = Math.max(0, totalH - listAreaH);
+    if (this.listScrollY > this.listMaxScroll) this.listScrollY = this.listMaxScroll;
+    slot.setY(-this.listScrollY);
 
     // 세계 카메라 무시
     const worldCam = this.scene.cameras.main;
@@ -299,11 +329,17 @@ export class CraftingPanel {
   }
 
   close(): void {
+    if (this.container) {
+      const h = (this.container as any)._wheelHandler;
+      if (h) this.scene.input.off("wheel", h);
+    }
     this.container?.destroy();
     this.container = undefined;
     this.selected = null;
     this.listSlot = undefined;
     this.detailSlot = undefined;
+    this.listScrollY = 0;
+    this.listMaxScroll = 0;
     this.scene.scene.bringToTop("HUDScene");
   }
 

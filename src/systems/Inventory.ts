@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { ITEMS } from "../data/items";
 import type { ItemId } from "../types";
 
-export const INVENTORY_SLOTS = 20;
+export const INVENTORY_SLOTS = 30;
 
 export type Slot = { id: ItemId; count: number; dur?: number } | null;
 
@@ -159,7 +159,10 @@ export class Inventory extends Phaser.Events.EventEmitter {
   }
 
   fromJSON(data: Slot[]): void {
-    this.slots = data.slice();
+    // 구버전 세이브(20슬롯)를 현재 INVENTORY_SLOTS(30)에 맞춰 패딩
+    const arr = data.slice();
+    while (arr.length < INVENTORY_SLOTS) arr.push(null);
+    this.slots = arr;
     this.emit("change");
   }
 }

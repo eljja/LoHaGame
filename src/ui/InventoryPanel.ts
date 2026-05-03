@@ -5,6 +5,7 @@ import type { ItemId } from "../types";
 import { drawPanel } from "./Panel";
 import { makeButton, type ButtonNode } from "./Button";
 import { getStore } from "../systems/GameStore";
+import { INVENTORY_SLOTS } from "../systems/Inventory";
 import { audio } from "../systems/AudioManager";
 
 export class InventoryPanel {
@@ -13,6 +14,7 @@ export class InventoryPanel {
   private detailContainer?: Phaser.GameObjects.Container;
   private gridContainer?: Phaser.GameObjects.Container;
   private onUseCallback?: (id: ItemId) => void;
+  private gridScrollY = 0;
 
   constructor(private scene: Phaser.Scene) {}
 
@@ -60,7 +62,42 @@ export class InventoryPanel {
     const gridSlot = this.scene.add.container(0, 0);
     this.gridContainer = gridSlot;
     c.add(gridSlot);
+
+    // 그리드 영역 스크롤 마스크 (4행 높이만 표시, 6행 = 30슬롯)
+    const cols = 5;
+    const slotSize = 74;
+    const gap = 8;
+    const visibleRows = 4;
+    const totalRows = Math.ceil(INVENTORY_SLOTS / cols);
+    const gridTop = y + 84;
+    const visibleH = visibleRows * slotSize + (visibleRows - 1) * gap;
+    const totalH = totalRows * slotSize + (totalRows - 1) * gap;
+    const maxScrollY = Math.max(0, totalH - visibleH);
+
+    const maskGfx = this.scene.make.graphics({ x: 0, y: 0 });
+    maskGfx.fillStyle(0xffffff);
+    maskGfx.fillRect(x + 8, gridTop, w - 16, visibleH + 4);
+    gridSlot.setMask(maskGfx.createGeometryMask());
+
+    this.gridScrollY = 0;
     this.renderGrid(x, y, w);
+
+    // 휠 스크롤 (그리드 위에서만)
+    const wheelHandler = (_p: unknown, _gs: unknown, _dx: number, dy: number) => {
+      if (maxScrollY <= 0) return;
+      this.gridScrollY = Phaser.Math.Clamp(this.gridScrollY + dy * 0.4, 0, maxScrollY);
+      gridSlot.setY(-this.gridScrollY);
+    };
+    this.scene.input.on("wheel", wheelHandler);
+    (c as any)._wheelHandler = wheelHandler;
+
+    // 스크롤 힌트 (스크롤 가능할 때만)
+    if (maxScrollY > 0) {
+      const hint = this.scene.add.text(x + w - 22, gridTop + visibleH + 6, "↓ 휠 스크롤", {
+        fontFamily: "Galmuri11, monospace", fontSize: "11px", color: "#445588",
+      }).setOrigin(1, 0);
+      c.add(hint);
+    }
 
     const detailSlot = this.scene.add.container(0, 0);
     this.detailContainer = detailSlot;
@@ -85,7 +122,7 @@ export class InventoryPanel {
     const startX = panelX + (panelW - gridW) / 2;
     const startY = panelY + 84;
 
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < INVENTORY_SLOTS; i++) {
       const cx = startX + (i % cols) * (slotSize + gap);
       const cy = startY + Math.floor(i / cols) * (slotSize + gap);
       const item = store.inv.slots[i] ?? null;
@@ -150,6 +187,9 @@ export class InventoryPanel {
         slot.add(numTxt);
       }
     }
+
+    // 재렌더 시 스크롤 위치 유지
+    slot.setY(-this.gridScrollY);
 
     const worldCam = this.scene.cameras.main;
     if (worldCam && this.container) worldCam.ignore(slot);
@@ -439,11 +479,16 @@ export class InventoryPanel {
   }
 
   close(): void {
+    if (this.container) {
+      const h = (this.container as any)._wheelHandler;
+      if (h) this.scene.input.off("wheel", h);
+    }
     this.container?.destroy();
     this.container = undefined;
     this.selectedSlotIdx = null;
     this.detailContainer = undefined;
     this.gridContainer = undefined;
+    this.gridScrollY = 0;
     // HUDScene을 다시 최상단으로 (Day/시계/스탯 바가 항상 보이도록)
     this.scene.scene.bringToTop("HUDScene");
   }
