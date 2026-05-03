@@ -93,6 +93,10 @@ export class CombatScene extends Phaser.Scene {
 
   create(): void {
     const store = getStore(this);
+    // 패널 사용 후 HUDScene이 최상단에 와있는 상태에서 combat이 launch되면
+    // 씬 순서상 combat이 뒤에 그려져 화면이 가려지는 문제가 발생.
+    // 자기 자신을 최상단으로 올려 항상 위에 렌더되도록 보장.
+    this.scene.bringToTop();
     const cam = this.cameras.main;
     cam.fadeIn(400, 0, 0, 0);
 

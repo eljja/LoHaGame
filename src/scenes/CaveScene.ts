@@ -42,6 +42,9 @@ export class CaveScene extends Phaser.Scene {
 
   create(): void {
     const store = getStore(this);
+    // 패널 사용으로 World/HUD가 최상단에 와있는 상태에서 Cave가 launch되면
+    // 씬 순서상 Cave가 뒤에 그려지므로 자기 자신을 최상단으로 올린다.
+    this.scene.bringToTop();
     const cam = this.cameras.main;
     cam.fadeIn(400, 0, 0, 0);
 
