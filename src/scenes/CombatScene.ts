@@ -146,9 +146,8 @@ export class CombatScene extends Phaser.Scene {
       color: "#cfd8ff",
     }).setOrigin(0.5);
 
-    // ── 주사위 패널 (상주) ──────────────────────────────────
-    // 적 flavor(y=500)와 로그 패널(y=620) 사이의 빈 영역에 배치
-    this.buildDicePanel();
+    // 주사위 패널은 더 이상 사용하지 않음 (버튼/주사위 → 타이밍 게이지로 전환).
+    // buildDicePanel() 함수는 레거시 보존용으로 남겨둠.
 
     // ── 플레이어 영역 ──────────────────────────────────────
     this.add.text(60, GAME_HEIGHT - 228, "🧑", { fontSize: "68px" }).setOrigin(0.5);

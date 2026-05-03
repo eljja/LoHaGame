@@ -88,9 +88,10 @@ export class HUDScene extends Phaser.Scene {
       },
     });
 
-    // 로그 (최근 3줄) — 메뉴 버튼 오른쪽, equipBar 아래에 top-anchored로 배치
+    // 로그 (최근 3줄) — 메뉴 버튼 오른쪽, equipBar 아래에 top-anchored로 배치.
+    // 액션 힌트(이전 y=614) 제거에 따라 46px 위로 이동.
     this.logText = this.add
-      .text(305, 706, "", {
+      .text(305, 660, "", {
         fontFamily: "Galmuri11, monospace",
         fontSize: "13px",
         color: "#9fb7ff",

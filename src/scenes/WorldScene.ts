@@ -120,17 +120,12 @@ export class WorldScene extends Phaser.Scene {
     const bottomBg = this.add.rectangle(0, 608, GAME_WIDTH, 192, 0x060a18, 0.95).setOrigin(0, 0);
     this.uiContainer.add(bottomBg);
 
-    // Action hint text — 메뉴 버튼(좌측 x≤290) 오른쪽 + D-pad(우측 x≥1060) 왼쪽의 중앙 영역
-    this.actionHintText = this.add.text(305, 614, "", {
-      fontFamily: "Galmuri11, monospace",
-      fontSize: "13px",
-      color: "#9fb7ff",
-      wordWrap: { width: 740 },
-    });
-    this.uiContainer.add(this.actionHintText);
+    // Action hint text — 더 이상 표시하지 않음. updateActionHint/setText 호출이
+    // 코드 곳곳에 남아있으므로 invisible Text로 유지해 호환성 보장.
+    this.actionHintText = this.add.text(0, 0, "").setVisible(false);
 
-    // 장비 상태 표시 — 액션 힌트 바로 아래 (작은 간격)
-    this.equipBarText = this.add.text(305, 660, "", {
+    // 장비 상태 표시 — 액션 힌트 제거 후 그 자리(y=614)로 이동
+    this.equipBarText = this.add.text(305, 614, "", {
       fontFamily: "Galmuri11, monospace",
       fontSize: "13px",
       color: "#ffd97a",
