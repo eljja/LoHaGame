@@ -51,6 +51,34 @@ export class CombatScene extends Phaser.Scene {
   /** 다음 공격 ×2 데미지 (퍼펙트 패리 보상) */
   private nextAttackCrit = false;
 
+  // 공격 타이밍 — 좌↔우 무한 진동, 탭하면 위치 결정.
+  // 가운데(가우시안 중심) = 명중, 우측 끝 1% = 도망 성공.
+  // sigma는 무기 데미지에 비례, 진동 속도는 (플레이어 dmg − 적 atk) 차이에 따라.
+  private attackActive = false;
+  private attackStartTime = 0;
+  private attackCycleMs = 1500;
+  private attackSigma = 0.15;
+  private attackBarGfx?: Phaser.GameObjects.Graphics;
+  private attackCursor?: Phaser.GameObjects.Rectangle;
+  private attackLabel?: Phaser.GameObjects.Text;
+  private attackBtn?: ButtonNode;
+  private attackResolveCb?: (t: number) => void;
+  private attackKeyHandler?: () => void;
+
+  // 방어 타이밍 — 좌→우 1회 이동. 시간 안에 탭하지 않으면 방어 실패(풀 피해).
+  // 가운데(가우시안) = 피해 감소, 우측 끝 5% = 반격.
+  // sigma는 적 공격력에 반비례 (강한 적일수록 좁음), 진행 속도는 atk 차이에 따라.
+  private defenseActive = false;
+  private defenseStartTime = 0;
+  private defenseDurationMs = 1500;
+  private defenseSigma = 0.20;
+  private defenseBarGfx?: Phaser.GameObjects.Graphics;
+  private defenseCursor?: Phaser.GameObjects.Rectangle;
+  private defenseLabel?: Phaser.GameObjects.Text;
+  private defenseBtn?: ButtonNode;
+  private defenseResolveCb?: (t: number | null) => void;
+  private defenseKeyHandler?: () => void;
+
   constructor() {
     super("CombatScene");
   }
@@ -329,20 +357,346 @@ export class CombatScene extends Phaser.Scene {
   }
 
   // ── 플레이어 행동 ──────────────────────────────────────
+  /** 가우시안 곡선값 — 가운데(center)에서 1.0, 거리/sigma에 따라 종 모양으로 감소. */
+  private gauss01(pos: number, center: number, sigma: number): number {
+    const x = pos - center;
+    return Math.exp(-(x * x) / (2 * sigma * sigma));
+  }
+
+  /** 공격력 차이에 따른 커서 속도 배수. 양수=내가 강함→느린 커서(쉬움). */
+  private speedMultiplier(atkDiff: number): number {
+    return Phaser.Math.Clamp(1 + atkDiff * 0.04, 0.4, 2.5);
+  }
+
   private playerAttack(): void {
+    this.turnLock = true;
+    this.startAttackBar((t) => {
+      const store = getStore(this);
+      const weapon = this.effectiveWeapon();
+      const weaponDef = ITEMS[weapon.id];
+
+      // 우측 끝 1% = 도망 성공
+      if (t >= 0.99) {
+        this.pushLog("🏃 절묘한 회피로 도망쳤다!");
+        audio.play("victory");
+        this.time.delayedCall(800, () => this.endCombat(false));
+        return;
+      }
+
+      // 권총 사용 시 탄약 1 소비
+      if (weapon.id === "pistol") store.inv.remove("bullet", 1);
+
+      // 가우시안 데미지 — 정중앙(t=0.5)에서 풀 데미지, 거리에 따라 부드럽게 감소
+      const energyMult = 1 + store.stats.energy / 200;
+      const baseDmg = weapon.dmg + store.perkBonusDmg;
+      const critMult = this.nextAttackCrit ? 2 : 1;
+      const gauss = this.gauss01(t, 0.5, this.attackSigma);
+      const dmg = Math.max(0, Math.round(baseDmg * energyMult * gauss * critMult));
+      const wasCrit = this.nextAttackCrit;
+      this.nextAttackCrit = false;
+
+      this.enemyHp = Math.max(0, this.enemyHp - dmg);
+
+      const comment =
+        wasCrit         ? " ⚡크리티컬!" :
+        gauss >= 0.85   ? " ✨정통!"   :
+        gauss >= 0.55   ? " 적중"      :
+        gauss >= 0.20   ? " 빗맞춤"    :
+                          " 😬빗나감";
+      this.pushLog(`🎯${comment} → 🩸 ${dmg} 데미지!`);
+
+      if (dmg > 0) {
+        audio.play("hit");
+        this.tweens.add({ targets: this.enemySprite, angle: -10, duration: 80, yoyo: true });
+        this.tweens.add({ targets: this.enemySprite, alpha: 0.3, duration: 60, yoyo: true });
+      } else {
+        audio.play("error");
+      }
+      this.updateEnemyHpBar();
+
+      // 내구도 감소 (피해를 줬을 때만)
+      if (dmg > 0 && weapon.slotIdx >= 0 && weaponDef.maxDurability != null) {
+        const r = store.inv.useDurability(weapon.slotIdx);
+        if (r.broken) {
+          this.pushLog(`💥 ${weaponDef.name}이(가) 부서졌다!`);
+          audio.play("error");
+        } else if (r.hasDurability && r.dur! <= 5) {
+          this.pushLog(`⚠ ${weaponDef.name} 내구도 ${r.dur}/${r.max} (거의 부서짐)`);
+        }
+        this.buildButtons();
+      }
+
+      this.afterPlayerTurn();
+    });
+  }
+
+  private playerDefend(): void {
+    this.turnLock = true;
+    this.startDefenseBar((t) => {
+      const store = getStore(this);
+      const baseDmg = Math.round(this.enemy.atk * Phaser.Math.FloatBetween(0.85, 1.25));
+
+      // 시간 초과 = 방어 실패 = 풀 피해
+      if (t === null) {
+        this.pushLog(`😬 방어 실패! ${this.enemy.name}의 공격 ${baseDmg} 피해.`);
+        store.stats.apply({ hp: -baseDmg });
+        this.cameras.main.shake(220, 0.012);
+        audio.play("hurt");
+        this.time.delayedCall(450, () => this.endDefenseTurn());
+        return;
+      }
+
+      // 우측 끝 5% = 반격
+      if (t >= 0.95) {
+        const weapon = this.effectiveWeapon();
+        const counterBase = weapon.dmg + store.perkBonusDmg;
+        const counterDmg = Math.max(1, Math.round(counterBase * 1.5));
+        this.enemyHp = Math.max(0, this.enemyHp - counterDmg);
+        this.pushLog(`⚔ 반격 성공! 적에게 🩸${counterDmg} 데미지! 피해 0.`);
+        audio.play("hit");
+        this.cameras.main.flash(180, 200, 240, 255);
+        this.tweens.add({ targets: this.enemySprite, angle: 12, duration: 100, yoyo: true });
+        this.updateEnemyHpBar();
+        this.time.delayedCall(600, () => this.endDefenseTurn());
+        return;
+      }
+
+      // 가우시안 기반 피해 감소 (정중앙=무피해, 가장자리=풀피해)
+      const blockGauss = this.gauss01(t, 0.5, this.defenseSigma);
+      const dmgTaken = Math.max(0, Math.round(baseDmg * (1 - blockGauss)));
+
+      const label =
+        blockGauss >= 0.85 ? "✨ 완벽 방어!"  :
+        blockGauss >= 0.55 ? "🛡 방어 성공"   :
+        blockGauss >= 0.20 ? "⚠ 빗방어"      :
+                             "😬 거의 못 막음";
+      this.pushLog(`${label} → 피해 ${dmgTaken}.`);
+
+      if (dmgTaken > 0) {
+        store.stats.apply({ hp: -dmgTaken });
+        audio.play("hurt");
+        if (dmgTaken > baseDmg * 0.5) this.cameras.main.shake(150, 0.008);
+      } else {
+        audio.play("click");
+      }
+      this.time.delayedCall(420, () => this.endDefenseTurn());
+    });
+  }
+
+  /** 방어 종료 후 처리 — 적 턴 없이 다음 플레이어 턴으로. */
+  private endDefenseTurn(): void {
+    const store = getStore(this);
+    if (this.enemyHp <= 0) { this.victory(); return; }
+    if (store.stats.hp <= 0) {
+      this.pushLog("… 의식이 멀어진다.");
+      this.time.delayedCall(900, () => this.endCombat(false, true));
+      return;
+    }
+    this.buttons.forEach((b) => b.setVisible(true));
+    this.turnLock = false;
+  }
+
+  // ── 공격 타이밍 게이지 ──────────────────────────────────
+  private startAttackBar(onTap: (t: number) => void): void {
+    if (this.attackActive) return;
+    this.attackActive = true;
+    this.attackResolveCb = onTap;
+
+    const store = getStore(this);
+    const weaponDmg = this.effectiveWeapon().dmg + store.perkBonusDmg;
+
+    // 무기 데미지에 비례한 sigma (강한 무기 = 넓은 명중대)
+    this.attackSigma = Phaser.Math.Clamp(0.04 + weaponDmg / 200, 0.04, 0.25);
+
+    // 진동 속도: atk 차이에 따라 (내가 강함 = 느림)
+    const atkDiff = weaponDmg - this.enemy.atk;
+    const oneTripMs = 1500 * this.speedMultiplier(atkDiff);
+    this.attackCycleMs = oneTripMs * 2; // 한 사이클은 L→R→L
+
+    this.attackStartTime = this.time.now;
+
+    this.renderTimingBar({
+      sigma: this.attackSigma,
+      rightZonePct: 0.01,
+      rightZoneColor: 0xffd97a,
+      label: "🎯 멈춰! 가운데=명중, 우측끝(노랑)=도망",
+      btnLabel: "🎯 멈춤! (스페이스/엔터/클릭)",
+      btnColor: { bg: 0x2a3a5a, hover: 0x3a4a7a, border: 0x6aaadc },
+      onTap: () => this.resolveAttackBar(),
+      kind: "attack",
+    });
+  }
+
+  private resolveAttackBar(): void {
+    if (!this.attackActive || !this.attackResolveCb) return;
+    const elapsed = this.time.now - this.attackStartTime;
+    const phase = (elapsed % this.attackCycleMs) / this.attackCycleMs;
+    const t = (Math.sin(2 * Math.PI * phase - Math.PI / 2) + 1) / 2;
+
+    const cb = this.attackResolveCb;
+    this.attackActive = false;
+    this.attackResolveCb = undefined;
+    this.attackBarGfx?.destroy(); this.attackBarGfx = undefined;
+    this.attackCursor?.destroy(); this.attackCursor = undefined;
+    this.attackLabel?.destroy(); this.attackLabel = undefined;
+    this.attackBtn?.destroy(); this.attackBtn = undefined;
+    if (this.attackKeyHandler) {
+      this.input.keyboard?.off("keydown-SPACE", this.attackKeyHandler);
+      this.input.keyboard?.off("keydown-ENTER", this.attackKeyHandler);
+      this.attackKeyHandler = undefined;
+    }
+    cb(t);
+  }
+
+  // ── 방어 타이밍 게이지 ──────────────────────────────────
+  private startDefenseBar(onTap: (t: number | null) => void): void {
+    if (this.defenseActive) return;
+    this.defenseActive = true;
+    this.defenseResolveCb = onTap;
+
+    const store = getStore(this);
+    const weaponDmg = this.effectiveWeapon().dmg + store.perkBonusDmg;
+
+    // 적 공격력에 반비례한 sigma (강한 적 = 좁은 방어대)
+    this.defenseSigma = Phaser.Math.Clamp(0.30 - this.enemy.atk / 120, 0.05, 0.30);
+
+    // 1회 trip 시간: atk 차이에 따라 (내가 강함 = 느림 = 쉬움)
+    const atkDiff = weaponDmg - this.enemy.atk;
+    this.defenseDurationMs = 1500 * this.speedMultiplier(atkDiff);
+
+    this.defenseStartTime = this.time.now;
+
+    this.renderTimingBar({
+      sigma: this.defenseSigma,
+      rightZonePct: 0.05,
+      rightZoneColor: 0xff5a6a,
+      label: "🛡 막아! 가운데=방어, 우측끝(빨강)=반격, 끝까지 가면 실패",
+      btnLabel: "🛡 막기! (스페이스/엔터/클릭)",
+      btnColor: { bg: 0x2a4a18, hover: 0x3a6a28, border: 0x6adc4a },
+      onTap: () => this.resolveDefenseBar(),
+      kind: "defense",
+    });
+  }
+
+  private resolveDefenseBar(): void {
+    if (!this.defenseActive || !this.defenseResolveCb) return;
+    const elapsed = this.time.now - this.defenseStartTime;
+    const t = elapsed / this.defenseDurationMs;
+
+    const cb = this.defenseResolveCb;
+    this.defenseActive = false;
+    this.defenseResolveCb = undefined;
+    this.defenseBarGfx?.destroy(); this.defenseBarGfx = undefined;
+    this.defenseCursor?.destroy(); this.defenseCursor = undefined;
+    this.defenseLabel?.destroy(); this.defenseLabel = undefined;
+    this.defenseBtn?.destroy(); this.defenseBtn = undefined;
+    if (this.defenseKeyHandler) {
+      this.input.keyboard?.off("keydown-SPACE", this.defenseKeyHandler);
+      this.input.keyboard?.off("keydown-ENTER", this.defenseKeyHandler);
+      this.defenseKeyHandler = undefined;
+    }
+
+    if (t >= 1.0) cb(null); // timeout = 실패
+    else cb(Phaser.Math.Clamp(t, 0, 1));
+  }
+
+  /** 공격/방어 공통 게이지 렌더링 (UI만 분리). */
+  private renderTimingBar(opts: {
+    sigma: number;
+    rightZonePct: number;
+    rightZoneColor: number;
+    label: string;
+    btnLabel: string;
+    btnColor: { bg: number; hover: number; border: number };
+    onTap: () => void;
+    kind: "attack" | "defense";
+  }): void {
+    const cx = GAME_WIDTH / 2;
+    const cy = GAME_HEIGHT / 2 + 170;
+    const barW = 480, barH = 28;
+    const barX = cx - barW / 2;
+    const barY = cy;
+
+    const gfx = this.add.graphics();
+    // 배경
+    gfx.fillStyle(0x202840, 1);
+    gfx.fillRect(barX, barY, barW, barH);
+    // 가우시안 가시화 (3단 그라디언트 근사: ±2σ → ±σ → ±σ/2)
+    const s = opts.sigma;
+    gfx.fillStyle(0x4adc6a, 0.30);
+    gfx.fillRect(barX + barW * Math.max(0, 0.5 - s * 2), barY, barW * Math.min(1, s * 4), barH);
+    gfx.fillStyle(0x6aff8a, 0.50);
+    gfx.fillRect(barX + barW * Math.max(0, 0.5 - s), barY, barW * Math.min(1, s * 2), barH);
+    gfx.fillStyle(0xaaffaa, 0.70);
+    gfx.fillRect(barX + barW * Math.max(0, 0.5 - s * 0.5), barY, barW * Math.min(1, s), barH);
+    // 우측 끝 특수 영역
+    gfx.fillStyle(opts.rightZoneColor, 0.85);
+    gfx.fillRect(barX + barW * (1 - opts.rightZonePct), barY, barW * opts.rightZonePct, barH);
+    // 테두리
+    gfx.lineStyle(2, 0x6a7ab0, 1);
+    gfx.strokeRect(barX, barY, barW, barH);
+
+    // 커서
+    const cursor = this.add.rectangle(barX, barY - 4, 6, barH + 8, 0xffffff, 1)
+      .setOrigin(0, 0).setStrokeStyle(1, 0x000000);
+
+    // 라벨 (깜빡임 애니메이션)
+    const label = this.add.text(cx, barY - 28, opts.label, {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "14px",
+      color: "#ffd97a",
+    }).setOrigin(0.5);
+    this.tweens.add({ targets: label, alpha: 0.6, duration: 300, yoyo: true, repeat: -1 });
+
+    // 임시 버튼
+    const btn = makeButton(this, GAME_WIDTH / 2, GAME_HEIGHT - 40, {
+      label: opts.btnLabel,
+      width: 360,
+      height: 56,
+      fontSize: 18,
+      bg: opts.btnColor.bg,
+      hover: opts.btnColor.hover,
+      border: opts.btnColor.border,
+      onClick: opts.onTap,
+    }) as ButtonNode;
+
+    // 키 단축키
+    const keyHandler = () => opts.onTap();
+    this.input.keyboard?.once("keydown-SPACE", keyHandler);
+    this.input.keyboard?.once("keydown-ENTER", keyHandler);
+
+    // 액션 버튼 숨기기
+    this.buttons.forEach((b) => b.setVisible(false));
+
+    // 상태 저장
+    if (opts.kind === "attack") {
+      this.attackBarGfx = gfx;
+      this.attackCursor = cursor;
+      this.attackLabel = label;
+      this.attackBtn = btn;
+      this.attackKeyHandler = keyHandler;
+    } else {
+      this.defenseBarGfx = gfx;
+      this.defenseCursor = cursor;
+      this.defenseLabel = label;
+      this.defenseBtn = btn;
+      this.defenseKeyHandler = keyHandler;
+    }
+  }
+
+  // ── [LEGACY] 주사위 기반 공격/방어 ─────────────────────────
+  // 현재는 사용하지 않음. 추후 재도입 가능성을 위해 보존.
+  /** [LEGACY] 주사위 2개를 굴려 0.7~1.3 배율로 데미지 산정. */
+  private playerAttackLegacyDice(): void {
     this.turnLock = true;
     this.rollDice((d1, d2) => {
       const store = getStore(this);
       const weapon = this.effectiveWeapon();
       const weaponDef = ITEMS[weapon.id];
 
-      // 권총 사용 시 탄약 1 소비
-      if (weapon.id === "pistol") {
-        store.inv.remove("bullet", 1);
-      }
+      if (weapon.id === "pistol") store.inv.remove("bullet", 1);
 
-      // 데미지: 기본 × 에너지 보정 × 주사위 배율 (0.7~1.3) + 특성 보너스
-      const diceSum = d1 + d2; // 2~12
+      const diceSum = d1 + d2;
       const diceMult = 0.7 + ((diceSum - 2) / 10) * 0.6;
       const energyMult = 1 + store.stats.energy / 200;
       const baseDmg = weapon.dmg + store.perkBonusDmg;
@@ -364,7 +718,6 @@ export class CombatScene extends Phaser.Scene {
       this.tweens.add({ targets: this.enemySprite, alpha: 0.3, duration: 60, yoyo: true });
       this.updateEnemyHpBar();
 
-      // 내구도 감소
       if (weapon.slotIdx >= 0 && weaponDef.maxDurability != null) {
         const r = store.inv.useDurability(weapon.slotIdx);
         if (r.broken) {
@@ -373,7 +726,6 @@ export class CombatScene extends Phaser.Scene {
         } else if (r.hasDurability && r.dur! <= 5) {
           this.pushLog(`⚠ ${weaponDef.name} 내구도 ${r.dur}/${r.max} (거의 부서짐)`);
         }
-        // 무기가 부서졌거나 폴백 됐을 수 있어 버튼 라벨 갱신
         this.buildButtons();
       }
 
@@ -381,7 +733,8 @@ export class CombatScene extends Phaser.Scene {
     });
   }
 
-  private playerDefend(): void {
+  /** [LEGACY] 단순 방어 — defending 플래그만 세우고 적 턴에 절반 피해. */
+  private playerDefendLegacy(): void {
     this.defending = true;
     this.pushLog("🛡 방어 태세! 다음 공격 피해 절반.");
     this.afterPlayerTurn();
@@ -566,15 +919,37 @@ export class CombatScene extends Phaser.Scene {
     });
   }
 
-  /** 게이지 커서 위치를 매 프레임 업데이트 */
+  /** 게이지 커서 위치를 매 프레임 업데이트 (패리/공격/방어) */
   update(): void {
-    if (!this.parryActive || !this.parryCursor || !this.parryGfx) return;
-    const elapsed = this.time.now - this.parryStartTime;
-    const t = Phaser.Math.Clamp(elapsed / this.parryDurationMs, 0, 1);
     const cx = GAME_WIDTH / 2;
     const barW = 480;
     const barX = cx - barW / 2;
-    this.parryCursor.x = barX + barW * t - 3;
+
+    // 패리 (적 공격) — 좌→우 1회
+    if (this.parryActive && this.parryCursor && this.parryGfx) {
+      const elapsed = this.time.now - this.parryStartTime;
+      const t = Phaser.Math.Clamp(elapsed / this.parryDurationMs, 0, 1);
+      this.parryCursor.x = barX + barW * t - 3;
+    }
+
+    // 공격 — 좌↔우 무한 진동 (sin 파)
+    if (this.attackActive && this.attackCursor) {
+      const elapsed = this.time.now - this.attackStartTime;
+      const phase = (elapsed % this.attackCycleMs) / this.attackCycleMs;
+      const t = (Math.sin(2 * Math.PI * phase - Math.PI / 2) + 1) / 2;
+      this.attackCursor.x = barX + barW * t - 3;
+    }
+
+    // 방어 — 좌→우 1회. 끝까지 가면 자동 fail.
+    if (this.defenseActive && this.defenseCursor) {
+      const elapsed = this.time.now - this.defenseStartTime;
+      const t = elapsed / this.defenseDurationMs;
+      if (t >= 1.0) {
+        this.resolveDefenseBar();
+        return;
+      }
+      this.defenseCursor.x = barX + barW * t - 3;
+    }
   }
 
   private resolveParry(): void {
