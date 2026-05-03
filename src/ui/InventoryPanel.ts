@@ -5,7 +5,7 @@ import type { ItemId } from "../types";
 import { drawPanel } from "./Panel";
 import { makeButton, type ButtonNode } from "./Button";
 import { getStore } from "../systems/GameStore";
-import { INVENTORY_SLOTS } from "../systems/Inventory";
+import { INVENTORY_INITIAL_SLOTS } from "../systems/Inventory";
 import { audio } from "../systems/AudioManager";
 
 export class InventoryPanel {
@@ -15,6 +15,7 @@ export class InventoryPanel {
   private gridContainer?: Phaser.GameObjects.Container;
   private onUseCallback?: (id: ItemId) => void;
   private gridScrollY = 0;
+  private gridMaxScroll = 0;
 
   constructor(private scene: Phaser.Scene) {}
 
@@ -63,16 +64,13 @@ export class InventoryPanel {
     this.gridContainer = gridSlot;
     c.add(gridSlot);
 
-    // 그리드 영역 스크롤 마스크 (4행 높이만 표시, 6행 = 30슬롯)
+    // 그리드 영역 스크롤 마스크 (4행 높이만 표시, 슬롯 수는 동적)
     const cols = 5;
     const slotSize = 74;
     const gap = 8;
     const visibleRows = 4;
-    const totalRows = Math.ceil(INVENTORY_SLOTS / cols);
     const gridTop = y + 84;
     const visibleH = visibleRows * slotSize + (visibleRows - 1) * gap;
-    const totalH = totalRows * slotSize + (totalRows - 1) * gap;
-    const maxScrollY = Math.max(0, totalH - visibleH);
 
     const maskGfx = this.scene.make.graphics({ x: 0, y: 0 });
     maskGfx.fillStyle(0xffffff);
@@ -82,22 +80,21 @@ export class InventoryPanel {
     this.gridScrollY = 0;
     this.renderGrid(x, y, w);
 
-    // 휠 스크롤 (그리드 위에서만)
+    // 휠 스크롤 — gridMaxScroll은 renderGrid에서 매번 재계산되므로 항상 최신값 참조
     const wheelHandler = (_p: unknown, _gs: unknown, _dx: number, dy: number) => {
-      if (maxScrollY <= 0) return;
-      this.gridScrollY = Phaser.Math.Clamp(this.gridScrollY + dy * 0.4, 0, maxScrollY);
+      if (this.gridMaxScroll <= 0) return;
+      this.gridScrollY = Phaser.Math.Clamp(this.gridScrollY + dy * 0.4, 0, this.gridMaxScroll);
       gridSlot.setY(-this.gridScrollY);
     };
     this.scene.input.on("wheel", wheelHandler);
     (c as any)._wheelHandler = wheelHandler;
 
-    // 스크롤 힌트 (스크롤 가능할 때만)
-    if (maxScrollY > 0) {
-      const hint = this.scene.add.text(x + w - 22, gridTop + visibleH + 6, "↓ 휠 스크롤", {
-        fontFamily: "Galmuri11, monospace", fontSize: "11px", color: "#445588",
-      }).setOrigin(1, 0);
-      c.add(hint);
-    }
+    // 스크롤 힌트 (항상 표시 — 슬롯이 동적으로 늘어날 수 있음)
+    const scrollHint = this.scene.add.text(x + w - 22, gridTop + visibleH + 6, "↑↓ 휠 스크롤", {
+      fontFamily: "Galmuri11, monospace", fontSize: "11px", color: "#445588",
+    }).setOrigin(1, 0);
+    c.add(scrollHint);
+    void INVENTORY_INITIAL_SLOTS; // 표시용 최소 슬롯 (renderGrid에서 사용)
 
     const detailSlot = this.scene.add.container(0, 0);
     this.detailContainer = detailSlot;
@@ -121,8 +118,10 @@ export class InventoryPanel {
     const gridW = cols * slotSize + (cols - 1) * gap;
     const startX = panelX + (panelW - gridW) / 2;
     const startY = panelY + 84;
+    // 동적 슬롯 수: 실제 보유 슬롯 수와 최소 표시 슬롯 중 큰 값
+    const totalSlots = Math.max(store.inv.slots.length, INVENTORY_INITIAL_SLOTS);
 
-    for (let i = 0; i < INVENTORY_SLOTS; i++) {
+    for (let i = 0; i < totalSlots; i++) {
       const cx = startX + (i % cols) * (slotSize + gap);
       const cy = startY + Math.floor(i / cols) * (slotSize + gap);
       const item = store.inv.slots[i] ?? null;
@@ -188,7 +187,12 @@ export class InventoryPanel {
       }
     }
 
-    // 재렌더 시 스크롤 위치 유지
+    // 동적 슬롯 수에 맞춰 스크롤 범위 재계산 + 위치 보존
+    const totalRows = Math.ceil(totalSlots / cols);
+    const totalH = totalRows * slotSize + (totalRows - 1) * gap;
+    const visibleH = 4 * slotSize + 3 * gap; // visibleRows=4
+    this.gridMaxScroll = Math.max(0, totalH - visibleH);
+    if (this.gridScrollY > this.gridMaxScroll) this.gridScrollY = this.gridMaxScroll;
     slot.setY(-this.gridScrollY);
 
     const worldCam = this.scene.cameras.main;
@@ -489,6 +493,7 @@ export class InventoryPanel {
     this.detailContainer = undefined;
     this.gridContainer = undefined;
     this.gridScrollY = 0;
+    this.gridMaxScroll = 0;
     // HUDScene을 다시 최상단으로 (Day/시계/스탯 바가 항상 보이도록)
     this.scene.scene.bringToTop("HUDScene");
   }

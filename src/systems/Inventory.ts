@@ -2,12 +2,13 @@ import Phaser from "phaser";
 import { ITEMS } from "../data/items";
 import type { ItemId } from "../types";
 
-export const INVENTORY_SLOTS = 30;
+/** 시작 시 표시용 최소 슬롯 수. 슬롯은 동적으로 더 늘어날 수 있다 (cap 없음). */
+export const INVENTORY_INITIAL_SLOTS = 15;
 
 export type Slot = { id: ItemId; count: number; dur?: number } | null;
 
 export class Inventory extends Phaser.Events.EventEmitter {
-  slots: Slot[] = new Array(INVENTORY_SLOTS).fill(null);
+  slots: Slot[] = new Array(INVENTORY_INITIAL_SLOTS).fill(null);
 
   add(id: ItemId, count = 1): number {
     const def = ITEMS[id];
@@ -22,7 +23,7 @@ export class Inventory extends Phaser.Events.EventEmitter {
         remaining -= add;
       }
     }
-    // 빈 슬롯
+    // 빈 슬롯에 채우기
     for (let i = 0; i < this.slots.length && remaining > 0; i++) {
       if (!this.slots[i]) {
         const add = Math.min(def.stack, remaining);
@@ -33,6 +34,16 @@ export class Inventory extends Phaser.Events.EventEmitter {
         this.slots[i] = slot;
         remaining -= add;
       }
+    }
+    // 빈 슬롯도 부족하면 새로 push (cap 없음 — 동적 증가)
+    while (remaining > 0) {
+      const add = Math.min(def.stack, remaining);
+      const slot: { id: ItemId; count: number; dur?: number } = { id, count: add };
+      if (def.maxDurability != null && def.stack === 1) {
+        slot.dur = def.maxDurability;
+      }
+      this.slots.push(slot);
+      remaining -= add;
     }
     this.emit("change");
     return count - remaining;
@@ -159,9 +170,9 @@ export class Inventory extends Phaser.Events.EventEmitter {
   }
 
   fromJSON(data: Slot[]): void {
-    // 구버전 세이브(20슬롯)를 현재 INVENTORY_SLOTS(30)에 맞춰 패딩
+    // 구버전 세이브를 최소 표시 슬롯 수까지 패딩 (실제 보유분이 더 많으면 그대로 사용)
     const arr = data.slice();
-    while (arr.length < INVENTORY_SLOTS) arr.push(null);
+    while (arr.length < INVENTORY_INITIAL_SLOTS) arr.push(null);
     this.slots = arr;
     this.emit("change");
   }
