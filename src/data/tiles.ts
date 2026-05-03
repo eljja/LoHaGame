@@ -51,6 +51,7 @@ export type EntityType =
   | "rabbit"
   | "wolf"
   | "boar"
+  | "bear"
   | "flower"
   | "cave_entrance"
   | "shipwreck"
@@ -90,9 +91,10 @@ export const ENTITIES: Record<EntityType, EntityTypeDef> = {
   shell:        { icon: "🐚", label: "조개",       terrain: ["sand"],             cap: 60,  respawn: true,  blocksMovement: false, reach: 0 },
   driftwood:    { icon: "🪵", label: "유목",       terrain: ["sand"],             cap: 35,  respawn: true,  blocksMovement: false, reach: 0 },
   mushroom:     { icon: "🍄", label: "버섯",       terrain: ["forest"],           cap: 28,  respawn: true,  blocksMovement: false, reach: 0 },
-  rabbit:       { icon: "🐇", label: "토끼",       terrain: ["grass", "forest"],  cap: 6,   respawn: true,  blocksMovement: false, reach: 1 },
-  wolf:         { icon: "🐺", label: "야생 늑대",  terrain: ["forest"],           cap: 6,   respawn: true,  blocksMovement: false, reach: 1 },
-  boar:         { icon: "🐗", label: "성난 멧돼지",terrain: ["grass", "forest"],  cap: 5,   respawn: true,  blocksMovement: false, reach: 1 },
+  rabbit:       { icon: "🐇", label: "토끼",       terrain: ["grass", "forest"],  cap: 15,  respawn: true,  blocksMovement: false, reach: 1 },
+  wolf:         { icon: "🐺", label: "야생 늑대",  terrain: ["forest"],           cap: 10,  respawn: true,  blocksMovement: false, reach: 1 },
+  boar:         { icon: "🐗", label: "성난 멧돼지",terrain: ["grass", "forest"],  cap: 8,   respawn: true,  blocksMovement: false, reach: 1 },
+  bear:         { icon: "🐻", label: "사나운 곰",  terrain: ["forest"],           cap: 5,   respawn: true,  blocksMovement: false, reach: 1 },
   flower:       { icon: "🌼", label: "들꽃",       terrain: ["grass"],            cap: 45,  respawn: true,  blocksMovement: false, reach: 0 },
   cave_entrance:{ icon: "⛏",  label: "동굴 입구", terrain: ["rock"],             cap: 1,   respawn: false, blocksMovement: false, reach: 1 },
   shipwreck:    { icon: "🚢", label: "난파선",     terrain: ["sand"],             cap: 1,   respawn: false, blocksMovement: true,  reach: 1 },

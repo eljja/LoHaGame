@@ -216,4 +216,21 @@ export const DAY_GAME: EnemyDef[] = [
     ],
     flavor: "엄니가 번들거리는 멧돼지가 땅을 박차며 돌진한다.",
   },
+  {
+    id: "bear",
+    name: "사나운 곰",
+    icon: "🐻",
+    hp: 90,
+    atk: 18,
+    canFlee: false,
+    kind: "land",
+    loot: [
+      { id: "meat_raw", count: 6, chance: 1 },
+      { id: "meat_raw", count: 3, chance: 0.7 },
+      { id: "cloth", count: 3, chance: 0.8 },
+      { id: "rope", count: 1, chance: 0.4 },
+      { id: "large_bandage", count: 1, chance: 0.3 },
+    ],
+    flavor: "거대한 곰이 두 발로 일어서며 으르렁거린다.",
+  },
 ];

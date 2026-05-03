@@ -168,6 +168,13 @@ export class WorldScene extends Phaser.Scene {
     this.worldCam.ignore(this.uiContainer);
 
     // ── Render world ──────────────────────────────────────
+    // 게임 진입 시 동물(토끼/늑대/멧돼지/곰)이 부족하면 즉시 보충 리스폰
+    // (저장 파일이 깊은 사냥 후 저장된 경우, 다음 아침까지 기다리지 않고 바로 보임)
+    const animalCount = store.map.entities.filter(
+      (e) => e.type === "rabbit" || e.type === "wolf" || e.type === "boar" || e.type === "bear"
+    ).length;
+    if (animalCount < 10) store.map.nightRespawn();
+
     this.renderTerrain();
     this.renderEntities();
     this.updateActionHint();
@@ -820,6 +827,18 @@ export class WorldScene extends Phaser.Scene {
         store.map.removeEntity(entity.id);
         this.renderEntities();
         this.triggerCombat(boarDef);
+        return;
+      }
+
+      case "bear": {
+        store.time.advanceMinutes(40);
+        store.stats.apply({ energy: -16 });
+        const bearDef = DAY_GAME.find((d) => d.id === "bear")!;
+        store.pushLog("🐻 거대한 곰이 두 발로 일어서며 포효한다! 만만치 않다.");
+        audio.play("boss_alert");
+        store.map.removeEntity(entity.id);
+        this.renderEntities();
+        this.triggerCombat(bearDef);
         return;
       }
 
@@ -1816,29 +1835,47 @@ export class WorldScene extends Phaser.Scene {
     // 씬이 일시정지 상태면 아무것도 하지 않음
     if (this.scene.isPaused()) return;
     const store = getStore(this);
-    const rabbits = store.map.entities.filter((e) => e.type === "rabbit");
-    for (const r of rabbits) {
-      // 각 토끼는 50% 확률로 움직임 시도
-      if (Math.random() < 0.5) continue;
+    // 종별 이동 확률 (틱마다): 토끼는 자주, 곰/멧돼지는 가끔
+    const moveChance: Partial<Record<import("../data/tiles").EntityType, number>> = {
+      rabbit: 0.55,
+      wolf: 0.40,
+      boar: 0.25,
+      bear: 0.20,
+    };
+    const tweenDuration: Partial<Record<import("../data/tiles").EntityType, number>> = {
+      rabbit: 240, // 빠르고 통통 튀는 느낌
+      wolf: 380,   // 느릿한 사냥꾼
+      boar: 460,   // 우직하게 천천히
+      bear: 520,   // 큰 덩치, 무거운 발걸음
+    };
+
+    const animals = store.map.entities.filter(
+      (e) => e.type === "rabbit" || e.type === "wolf" || e.type === "boar" || e.type === "bear"
+    );
+    for (const a of animals) {
+      const chance = moveChance[a.type] ?? 0;
+      if (Math.random() > chance) continue;
       const dirs: Array<[number, number]> = [
         [0, -1], [0, 1], [-1, 0], [1, 0],
       ];
       Phaser.Utils.Array.Shuffle(dirs);
       for (const [dx, dy] of dirs) {
-        const nx = r.tx + dx;
-        const ny = r.ty + dy;
+        const nx = a.tx + dx;
+        const ny = a.ty + dy;
         if (!store.map.isPassable(nx, ny)) continue;
         // 플레이어와 같은 타일은 피함
         if (nx === store.playerTx && ny === store.playerTy) continue;
-        const sprite = this.entityObjects.get(r.id);
+        // 다른 엔티티가 있는 타일도 피함
+        if (store.map.entityAt(nx, ny)) continue;
+        const sprite = this.entityObjects.get(a.id);
         if (!sprite) continue;
-        r.tx = nx;
-        r.ty = ny;
+        a.tx = nx;
+        a.ty = ny;
         this.tweens.add({
           targets: sprite,
           x: nx * TILE_PX + TILE_PX / 2,
           y: ny * TILE_PX + TILE_PX / 2,
-          duration: 260,
+          duration: tweenDuration[a.type] ?? 300,
           ease: "Sine.InOut",
         });
         break;
