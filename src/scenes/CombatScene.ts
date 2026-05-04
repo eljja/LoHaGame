@@ -64,6 +64,7 @@ export class CombatScene extends Phaser.Scene {
   private attackBtn?: ButtonNode;
   private attackResolveCb?: (t: number) => void;
   private attackKeyHandler?: () => void;
+  private attackPointerHandler?: () => void;
 
   // 방어 타이밍 — 좌→우 1회 이동. 시간 안에 탭하지 않으면 방어 실패(풀 피해).
   // 가운데(가우시안) = 피해 감소, 우측 끝 5% = 반격.
@@ -78,6 +79,7 @@ export class CombatScene extends Phaser.Scene {
   private defenseBtn?: ButtonNode;
   private defenseResolveCb?: (t: number | null) => void;
   private defenseKeyHandler?: () => void;
+  private defensePointerHandler?: () => void;
 
   constructor() {
     super("CombatScene");
@@ -554,6 +556,10 @@ export class CombatScene extends Phaser.Scene {
       this.input.keyboard?.off("keydown-ENTER", this.attackKeyHandler);
       this.attackKeyHandler = undefined;
     }
+    if (this.attackPointerHandler) {
+      this.input.off("pointerdown", this.attackPointerHandler);
+      this.attackPointerHandler = undefined;
+    }
     cb(t);
   }
 
@@ -603,6 +609,10 @@ export class CombatScene extends Phaser.Scene {
       this.input.keyboard?.off("keydown-SPACE", this.defenseKeyHandler);
       this.input.keyboard?.off("keydown-ENTER", this.defenseKeyHandler);
       this.defenseKeyHandler = undefined;
+    }
+    if (this.defensePointerHandler) {
+      this.input.off("pointerdown", this.defensePointerHandler);
+      this.defensePointerHandler = undefined;
     }
 
     if (t >= 1.0) cb(null); // timeout = 실패
@@ -669,10 +679,12 @@ export class CombatScene extends Phaser.Scene {
       onClick: opts.onTap,
     }) as ButtonNode;
 
-    // 키 단축키
+    // 키 단축키 + 전체 화면 터치
     const keyHandler = () => opts.onTap();
     this.input.keyboard?.once("keydown-SPACE", keyHandler);
     this.input.keyboard?.once("keydown-ENTER", keyHandler);
+    const pointerHandler = () => opts.onTap();
+    this.input.once("pointerdown", pointerHandler);
 
     // 액션 버튼 숨기기
     this.buttons.forEach((b) => b.setVisible(false));
@@ -684,12 +696,14 @@ export class CombatScene extends Phaser.Scene {
       this.attackLabel = label;
       this.attackBtn = btn;
       this.attackKeyHandler = keyHandler;
+      this.attackPointerHandler = pointerHandler;
     } else {
       this.defenseBarGfx = gfx;
       this.defenseCursor = cursor;
       this.defenseLabel = label;
       this.defenseBtn = btn;
       this.defenseKeyHandler = keyHandler;
+      this.defensePointerHandler = pointerHandler;
     }
   }
 
