@@ -531,7 +531,7 @@ export class CombatScene extends Phaser.Scene {
       rightZonePct: 0.01,
       rightZoneColor: 0xffd97a,
       label: "🎯 멈춰! 가운데=명중, 우측끝(노랑)=도망",
-      btnLabel: "🎯 멈춤! (스페이스/엔터/클릭)",
+      btnLabel: "🎯\n멈춤!",
       btnColor: { bg: 0x2a3a5a, hover: 0x3a4a7a, border: 0x6aaadc },
       onTap: () => this.resolveAttackBar(),
       kind: "attack",
@@ -586,7 +586,7 @@ export class CombatScene extends Phaser.Scene {
       rightZonePct: 0.05,
       rightZoneColor: 0xff5a6a,
       label: "🛡 막아! 가운데=방어, 우측끝(빨강)=반격, 끝까지 가면 실패",
-      btnLabel: "🛡 막기! (스페이스/엔터/클릭)",
+      btnLabel: "🛡\n막기!",
       btnColor: { bg: 0x2a4a18, hover: 0x3a6a28, border: 0x6adc4a },
       onTap: () => this.resolveDefenseBar(),
       kind: "defense",
@@ -667,12 +667,18 @@ export class CombatScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.tweens.add({ targets: label, alpha: 0.6, duration: 300, yoyo: true, repeat: -1 });
 
-    // 임시 버튼
-    const btn = makeButton(this, GAME_WIDTH / 2, GAME_HEIGHT - 40, {
+    // 임시 버튼 — D-pad 위치(WorldScene cx=GAME_WIDTH-120, cy=679) 위쪽으로 이동.
+    // 크기 156×156 (D-pad 78×78의 2배 = 원본 52×52의 3배). 정사각형.
+    const btnSize = 156;
+    const btnX = GAME_WIDTH - 120;
+    // D-pad up 버튼 top edge ≈ cy(679) - 78 - 4 - 39 = 558. 그 위로 8px 간격.
+    // 패리 버튼 bottom edge = btnY + 78. 558 - 8 = 550 → btnY = 472
+    const btnY = 472;
+    const btn = makeButton(this, btnX, btnY, {
       label: opts.btnLabel,
-      width: 360,
-      height: 56,
-      fontSize: 18,
+      width: btnSize,
+      height: btnSize,
+      fontSize: 32,
       bg: opts.btnColor.bg,
       hover: opts.btnColor.hover,
       border: opts.btnColor.border,

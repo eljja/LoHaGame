@@ -1171,8 +1171,10 @@ export class WorldScene extends Phaser.Scene {
   private buildDpad(): void {
     this.dpad.removeAll(true);
     const cx = GAME_WIDTH - 120;
-    const cy = 688; // 지도와 겹치지 않도록 +10px 내림
-    const btnSize = 52;
+    // 버튼 1.5배(52→78) 키우면서 화면 하단(800)에 맞추기 위해 cy 조정.
+    // down 버튼 bottom edge = cy + 78 + 4 + 39 = cy + 121, ≤ 800 → cy ≤ 679
+    const cy = 679;
+    const btnSize = 78; // 1.5x of 52
     const gap = 4;
 
     const dirs: Array<[string, number, number]> = [
@@ -1194,7 +1196,7 @@ export class WorldScene extends Phaser.Scene {
         label,
         width: btnSize,
         height: btnSize,
-        fontSize: 22,
+        fontSize: 32, // 1.5x of 22
         onClick: () => this.tryMove(dx, dy),
       });
       this.dpad.add(btn);
@@ -1205,7 +1207,7 @@ export class WorldScene extends Phaser.Scene {
       label: "✋",
       width: btnSize,
       height: btnSize,
-      fontSize: 24,
+      fontSize: 36, // 1.5x of 24
       bg: 0x1c2a44,
       hover: 0x2a3e5e,
       onClick: () => this.pickupAtPlayer(),
