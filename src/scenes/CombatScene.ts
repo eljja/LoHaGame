@@ -51,6 +51,9 @@ export class CombatScene extends Phaser.Scene {
   /** 다음 공격 ×2 데미지 (퍼펙트 패리 보상) */
   private nextAttackCrit = false;
 
+  /** 연속 명중 콤보. 성공할 때마다 +1, 빗나가면 0으로 초기화. 데미지 ×1.2^combo. */
+  private comboHits = 0;
+
   // 공격 타이밍 — 좌↔우 무한 진동, 탭하면 위치 결정.
   // 가운데(가우시안 중심) = 명중, 우측 끝 1% = 도망 성공.
   // sigma는 무기 데미지에 비례, 진동 속도는 (플레이어 dmg − 적 atk) 차이에 따라.
@@ -91,6 +94,8 @@ export class CombatScene extends Phaser.Scene {
     this.defending = false;
     this.turnLock = false;
     this.buttons = [];
+    this.comboHits = 0;
+    this.nextAttackCrit = false;
   }
 
   create(): void {
@@ -398,11 +403,25 @@ export class CombatScene extends Phaser.Scene {
       const baseDmg = weapon.dmg + store.perkBonusDmg;
       const critMult = this.nextAttackCrit ? 2 : 1;
       const gauss = this.gauss01(t, 0.5, this.attackSigma);
-      const dmg = Math.max(0, Math.round(baseDmg * energyMult * gauss * critMult));
+      // 콤보 누적 데미지 (1.2^combo). 첫 hit은 1.0배, 두 번째는 1.2, 세 번째 1.44, ...
+      const comboMult = Math.pow(1.2, this.comboHits);
+      const dmg = Math.max(0, Math.round(baseDmg * energyMult * gauss * critMult * comboMult));
       const wasCrit = this.nextAttackCrit;
       this.nextAttackCrit = false;
 
       this.enemyHp = Math.max(0, this.enemyHp - dmg);
+
+      // 콤보 갱신 — 명중(gauss >= 0.20)이면 +1, 빗나감이면 0으로 초기화
+      const isHit = gauss >= 0.20;
+      const oldCombo = this.comboHits;
+      if (isHit) {
+        this.comboHits += 1;
+      } else if (oldCombo >= 2) {
+        this.pushLog(`💨 콤보 끊김! (${oldCombo}연타 종료)`);
+        this.comboHits = 0;
+      } else {
+        this.comboHits = 0;
+      }
 
       const comment =
         wasCrit         ? " ⚡크리티컬!" :
@@ -410,12 +429,15 @@ export class CombatScene extends Phaser.Scene {
         gauss >= 0.55   ? " 적중"      :
         gauss >= 0.20   ? " 빗맞춤"    :
                           " 😬빗나감";
-      this.pushLog(`🎯${comment} → 🩸 ${dmg} 데미지!`);
+      const comboTag = this.comboHits >= 2 ? ` 🔥콤보×${this.comboHits}(${comboMult.toFixed(2)}배)` : "";
+      this.pushLog(`🎯${comment} → 🩸 ${dmg} 데미지!${comboTag}`);
 
       if (dmg > 0) {
         audio.play("hit");
         this.tweens.add({ targets: this.enemySprite, angle: -10, duration: 80, yoyo: true });
         this.tweens.add({ targets: this.enemySprite, alpha: 0.3, duration: 60, yoyo: true });
+        // 콤보 시각 효과: 2단 이상이면 적 위에 콤보 카운트 떠오름
+        if (this.comboHits >= 2) this.spawnComboFx(this.comboHits);
       } else {
         audio.play("error");
       }
@@ -457,16 +479,20 @@ export class CombatScene extends Phaser.Scene {
         return;
       }
 
-      // 우측 끝 5% = 반격
+      // 우측 끝 5% = 반격 (콤보에도 누적)
       if (t >= 0.95) {
         const weapon = this.effectiveWeapon();
         const counterBase = weapon.dmg + store.perkBonusDmg;
-        const counterDmg = Math.max(1, Math.round(counterBase * 1.5));
+        const counterCombo = Math.pow(1.2, this.comboHits);
+        const counterDmg = Math.max(1, Math.round(counterBase * 1.5 * counterCombo));
         this.enemyHp = Math.max(0, this.enemyHp - counterDmg);
-        this.pushLog(`⚔ 반격 성공! 적에게 🩸${counterDmg} 데미지! 피해 0.`);
+        this.comboHits += 1;
+        const comboTag = this.comboHits >= 2 ? ` 🔥콤보×${this.comboHits}` : "";
+        this.pushLog(`⚔ 반격 성공! 적에게 🩸${counterDmg} 데미지! 피해 0.${comboTag}`);
         audio.play("hit");
         this.cameras.main.flash(180, 200, 240, 255);
         this.tweens.add({ targets: this.enemySprite, angle: 12, duration: 100, yoyo: true });
+        if (this.comboHits >= 2) this.spawnComboFx(this.comboHits);
         this.updateEnemyHpBar();
         this.time.delayedCall(600, () => this.endDefenseTurn());
         return;
@@ -1051,6 +1077,38 @@ export class CombatScene extends Phaser.Scene {
   private updateEnemyHpBar(): void {
     const w = this.enemyHpBarMaxWidth * (this.enemyHp / this.enemy.hp);
     this.tweens.add({ targets: this.enemyHpBar, width: Math.max(0, w), duration: 250 });
+  }
+
+  /** 적 위에 "콤보 ×N" 텍스트가 떠올랐다 사라지는 효과. */
+  private spawnComboFx(combo: number): void {
+    const x = this.enemySprite.x + Phaser.Math.Between(-40, 40);
+    const y = this.enemySprite.y - 50;
+    const color = combo >= 5 ? "#ffd700" : combo >= 3 ? "#ff9a3a" : "#ffe070";
+    const fontSize = combo >= 5 ? 36 : combo >= 3 ? 30 : 24;
+    const txt = this.add.text(x, y, `콤보 ×${combo}!`, {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: `${fontSize}px`,
+      color,
+      stroke: "#0a0f22",
+      strokeThickness: 4,
+      fontStyle: "bold",
+    }).setOrigin(0.5).setDepth(50).setScale(0.5);
+    this.tweens.add({
+      targets: txt,
+      y: y - 60,
+      scale: 1.3,
+      duration: 220,
+      ease: "Back.Out",
+      onComplete: () => {
+        this.tweens.add({
+          targets: txt,
+          alpha: 0,
+          duration: 380,
+          ease: "Quad.In",
+          onComplete: () => txt.destroy(),
+        });
+      },
+    });
   }
 
   private pushLog(msg: string): void {
