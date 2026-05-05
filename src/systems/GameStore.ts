@@ -164,14 +164,21 @@ export class GameStore extends Phaser.Events.EventEmitter {
   //  - farm: 씨앗(planted/ripe) 4개가 3x3 안에 존재 → 씨앗 1일 빠르게 성장
   //  - signal_network: 점화된 봉화 3개 이상 → 다음 해양 보스 HP/atk ×0.75
 
+  /** 콤보 id 타입 */
+  // (export 안에서 별도 type 선언 어색하므로 inline string union 사용)
+
   /** 현재 활성화된 콤보 id 집합 (휘발성 — 엔티티에서 매번 재계산). */
   activeCombos: Set<"forge" | "home_base" | "farm" | "signal_network"> = new Set();
+
+  /** 활성 콤보의 anchor 엔티티 id (시각 뱃지용 — WorldScene이 조회). */
+  comboAnchors: Map<"forge" | "home_base" | "farm" | "signal_network", number[]> = new Map();
 
   /** 엔티티가 변할 때마다 호출. 활성 콤보를 다시 계산한다.
    *  silent=true면 발동/해제 로그를 출력하지 않음 (초기/로드 시 사용). */
   recomputeCombos(silent = false): void {
     const before = new Set(this.activeCombos);
     const next = new Set<"forge" | "home_base" | "farm" | "signal_network">();
+    const anchors = new Map<"forge" | "home_base" | "farm" | "signal_network", number[]>();
 
     const ents = this.map.entities;
     const bonfires = ents.filter((e) => e.type === "bonfire_placed");
@@ -180,35 +187,54 @@ export class GameStore extends Phaser.Events.EventEmitter {
     const seeds = ents.filter((e) => e.type === "planted_seed" || e.type === "ripe_plant");
     const litFires = ents.filter((e) => e.type === "signal_fire_lit");
 
-    // forge: 어떤 모닥불 주변 8칸 안에 stone_outcrop 3개 이상
-    for (const bf of bonfires) {
-      const cnt = stones.filter(
-        (s) => Math.max(Math.abs(s.tx - bf.tx), Math.abs(s.ty - bf.ty)) <= 1
-      ).length;
-      if (cnt >= 3) { next.add("forge"); break; }
+    // forge: 어떤 모닥불 주변 8칸 안에 stone_outcrop 3개 이상 → 그 모닥불이 anchor
+    {
+      const forgeAnchors: number[] = [];
+      for (const bf of bonfires) {
+        const cnt = stones.filter(
+          (s) => Math.max(Math.abs(s.tx - bf.tx), Math.abs(s.ty - bf.ty)) <= 1
+        ).length;
+        if (cnt >= 3) forgeAnchors.push(bf.id);
+      }
+      if (forgeAnchors.length > 0) { next.add("forge"); anchors.set("forge", forgeAnchors); }
     }
 
-    // home_base: 천막 ↔ 모닥불 체비셰프 거리 2 이내
-    outer: for (const tent of tents) {
-      for (const bf of bonfires) {
-        if (Math.max(Math.abs(tent.tx - bf.tx), Math.abs(tent.ty - bf.ty)) <= 2) {
-          next.add("home_base"); break outer;
+    // home_base: 천막 ↔ 모닥불 체비셰프 거리 2 이내 → 그 천막들이 anchor
+    {
+      const homeAnchors: number[] = [];
+      for (const tent of tents) {
+        for (const bf of bonfires) {
+          if (Math.max(Math.abs(tent.tx - bf.tx), Math.abs(tent.ty - bf.ty)) <= 2) {
+            homeAnchors.push(tent.id);
+            break;
+          }
         }
       }
+      if (homeAnchors.length > 0) { next.add("home_base"); anchors.set("home_base", homeAnchors); }
     }
 
-    // farm: 어떤 씨앗을 중심으로 3x3(체비셰프 1) 영역 안에 씨앗 4개 이상
-    for (const seed of seeds) {
-      const cnt = seeds.filter(
-        (s) => Math.max(Math.abs(s.tx - seed.tx), Math.abs(s.ty - seed.ty)) <= 1
-      ).length;
-      if (cnt >= 4) { next.add("farm"); break; }
+    // farm: 어떤 씨앗을 중심으로 3x3(체비셰프 1) 영역 안에 씨앗 4개 이상 → 그 군집의 씨앗들이 anchor
+    {
+      const farmAnchors: number[] = [];
+      for (const seed of seeds) {
+        const cluster = seeds.filter(
+          (s) => Math.max(Math.abs(s.tx - seed.tx), Math.abs(s.ty - seed.ty)) <= 1
+        );
+        if (cluster.length >= 4) {
+          for (const s of cluster) if (!farmAnchors.includes(s.id)) farmAnchors.push(s.id);
+        }
+      }
+      if (farmAnchors.length > 0) { next.add("farm"); anchors.set("farm", farmAnchors); }
     }
 
-    // signal_network: 점화된 봉화 3개 이상
-    if (litFires.length >= 3) next.add("signal_network");
+    // signal_network: 점화된 봉화 3개 이상 → 모든 점화 봉화가 anchor
+    if (litFires.length >= 3) {
+      next.add("signal_network");
+      anchors.set("signal_network", litFires.map((e) => e.id));
+    }
 
     this.activeCombos = next;
+    this.comboAnchors = anchors;
 
     // 새로 켜진 콤보가 있으면 로그
     const labels: Record<string, string> = {
@@ -219,7 +245,10 @@ export class GameStore extends Phaser.Events.EventEmitter {
     };
     if (!silent) {
       for (const id of next) {
-        if (!before.has(id)) this.pushLog(labels[id]);
+        if (!before.has(id)) {
+          this.pushLog(labels[id]);
+          this.emit("comboActivated", id);
+        }
       }
       for (const id of before) {
         if (!next.has(id)) this.pushLog(`💨 콤보 해제: ${id}`);

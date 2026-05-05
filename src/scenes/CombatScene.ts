@@ -667,13 +667,12 @@ export class CombatScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.tweens.add({ targets: label, alpha: 0.6, duration: 300, yoyo: true, repeat: -1 });
 
-    // 임시 버튼 — D-pad 위치(WorldScene cx=GAME_WIDTH-120, cy=679) 위쪽으로 이동.
+    // 임시 버튼 — D-pad 방향키 높이(WorldScene cy=679)에 맞춰 배치.
     // 크기 156×156 (D-pad 78×78의 2배 = 원본 52×52의 3배). 정사각형.
     const btnSize = 156;
     const btnX = GAME_WIDTH - 120;
-    // D-pad up 버튼 top edge ≈ cy(679) - 78 - 4 - 39 = 558. 그 위로 8px 간격.
-    // 패리 버튼 bottom edge = btnY + 78. 558 - 8 = 550 → btnY = 472
-    const btnY = 472;
+    // 방향키 위치(cy=679)와 동일 y에 배치 — CombatScene엔 d-pad 없으니 충돌 없음
+    const btnY = 679;
     const btn = makeButton(this, btnX, btnY, {
       label: opts.btnLabel,
       width: btnSize,
