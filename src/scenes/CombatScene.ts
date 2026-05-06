@@ -387,8 +387,8 @@ export class CombatScene extends Phaser.Scene {
       const weapon = this.effectiveWeapon();
       const weaponDef = ITEMS[weapon.id];
 
-      // 우측 끝 1% = 도망 성공
-      if (t >= 0.99) {
+      // 우측 끝 5% = 도망 성공
+      if (t >= 0.95) {
         this.pushLog("🏃 절묘한 회피로 도망쳤다!");
         audio.play("victory");
         this.time.delayedCall(800, () => this.endCombat(false));
@@ -479,8 +479,8 @@ export class CombatScene extends Phaser.Scene {
         return;
       }
 
-      // 우측 끝 5% = 반격 (콤보에도 누적)
-      if (t >= 0.95) {
+      // 우측 끝 10% = 반격 (콤보에도 누적)
+      if (t >= 0.90) {
         const weapon = this.effectiveWeapon();
         const counterBase = weapon.dmg + store.perkBonusDmg;
         const counterCombo = Math.pow(1.2, this.comboHits);
@@ -554,7 +554,7 @@ export class CombatScene extends Phaser.Scene {
 
     this.renderTimingBar({
       sigma: this.attackSigma,
-      rightZonePct: 0.01,
+      rightZonePct: 0.05,
       rightZoneColor: 0xffd97a,
       label: "🎯 멈춰! 가운데=명중, 우측끝(노랑)=도망",
       btnLabel: "🎯\n멈춤!",
@@ -609,7 +609,7 @@ export class CombatScene extends Phaser.Scene {
 
     this.renderTimingBar({
       sigma: this.defenseSigma,
-      rightZonePct: 0.05,
+      rightZonePct: 0.10,
       rightZoneColor: 0xff5a6a,
       label: "🛡 막아! 가운데=방어, 우측끝(빨강)=반격, 끝까지 가면 실패",
       btnLabel: "🛡\n막기!",
