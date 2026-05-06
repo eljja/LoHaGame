@@ -133,7 +133,7 @@ export class WorldScene extends Phaser.Scene {
       fontFamily: "Galmuri11, monospace",
       fontSize: "13px",
       color: "#ffd97a",
-      wordWrap: { width: 740 },
+      wordWrap: { width: 720 },
     });
     this.uiContainer.add(this.equipBarText);
     this.refreshEquipBar();
@@ -189,8 +189,9 @@ export class WorldScene extends Phaser.Scene {
     store.on("comboActivated", (id: string) => {
       showComboToast(this, id);
       audio.play("victory");
-      // anchor 엔티티에 발동 효과 (펄스) 한번 줌
-      this.flashComboAnchors(id);
+      // recomputeCombos는 renderEntities 시작에서 호출되므로 sprite는 아직 생성 안됨.
+      // 50ms 지연 후 펄스 (renderEntities가 sprite 생성 완료한 뒤)
+      this.time.delayedCall(50, () => this.flashComboAnchors(id));
     });
     store.on("recipesDiscovered", (ids: string[]) => {
       ids.forEach((id, i) => {

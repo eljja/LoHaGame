@@ -166,7 +166,7 @@ export class CombatScene extends Phaser.Scene {
     // 플레이어 HP 패널 (왼쪽 하단)
     drawPanel(this, 6, GAME_HEIGHT - 180, 278, 100, { fill: 0x0a1428, alpha: 0.9 });
 
-    this.add.text(20, GAME_HEIGHT - 174, "❤ 로하 (플레이어)", {
+    this.add.text(20, GAME_HEIGHT - 174, "❤ 생존자", {
       fontFamily: "Galmuri11, monospace",
       fontSize: "12px",
       color: "#ff9fb7",

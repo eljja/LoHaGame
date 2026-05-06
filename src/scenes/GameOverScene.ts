@@ -43,7 +43,7 @@ export class GameOverScene extends Phaser.Scene {
     this.tweens.add({ targets: title, alpha: 0.7, duration: 1400, yoyo: true, repeat: -1 });
 
     const store = getStore(this);
-    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, `Day ${store.time.day}에 로하의 이야기는 끝났다.`, {
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, `Day ${store.time.day}에 이야기는 막을 내렸다.`, {
       fontFamily: "Galmuri11, monospace",
       fontSize: "22px",
       color: "#cfd8ff",

@@ -21,7 +21,7 @@ export class BootScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     const title = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 50, "로하의 무인도 생존기", {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 50, "무인도에서의 50일", {
         fontFamily: "Galmuri11, monospace",
         color: "#eaf0ff",
         fontSize: "32px",

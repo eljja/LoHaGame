@@ -43,7 +43,7 @@ export class TitleScene extends Phaser.Scene {
 
     // 타이틀
     const title = this.add
-      .text(GAME_WIDTH / 2, 200, "로하의 무인도 생존기", {
+      .text(GAME_WIDTH / 2, 200, "무인도에서의 50일", {
         fontFamily: "Galmuri11, monospace",
         fontSize: "56px",
         color: "#eaf0ff",
@@ -113,7 +113,7 @@ export class TitleScene extends Phaser.Scene {
     });
 
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 30, "ⓒ Loha Survival · Phaser 3", {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 30, "ⓒ 무인도에서의 50일 · Phaser 3", {
         fontFamily: "Galmuri11, monospace",
         fontSize: "12px",
         color: "#5a6ba0",

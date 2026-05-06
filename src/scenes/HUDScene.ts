@@ -95,7 +95,7 @@ export class HUDScene extends Phaser.Scene {
         fontFamily: "Galmuri11, monospace",
         fontSize: "13px",
         color: "#9fb7ff",
-        wordWrap: { width: 740 },
+        wordWrap: { width: 720 },
       })
       .setOrigin(0, 0);
 

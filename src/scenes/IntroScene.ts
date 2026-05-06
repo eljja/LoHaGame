@@ -217,7 +217,7 @@ export class IntroScene extends Phaser.Scene {
       // 주인공 실루엣(해변에 떠밀려옴)
       const hero = this.add.text(GAME_WIDTH * 0.5, GAME_HEIGHT + 40, "🧑", { fontSize: "48px" }).setOrigin(0.5).setDepth(15);
       this.tweens.add({ targets: hero, y: seaY + 30, duration: 2500, ease: "Sine.Out" });
-      this.showCaption(caption, "366명 중 단 한 사람, 로하만이 파도에 떠밀려 섬에 닿았다.", 0, 4500);
+      this.showCaption(caption, "366명 중 단 한 사람만이 파도에 떠밀려 섬에 닿았다.", 0, 4500);
       smokeTimer.remove();
     });
 

@@ -1,9 +1,9 @@
 {
-  "name": "loha-survival",
+  "name": "island-50days",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "로하의 무인도 생존기 — 50일 버티기 웹 서바이벌",
+  "description": "무인도에서의 50일 — 웹 서바이벌 게임",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
