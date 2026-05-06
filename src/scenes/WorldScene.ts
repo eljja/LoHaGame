@@ -333,16 +333,37 @@ export class WorldScene extends Phaser.Scene {
     // 엔티티 상태가 바뀌었을 수 있으므로 콤보 재계산 (변동 시 로그 발생)
     store.recomputeCombos();
 
-    // Remove all existing entity sprites
-    this.entityObjects.forEach((t) => t.destroy());
+    // 동물 sprite는 보존 — destroy/recreate 시 트윈이 끊겨 순간이동처럼 보이는 버그 방지.
+    // 동물 entity가 여전히 map에 있고 type이 변하지 않았으면 기존 sprite 재사용.
+    const isAnimal = (type: string): boolean =>
+      type === "rabbit" || type === "wolf" || type === "boar" || type === "bear";
+    const preservedSprites = new Map<number, Phaser.GameObjects.Text>();
+    const currentEntities = new Map(store.map.entities.map((e) => [e.id, e] as const));
+    for (const [id, sprite] of this.entityObjects) {
+      const e = currentEntities.get(id);
+      if (e && isAnimal(e.type)) {
+        preservedSprites.set(id, sprite);
+      } else {
+        sprite.destroy();
+      }
+    }
     this.entityObjects.clear();
 
-    // Remove old entity objects from worldObjects tracking
+    // worldObjects 정리 — 보존된 sprite는 유지
+    const preservedSet = new Set(preservedSprites.values());
     this.worldObjects = this.worldObjects.filter(
-      (o) => o === this.terrainGfx || o === this.playerSprite || o === this.playerShadow
+      (o) => o === this.terrainGfx || o === this.playerSprite || o === this.playerShadow ||
+             preservedSet.has(o as Phaser.GameObjects.Text)
     );
 
     for (const entity of store.map.entities) {
+      // 보존된 동물 sprite 재사용 (트윈 유지)
+      if (preservedSprites.has(entity.id)) {
+        const t = preservedSprites.get(entity.id)!;
+        this.entityObjects.set(entity.id, t);
+        this.worldObjects.push(t);
+        continue;
+      }
       const def = ENTITIES[entity.type];
       const worldX = entity.tx * TILE_PX + TILE_PX / 2;
       const worldY = entity.ty * TILE_PX + TILE_PX / 2;
@@ -629,6 +650,16 @@ export class WorldScene extends Phaser.Scene {
     const store = getStore(this);
     const nx = store.playerTx + dx;
     const ny = store.playerTy + dy;
+
+    // 동물(토끼/늑대/멧돼지/곰)이 목적지 타일에 있으면 자동 사냥 (이동 대신 전투)
+    const destEntity = store.map.entityAt(nx, ny);
+    if (destEntity && (
+      destEntity.type === "rabbit" || destEntity.type === "wolf" ||
+      destEntity.type === "boar"   || destEntity.type === "bear"
+    )) {
+      this.tapEntity(destEntity);
+      return;
+    }
 
     if (!store.map.isPassable(nx, ny)) {
       // Check if there's a non-blocking entity we can interact with

@@ -53,6 +53,8 @@ export class CombatScene extends Phaser.Scene {
 
   /** 연속 명중 콤보. 성공할 때마다 +1, 빗나가면 0으로 초기화. 데미지 ×1.2^combo. */
   private comboHits = 0;
+  /** 화면에 지속 표시되는 콤보 카운터 텍스트 (combo >= 2일 때 보임). */
+  private comboText!: Phaser.GameObjects.Text;
 
   // 공격 타이밍 — 좌↔우 무한 진동, 탭하면 위치 결정.
   // 가운데(가우시안 중심) = 명중, 우측 끝 1% = 도망 성공.
@@ -144,6 +146,16 @@ export class CombatScene extends Phaser.Scene {
       fontSize: "12px",
       color: "#cc8899",
     }).setOrigin(0.5);
+
+    // 콤보 카운터 (지속 표시 — combo >= 2일 때만 보임)
+    this.comboText = this.add.text(GAME_WIDTH / 2, 158, "", {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "24px",
+      color: "#ffe070",
+      stroke: "#0a0f22",
+      strokeThickness: 4,
+      fontStyle: "bold",
+    }).setOrigin(0.5).setDepth(50).setAlpha(0);
 
     // 적 스프라이트
     this.enemySprite = this.add
@@ -414,11 +426,13 @@ export class CombatScene extends Phaser.Scene {
       // 콤보 갱신 — 명중(gauss >= 0.20)이면 +1, 빗나감이면 0으로 초기화
       const isHit = gauss >= 0.20;
       const oldCombo = this.comboHits;
+      let comboBroken = false;
       if (isHit) {
         this.comboHits += 1;
       } else if (oldCombo >= 2) {
         this.pushLog(`💨 콤보 끊김! (${oldCombo}연타 종료)`);
         this.comboHits = 0;
+        comboBroken = true;
       } else {
         this.comboHits = 0;
       }
@@ -432,12 +446,13 @@ export class CombatScene extends Phaser.Scene {
       const comboTag = this.comboHits >= 2 ? ` 🔥콤보×${this.comboHits}(${comboMult.toFixed(2)}배)` : "";
       this.pushLog(`🎯${comment} → 🩸 ${dmg} 데미지!${comboTag}`);
 
+      // 콤보 카운터 갱신 (지속 표시)
+      this.updateComboDisplay(comboBroken);
+
       if (dmg > 0) {
         audio.play("hit");
         this.tweens.add({ targets: this.enemySprite, angle: -10, duration: 80, yoyo: true });
         this.tweens.add({ targets: this.enemySprite, alpha: 0.3, duration: 60, yoyo: true });
-        // 콤보 시각 효과: 2단 이상이면 적 위에 콤보 카운트 떠오름
-        if (this.comboHits >= 2) this.spawnComboFx(this.comboHits);
       } else {
         audio.play("error");
       }
@@ -492,7 +507,7 @@ export class CombatScene extends Phaser.Scene {
         audio.play("hit");
         this.cameras.main.flash(180, 200, 240, 255);
         this.tweens.add({ targets: this.enemySprite, angle: 12, duration: 100, yoyo: true });
-        if (this.comboHits >= 2) this.spawnComboFx(this.comboHits);
+        this.updateComboDisplay();
         this.updateEnemyHpBar();
         this.time.delayedCall(600, () => this.endDefenseTurn());
         return;
@@ -1079,7 +1094,45 @@ export class CombatScene extends Phaser.Scene {
     this.tweens.add({ targets: this.enemyHpBar, width: Math.max(0, w), duration: 250 });
   }
 
-  /** 적 위에 "콤보 ×N" 텍스트가 떠올랐다 사라지는 효과. */
+  /** 콤보 카운터 표시 갱신.
+   *  combo가 2 이상이면 화면 상단에 "🔥 콤보 ×N" 지속 표시 + 펄스.
+   *  combo가 0/1이거나 broken이면 페이드 아웃 후 숨김. */
+  private updateComboDisplay(broken: boolean = false): void {
+    if (broken || this.comboHits < 2) {
+      // 끊김/0~1 → 페이드 아웃
+      if (this.comboText.alpha > 0) {
+        this.tweens.killTweensOf(this.comboText);
+        this.tweens.add({
+          targets: this.comboText,
+          alpha: 0,
+          scale: 0.8,
+          duration: 380,
+          ease: "Quad.In",
+          onComplete: () => this.comboText.setText(""),
+        });
+      }
+      return;
+    }
+    // combo >= 2 → 지속 표시 + 펄스
+    const color = this.comboHits >= 5 ? "#ffd700" : this.comboHits >= 3 ? "#ff9a3a" : "#ffe070";
+    const fontSize = this.comboHits >= 5 ? "32px" : this.comboHits >= 3 ? "28px" : "24px";
+    const nextMult = Math.pow(1.2, this.comboHits);
+    this.comboText.setText(`🔥 콤보 ×${this.comboHits} (다음 ${nextMult.toFixed(2)}배)`);
+    this.comboText.setColor(color);
+    this.comboText.setFontSize(fontSize);
+    this.comboText.setAlpha(1);
+    this.tweens.killTweensOf(this.comboText);
+    this.comboText.setScale(1);
+    this.tweens.add({
+      targets: this.comboText,
+      scale: 1.2,
+      duration: 130,
+      yoyo: true,
+      ease: "Back.Out",
+    });
+  }
+
+  /** [LEGACY] 적 위에 떠올랐다 사라지는 콤보 효과. updateComboDisplay로 대체됨. */
   private spawnComboFx(combo: number): void {
     const x = this.enemySprite.x + Phaser.Math.Between(-40, 40);
     const y = this.enemySprite.y - 50;
