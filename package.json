@@ -1,0 +1,20 @@
+{
+  "name": "island-50days",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "무인도에서의 50일 — 웹 서바이벌 게임",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "phaser": "^3.80.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11"
+  }
+}

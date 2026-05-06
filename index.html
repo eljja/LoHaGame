@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#0b1020" />
+    <title>무인도에서의 50일</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Galmuri11&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #05070f;
+        --ink: #eaf0ff;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Galmuri11", "Noto Sans KR", sans-serif;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+          radial-gradient(1200px 700px at 50% 30%, #121a33 0%, #05070f 70%),
+          #05070f;
+      }
+      #game {
+        width: min(100vw, 1280px);
+        height: min(100vh, 800px);
+        aspect-ratio: 16 / 10;
+        position: relative;
+        box-shadow: 0 40px 120px rgba(0, 0, 0, 0.7), 0 0 0 1px #1a2342 inset;
+        border-radius: 12px;
+        overflow: hidden;
+        background: #0a0f1e;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #game canvas {
+        touch-action: none;
+      }
+      #boot-splash {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+        justify-content: center;
+        color: #cfd8ff;
+        pointer-events: none;
+        transition: opacity 0.5s ease;
+      }
+      #boot-splash.hide { opacity: 0; }
+      #boot-splash .title {
+        font-family: "Galmuri11", monospace;
+        font-size: 28px;
+        letter-spacing: 4px;
+        text-shadow: 0 0 10px #3a58ff;
+      }
+      #boot-splash .sub { opacity: 0.6; font-size: 13px; }
+      canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+    </style>
+  </head>
+  <body>
+    <div id="game">
+      <div id="boot-splash">
+        <div class="title">무인도에서의 50일</div>
+        <div class="sub">게임을 불러오는 중…</div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
