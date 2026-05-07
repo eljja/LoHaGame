@@ -66,7 +66,8 @@ export type EntityType =
   | "ripe_plant"
   | "signal_fire_unlit"
   | "signal_fire_lit"
-  | "raft_placed";
+  | "raft_placed"
+  | "whale_carcass";
 
 export interface EntityTypeDef {
   icon: string;
@@ -115,6 +116,8 @@ export const ENTITIES: Record<EntityType, EntityTypeDef> = {
   signal_fire_lit:   { icon: "🔥", label: "타오르는 봉화", terrain: ["cliff_rock"], cap: 5, respawn: false, blocksMovement: false, reach: 1 },
   // 뗏목 — 해변에 설치, 탑승 시 조기 탈출 엔딩
   raft_placed:       { icon: "⛵", label: "뗏목",         terrain: ["sand"],       cap: 3, respawn: false, blocksMovement: false, reach: 1 },
+  // 좌초된 고래 — 무작위 사건으로 등장. 다음날 아침까지 처리 안 하면 까마귀에게 빼앗김.
+  whale_carcass:     { icon: "🐋", label: "좌초된 고래", terrain: ["sand"],       cap: 1, respawn: false, blocksMovement: true,  reach: 1 },
 };
 
 /** 광원이 되는 설치물 타입. 주변 2칸 이내를 밝게 하고 몹 조우를 막는다. */

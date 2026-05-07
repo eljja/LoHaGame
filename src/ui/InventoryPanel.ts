@@ -23,6 +23,7 @@ export class InventoryPanel {
     if (this.container) this.close();
     // 패널이 HUDScene(상단 바·로그) 위에 그려지도록 WorldScene을 최상단으로 이동
     this.scene.scene.bringToTop();
+    getStore(this.scene).panelOpenCount++;
     this.onUseCallback = onUse;
     this.selectedSlotIdx = null;
     const w = 780;
@@ -494,6 +495,7 @@ export class InventoryPanel {
     this.gridContainer = undefined;
     this.gridScrollY = 0;
     this.gridMaxScroll = 0;
+    getStore(this.scene).panelOpenCount = Math.max(0, getStore(this.scene).panelOpenCount - 1);
     // HUDScene을 다시 최상단으로 (Day/시계/스탯 바가 항상 보이도록)
     this.scene.scene.bringToTop("HUDScene");
   }

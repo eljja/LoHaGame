@@ -364,9 +364,13 @@ export class CaveScene extends Phaser.Scene {
       },
     });
 
-    const yieldCount = ore === "stone" ? Phaser.Math.Between(1, 2) : 1;
+    let yieldCount = ore === "stone" ? Phaser.Math.Between(1, 2) : 1;
+    // 👁 동굴 울림 사건 — 오늘 발동된 경우 채굴 산출 +50% (반올림 올림)
+    const echoActive = store.flags.caveEchoDay === store.time.day;
+    if (echoActive) yieldCount = Math.ceil(yieldCount * 1.5);
     store.inv.add(ore, yieldCount);
-    store.pushLog(`⛏ ${ITEMS[ore].icon} ${ITEMS[ore].name} ×${yieldCount} 획득!`);
+    const echoTag = echoActive ? " (👁 울림 보너스)" : "";
+    store.pushLog(`⛏ ${ITEMS[ore].icon} ${ITEMS[ore].name} ×${yieldCount} 획득!${echoTag}`);
     this.time.delayedCall(150, () => audio.play("pickup"));
 
     // 곡괭이 내구도 감소

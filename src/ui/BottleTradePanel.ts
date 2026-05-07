@@ -22,6 +22,7 @@ export class BottleTradePanel {
     if (this.container) this.close();
     this.scene.scene.bringToTop();
     const store = getStore(this.scene);
+    store.panelOpenCount++;
 
     // 보낼 수 있는 아이템만 필터
     const available = BOTTLE_TRADE_ITEMS.filter((id) => store.inv.count(id) > 0);
@@ -135,6 +136,7 @@ export class BottleTradePanel {
   close(): void {
     this.container?.destroy();
     this.container = undefined;
+    getStore(this.scene).panelOpenCount = Math.max(0, getStore(this.scene).panelOpenCount - 1);
     this.scene.scene.bringToTop("HUDScene");
   }
 

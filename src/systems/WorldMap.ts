@@ -5,8 +5,8 @@ export interface WorldEntity {
   type: EntityType;
   tx: number;
   ty: number;
-  /** 상자 수색 횟수, 심은 날짜 등 */
-  meta?: { lootLeft?: number; plantedDay?: number };
+  /** 상자 수색 횟수, 심은 날짜, 좌초 날짜 등 */
+  meta?: { lootLeft?: number; plantedDay?: number; spawnedDay?: number };
 }
 
 export interface WorldMapSaveBlob {

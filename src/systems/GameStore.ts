@@ -27,6 +27,10 @@ export class GameStore extends Phaser.Events.EventEmitter {
   playerTx = 0;
   playerTy = 0;
 
+  /** 열려있는 UI 패널 카운터 — 0보다 크면 시간이 정지 (직관적 메뉴 사용감) */
+  panelOpenCount = 0;
+  get isPanelOpen(): boolean { return this.panelOpenCount > 0; }
+
   flags: GameState["flags"] = {
     lootedCrates: 0,
     hasTent: false,

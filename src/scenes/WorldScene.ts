@@ -973,6 +973,22 @@ export class WorldScene extends Phaser.Scene {
         return;
       }
 
+      case "whale_carcass": {
+        // 좌초 고래 — 대량의 자원, 시간/체력 소모 큼
+        const meat = Phaser.Math.Between(14, 20);
+        const cloth = Phaser.Math.Between(2, 4);
+        store.inv.add("meat_raw", meat);
+        store.inv.add("cloth", cloth);
+        store.map.removeEntity(entity.id);
+        store.time.advanceMinutes(60);
+        store.stats.apply({ energy: -22 });
+        store.pushLog(`🐋 고래에서 막대한 자원을 채취했다! 생고기 ×${meat}, 천 ×${cloth}.`);
+        this.spawnPickupFx(entity.tx, entity.ty, `+🥩×${meat}`, "#ff9a9a");
+        this.spawnPickupFx(entity.tx, entity.ty - 1, `+🧵×${cloth}`, "#a3b4e8");
+        audio.play("victory");
+        break;
+      }
+
       case "shipwreck": {
         const lootLeft = entity.meta?.lootLeft ?? 0;
         if (lootLeft > 0) {
@@ -1071,6 +1087,21 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "tent_placed": {
+        // 폭풍 예보 + 아직 보강 안 함 + 나뭇가지 8개 이상 있으면 보강 우선
+        const stormToday = store.flags.stormIncomingDay === store.time.day;
+        if (stormToday && !store.flags.shelterReinforced && store.inv.has("stick", 8)) {
+          store.inv.remove("stick", 8);
+          store.flags.shelterReinforced = true;
+          store.pushLog("🏗 천막을 나뭇가지로 보강했다. 오늘 밤 폭풍에 대비.");
+          store.time.advanceMinutes(15);
+          store.stats.apply({ energy: -6 });
+          audio.play("craft");
+          break;
+        }
+        if (stormToday && !store.flags.shelterReinforced) {
+          store.pushLog("🌪 폭풍 보강에는 나뭇가지 ×8이 필요하다.");
+          break;
+        }
         if (store.time.phase === "night") this.rollNightSkyEvent();
         this.sleepAt("tent");
         break;

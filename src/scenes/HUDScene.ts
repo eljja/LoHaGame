@@ -148,7 +148,7 @@ export class HUDScene extends Phaser.Scene {
     const store = getStore(this);
     // 월드가 일시정지(오버레이 씬 활성)되어 있으면 시간도 정지.
     const worldActive = this.scene.isActive("WorldScene") && !this.scene.isPaused("WorldScene");
-    const anyPanelOpen = this.scene.isVisible("CaveScene") || this.scene.isActive("CombatScene");
+    const anyPanelOpen = this.scene.isVisible("CaveScene") || this.scene.isActive("CombatScene") || store.isPanelOpen;
     if (!worldActive || anyPanelOpen) return;
     store.time.update(deltaMs);
     store.stats.tick(deltaMs * store.time.speedMultiplier, store.time.phase);

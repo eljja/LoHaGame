@@ -151,6 +151,12 @@ export interface GameState {
     lastNightSkyDay?: number; // game-day key of last sky observation
     /** 바다에 띄운 유리병 (2~3일 뒤 돌아옴) */
     sentBottle?: { itemId: ItemId; sentDay: number };
+    /** 동굴 울림 사건 — 이 day 동안 채굴 산출 1.5배 */
+    caveEchoDay?: number;
+    /** 폭풍 예고 — 이 day의 밤에 폭풍 발생 (천막 보강 안하면 파괴) */
+    stormIncomingDay?: number;
+    /** 천막 보강 완료 (한 폭풍에 한 번 사용) */
+    shelterReinforced?: boolean;
   };
   caveDepth: 0 | 1 | 2 | 3;
   savedAt?: number;

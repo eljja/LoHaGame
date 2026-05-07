@@ -13,6 +13,7 @@ export class JournalPanel {
     if (this.container) this.close();
     this.scene.scene.bringToTop();
     const store = getStore(this.scene);
+    store.panelOpenCount++;
     const w = 700;
     const h = 560;
     const x = (GAME_WIDTH - w) / 2;
@@ -112,6 +113,7 @@ export class JournalPanel {
     }
     this.container?.destroy();
     this.container = undefined;
+    getStore(this.scene).panelOpenCount = Math.max(0, getStore(this.scene).panelOpenCount - 1);
     this.scene.scene.bringToTop("HUDScene");
   }
 
