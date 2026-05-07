@@ -273,6 +273,9 @@ export class WorldScene extends Phaser.Scene {
       this.updateNightOverlay();
     });
 
+    // HP 변화 시 BGM 동적 전환 (HP 30 이하 → tense BGM, 회복 → day/night 복귀)
+    store.stats.on("change", () => this.syncBgm());
+
     // ── Keyboard ──────────────────────────────────────────
     this.input.keyboard?.on("keydown-UP", () => this.tryMove(0, -1));
     this.input.keyboard?.on("keydown-DOWN", () => this.tryMove(0, 1));
@@ -1662,6 +1665,12 @@ export class WorldScene extends Phaser.Scene {
 
   private syncBgm(): void {
     const store = getStore(this);
+    // 위기: HP 30 이하 → 불안한 BGM 'tense'
+    // 그 외엔 phase에 따라 day/night
+    if (store.stats.hp <= 30 && !store.stats.dead) {
+      audio.playBgm("tense");
+      return;
+    }
     audio.playBgm(store.time.phase === "day" ? "day" : "night");
   }
 

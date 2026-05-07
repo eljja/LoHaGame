@@ -109,7 +109,7 @@ export class CombatScene extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.fadeIn(400, 0, 0, 0);
 
-    audio.playBgm("combat");
+    this.syncCombatBgm();
     audio.play("boss_alert");
 
     // 배경
@@ -202,6 +202,8 @@ export class CombatScene extends Phaser.Scene {
 
     this.updatePlayerHp();
     store.stats.on("change", this.updatePlayerHp, this);
+    // HP 변화 시 전투 BGM 동적 전환 (HP 30 이하 → combat_intense)
+    store.stats.on("change", this.syncCombatBgm, this);
 
     // ── 로그 & 버튼 ───────────────────────────────────────
     drawPanel(this, 0, GAME_HEIGHT - 180, GAME_WIDTH, 180, { fill: 0x0a0f1e, alpha: 0.88 });
@@ -232,6 +234,14 @@ export class CombatScene extends Phaser.Scene {
     const col = hp > 60 ? 0x4aff8a : hp > 30 ? 0xffcc44 : 0xff5a6a;
     this.playerHpBar.setFillStyle(col);
     this.playerHpText.setText(`HP: ${Math.ceil(hp)} / 100   ⚡ ${Math.ceil(store.stats.energy)}`);
+  }
+
+  /** HP에 따라 전투 BGM을 동적으로 결정 — 위기(HP≤30)면 combat_intense. */
+  private syncCombatBgm(): void {
+    const store = getStore(this);
+    if (store.stats.dead) return;
+    const target = store.stats.hp <= 30 ? "combat_intense" : "combat";
+    audio.playBgm(target);
   }
 
   private buildButtons(): void {
@@ -1071,7 +1081,9 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private endCombat(_won: boolean, dead = false): void {
-    getStore(this).stats.off("change", this.updatePlayerHp, this);
+    const stats = getStore(this).stats;
+    stats.off("change", this.updatePlayerHp, this);
+    stats.off("change", this.syncCombatBgm, this);
     this.cameras.main.fadeOut(500, 0, 0, 0);
     this.time.delayedCall(520, () => {
       if (dead) {
