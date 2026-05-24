@@ -68,7 +68,8 @@ export class HUDScene extends Phaser.Scene {
       .text(290, 28, "", { fontFamily: "Galmuri11, monospace", fontSize: "16px", color: "#a3e0ff" })
       .setOrigin(0, 0.5);
     this.refreshCombos();
-    store.on("combosChanged", () => this.refreshCombos());
+    const combosChangedHandler = () => this.refreshCombos();
+    store.on("combosChanged", combosChangedHandler);
 
     // 배속 인디케이터
     this.speedIndicator = this.add
@@ -100,8 +101,8 @@ export class HUDScene extends Phaser.Scene {
       .setOrigin(0, 0);
 
     // 이벤트 바인딩
-    store.time.on("dayChange", (d: number) => this.dayText.setText(`Day ${d}`));
-    store.time.on("phaseChange", (phase: "day" | "night") => {
+    const dayChangeHandler = (d: number) => this.dayText.setText(`Day ${d}`);
+    const phaseChangeHandler = (phase: "day" | "night") => {
       this.phaseText.setText(phase === "day" ? "☀ 낮" : "🌙 밤");
       this.phaseText.setColor(phase === "day" ? "#ffd97a" : "#9fb7ff");
       this.tweens.add({
@@ -109,21 +110,31 @@ export class HUDScene extends Phaser.Scene {
         fillAlpha: phase === "night" ? 0.5 : 0,
         duration: 2000,
       });
-    });
-    store.time.on("hourChange", () => this.clockText.setText(store.time.clockString()));
-    store.stats.on("change", () => this.refreshStats());
-    store.stats.on("warn", (stat: string) => this.onStatDepleted(stat));
-    store.on("log", () => this.refreshLog());
+    };
+    const hourChangeHandler = () => this.clockText.setText(store.time.clockString());
+    const statsChangeHandler = () => this.refreshStats();
+    const statsWarnHandler = (stat: string) => this.onStatDepleted(stat);
+    const logHandler = () => this.refreshLog();
+    store.time.on("dayChange", dayChangeHandler);
+    store.time.on("phaseChange", phaseChangeHandler);
+    store.time.on("hourChange", hourChangeHandler);
+    store.stats.on("change", statsChangeHandler);
+    store.stats.on("warn", statsWarnHandler);
+    store.on("log", logHandler);
 
     this.refreshStats();
     this.refreshLog();
 
     // 디버그 단축키
-    this.input.keyboard?.on(`keydown-${DEBUG_SPEED_KEY}`, () => {
+    const isLocalDebugHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+    const debugSpeedHandler = () => {
       const cur = store.time.speedMultiplier;
       store.time.speedMultiplier = cur === 1 ? 10 : cur === 10 ? 60 : 1;
       this.speedIndicator.setText(store.time.speedMultiplier > 1 ? `⏩ x${store.time.speedMultiplier}` : "");
-    });
+    };
+    if (isLocalDebugHost) {
+      this.input.keyboard?.on(`keydown-${DEBUG_SPEED_KEY}`, debugSpeedHandler);
+    }
 
     // 시간 진행 — Phaser update()가 아닌 setInterval로 처리.
     // 일부 환경에서 RAF가 입력이 없을 때 스로틀되어 시간이 멈춰 보이는 문제 해결.
@@ -135,6 +146,14 @@ export class HUDScene extends Phaser.Scene {
         clearInterval(this.timeIntervalId);
         this.timeIntervalId = undefined;
       }
+      store.off("combosChanged", combosChangedHandler);
+      store.time.off("dayChange", dayChangeHandler);
+      store.time.off("phaseChange", phaseChangeHandler);
+      store.time.off("hourChange", hourChangeHandler);
+      store.stats.off("change", statsChangeHandler);
+      store.stats.off("warn", statsWarnHandler);
+      store.off("log", logHandler);
+      this.input.keyboard?.off(`keydown-${DEBUG_SPEED_KEY}`, debugSpeedHandler);
     });
     this.events.once(Phaser.Scenes.Events.DESTROY, () => {
       if (this.timeIntervalId !== undefined) {

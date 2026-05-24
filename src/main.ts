@@ -49,5 +49,8 @@ game.events.once(Phaser.Core.Events.READY, () => {
   }
 });
 
-// 전역 접근(디버그용)
-(window as unknown as { __loha: Phaser.Game }).__loha = game;
+const isLocalDebugHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+if (isLocalDebugHost) {
+  // 전역 접근(로컬 디버그용)
+  (window as unknown as { __loha: Phaser.Game }).__loha = game;
+}

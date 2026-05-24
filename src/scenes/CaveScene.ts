@@ -160,7 +160,7 @@ export class CaveScene extends Phaser.Scene {
       height: 44,
       fontSize: 13,
       onClick: () => {
-        store.time.advanceMinutes(20);
+        store.advanceMinutes(20);
         store.stats.apply({ energy: -4 });
         store.pushLog("다른 구역으로 이동해 새 돌벽을 찾았다.");
         this.regenerateGrid();
@@ -180,7 +180,14 @@ export class CaveScene extends Phaser.Scene {
       align: "right",
     }).setOrigin(1, 0);
 
-    this.input.keyboard?.on("keydown-ESC", () => this.leave());
+    const escHandler = () => this.leave();
+    const resumeHandler = () => audio.playBgm("cave");
+    this.input.keyboard?.on("keydown-ESC", escHandler);
+    this.events.on(Phaser.Scenes.Events.RESUME, resumeHandler);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.keyboard?.off("keydown-ESC", escHandler);
+      this.events.off(Phaser.Scenes.Events.RESUME, resumeHandler);
+    });
     void leaveBtn;
     void deeperBtn;
     void newChunk;
@@ -322,13 +329,13 @@ export class CaveScene extends Phaser.Scene {
       for (const [id, cnt] of chestLoot) store.inv.add(id, cnt);
       const lootStr = chestLoot.map(([id, n]) => `${ITEMS[id].icon}×${n}`).join(" + ");
       store.pushLog(`📦 동굴 보물 상자 발견! ${lootStr} 획득!`);
-      store.time.advanceMinutes(5);
+      store.advanceMinutes(5);
       return;
     }
 
     // 채굴 성공 — 위험도 누적 후 사고 판정
     audio.play("mine");
-    store.time.advanceMinutes(10);
+    store.advanceMinutes(10);
     store.stats.apply({ energy: -3 });
     this.addDanger(1);
     // 사고 판정 — 위험도 6 이상부터 (위험도 × 5%) 확률
@@ -387,6 +394,7 @@ export class CaveScene extends Phaser.Scene {
       store.pushLog("🗿 …어둠 속에서 돌 조각상이 움직인다! 피해야 한다!");
       this.time.delayedCall(800, () => {
         this.scene.launch("CombatScene", {
+          returnScene: "CaveScene",
           enemy: {
             id: "cave_statue",
             name: "돌 조각상",
@@ -407,7 +415,7 @@ export class CaveScene extends Phaser.Scene {
       store.pushLog("👷 …곡괭이 소리가 들린다. 창백한 광부가 다가온다!");
       audio.play("boss_alert");
       this.time.delayedCall(800, () => {
-        this.scene.launch("CombatScene", { enemy: MINI_BOSSES.pale_miner });
+        this.scene.launch("CombatScene", { enemy: MINI_BOSSES.pale_miner, returnScene: "CaveScene" });
         this.scene.pause("CaveScene");
       });
     }
@@ -426,7 +434,7 @@ export class CaveScene extends Phaser.Scene {
     if (!this.canDescend()) return;
     const next = Math.min(3, store.caveDepth + 1) as 1 | 2 | 3;
     store.caveDepth = next;
-    store.time.advanceMinutes(20);
+    store.advanceMinutes(20);
     store.stats.apply({ energy: -8 });
     this.addDanger(2);
     store.pushLog(`⬇ ${store.caveDepth}층으로 내려왔다. (위험도 +2)`);
@@ -463,7 +471,7 @@ export class CaveScene extends Phaser.Scene {
     if (Math.random() < 0.30) {
       store.pushLog("💥 천장이 무너지며 어둠 속에서 무언가 기어 나왔다!");
       this.time.delayedCall(800, () => {
-        this.scene.launch("CombatScene", { enemy: MINI_BOSSES.pale_miner });
+        this.scene.launch("CombatScene", { enemy: MINI_BOSSES.pale_miner, returnScene: "CaveScene" });
         this.scene.pause("CaveScene");
       });
       return;

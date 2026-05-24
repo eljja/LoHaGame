@@ -185,15 +185,15 @@ export class WorldScene extends Phaser.Scene {
 
     // ── Event bindings ────────────────────────────────────
     // ── Achievement & recipe discovery listeners ──────────────────
-    store.on("achievement", (ach: Achievement) => showAchievementToast(this, ach));
-    store.on("comboActivated", (id: string) => {
+    const achievementHandler = (ach: Achievement) => showAchievementToast(this, ach);
+    const comboActivatedHandler = (id: string) => {
       showComboToast(this, id);
       audio.play("victory");
       // recomputeCombos는 renderEntities 시작에서 호출되므로 sprite는 아직 생성 안됨.
       // 50ms 지연 후 펄스 (renderEntities가 sprite 생성 완료한 뒤)
       this.time.delayedCall(50, () => this.flashComboAnchors(id));
-    });
-    store.on("recipesDiscovered", (ids: string[]) => {
+    };
+    const recipesDiscoveredHandler = (ids: string[]) => {
       ids.forEach((id, i) => {
         const recipe = RECIPES.find((r) => r.id === id);
         if (!recipe) return;
@@ -201,9 +201,12 @@ export class WorldScene extends Phaser.Scene {
           store.pushLog(`📜 새 레시피 발견: ${recipe.icon} ${recipe.name}!`);
         });
       });
-    });
+    };
+    store.on("achievement", achievementHandler);
+    store.on("comboActivated", comboActivatedHandler);
+    store.on("recipesDiscovered", recipesDiscoveredHandler);
 
-    store.time.on("phaseChange", (phase: "day" | "night") => {
+    const phaseChangeHandler = (phase: "day" | "night") => {
       audio.play(phase === "day" ? "phase_day" : "phase_night");
       this.syncBgm();
       this.updateNightOverlay();
@@ -221,9 +224,10 @@ export class WorldScene extends Phaser.Scene {
           store.pushLog("🔥 횃불을 켰다. 밤에도 주변이 환하다.");
         }
       }
-    });
+    };
+    store.time.on("phaseChange", phaseChangeHandler);
 
-    store.time.on("dayChange", (d: number) => {
+    const dayChangeHandler = (d: number) => {
       store.pushLog(`☀ Day ${d}가 밝았다.`);
       store.checkTimedAchievements();
       // 심은 씨앗 2일 뒤 수확 가능 단계로 성장
@@ -234,24 +238,28 @@ export class WorldScene extends Phaser.Scene {
         this.scene.stop("HUDScene");
         this.scene.start("VictoryScene", { raftEscape: false, days: d });
       }
-    });
+    };
+    store.time.on("dayChange", dayChangeHandler);
 
-    store.time.on("day10Tick", (d: number) => this.triggerSeaBoss(d));
+    const day10TickHandler = (d: number) => this.triggerSeaBoss(d);
+    store.time.on("day10Tick", day10TickHandler);
 
-    store.stats.on("death", () => {
+    const deathHandler = () => {
       this.scene.stop("HUDScene");
       this.scene.start("GameOverScene");
-    });
+    };
+    store.stats.on("death", deathHandler);
 
     this.syncBgm();
-    this.events.on(Phaser.Scenes.Events.RESUME, () => {
+    const resumeHandler = () => {
       this.syncBgm();
       this.renderEntities();
       this.updateActionHint();
       // cave depth achievement (check before CaveScene resets depth)
       if (store.caveDepth >= 3) store.unlockAchievement("cave_floor3");
       store.checkTimedAchievements();
-    });
+    };
+    this.events.on(Phaser.Scenes.Events.RESUME, resumeHandler);
 
     // 동적 요소: 야생동물 방황, 날씨, 구름, 일일 무작위 이벤트
     // 분리된 시스템 모듈 호출 (코드 분할)
@@ -268,9 +276,21 @@ export class WorldScene extends Phaser.Scene {
     });
 
     // 인벤토리 변경 시 장비바 갱신
-    store.inv.on("change", () => {
+    const inventoryChangeHandler = () => {
       this.refreshEquipBar();
       this.updateNightOverlay();
+    };
+    store.inv.on("change", inventoryChangeHandler);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      store.off("achievement", achievementHandler);
+      store.off("comboActivated", comboActivatedHandler);
+      store.off("recipesDiscovered", recipesDiscoveredHandler);
+      store.time.off("phaseChange", phaseChangeHandler);
+      store.time.off("dayChange", dayChangeHandler);
+      store.time.off("day10Tick", day10TickHandler);
+      store.stats.off("death", deathHandler);
+      store.inv.off("change", inventoryChangeHandler);
+      this.events.off(Phaser.Scenes.Events.RESUME, resumeHandler);
     });
 
     // ── Keyboard ──────────────────────────────────────────
@@ -641,7 +661,7 @@ export class WorldScene extends Phaser.Scene {
 
     store.playerTx = nx;
     store.playerTy = ny;
-    store.time.advanceMinutes(3);
+    store.advanceMinutes(3);
     store.stats.apply({ energy: -0.5 });
 
     // Animate player
@@ -740,7 +760,7 @@ export class WorldScene extends Phaser.Scene {
         const count = Phaser.Math.Between(2, 3);
         store.inv.add("stick", count);
         store.map.removeEntity(entity.id);
-        store.time.advanceMinutes(15);
+        store.advanceMinutes(15);
         store.stats.apply({ energy: -3 });
         store.pushLog(`🌳 나무에서 나뭇가지를 구했다. 나뭇가지 ×${count}`);
         this.spawnPickupFx(entity.tx, entity.ty, `+🪵×${count}`);
@@ -754,7 +774,7 @@ export class WorldScene extends Phaser.Scene {
         const count = Phaser.Math.Between(1, 2);
         store.inv.add("berry", count);
         store.map.removeEntity(entity.id);
-        store.time.advanceMinutes(10);
+        store.advanceMinutes(10);
         let msg = `🫐 열매덤불에서 열매를 땄다. 열매 ×${count}`;
         // 씨앗 드롭 (30%)
         if (Math.random() < 0.30) {
@@ -777,7 +797,7 @@ export class WorldScene extends Phaser.Scene {
         const count = baseCount + forgeBonus;
         store.inv.add("stone", count);
         store.map.removeEntity(entity.id);
-        store.time.advanceMinutes(20);
+        store.advanceMinutes(20);
         store.stats.apply({ energy: -5 });
         const msg = forgeBonus > 0
           ? `🪨 돌을 캤다. 돌 ×${count} (🏭화로 보너스 +${forgeBonus})`
@@ -794,7 +814,7 @@ export class WorldScene extends Phaser.Scene {
         const count = Phaser.Math.Between(1, 2);
         store.inv.add("vine", count);
         store.map.removeEntity(entity.id);
-        store.time.advanceMinutes(10);
+        store.advanceMinutes(10);
         store.pushLog(`🌿 덩굴을 모았다. 덩굴 ×${count}`);
         this.spawnPickupFx(entity.tx, entity.ty, `+🌿×${count}`);
         this.gatherPerkBonus(entity.tx, entity.ty, "vine");
@@ -806,7 +826,7 @@ export class WorldScene extends Phaser.Scene {
       case "shell": {
         const r = Math.random();
         store.map.removeEntity(entity.id);
-        store.time.advanceMinutes(10);
+        store.advanceMinutes(10);
         if (r < 0.25) {
           store.inv.add("fish_raw", 1);
           store.pushLog("🐚 조개에서 날것 물고기를 찾았다.");
@@ -837,7 +857,7 @@ export class WorldScene extends Phaser.Scene {
         const count = Phaser.Math.Between(1, 2);
         store.inv.add("stick", count);
         store.map.removeEntity(entity.id);
-        store.time.advanceMinutes(10);
+        store.advanceMinutes(10);
         let msg = `🪵 유목에서 나뭇가지를 모았다. 나뭇가지 ×${count}`;
         this.spawnPickupFx(entity.tx, entity.ty, `+🪵×${count}`);
         if (Math.random() < 0.2) {
@@ -854,7 +874,7 @@ export class WorldScene extends Phaser.Scene {
         const count = Phaser.Math.Between(1, 2);
         store.inv.add("mushroom", count);
         store.map.removeEntity(entity.id);
-        store.time.advanceMinutes(10);
+        store.advanceMinutes(10);
         store.pushLog(`🍄 버섯을 채취했다. 버섯 ×${count} (약한 회복 효과)`);
         this.spawnPickupFx(entity.tx, entity.ty, `+🍄×${count}`, "#ffb3d1");
         this.gatherPerkBonus(entity.tx, entity.ty, "mushroom");
@@ -864,7 +884,7 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "rabbit": {
-        store.time.advanceMinutes(40);
+        store.advanceMinutes(40);
         store.stats.apply({ energy: -10 });
         const target = DAY_GAME[0] as EnemyDef;
         store.pushLog(`🐇 토끼를 발견했다!`);
@@ -876,7 +896,7 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "wolf": {
-        store.time.advanceMinutes(30);
+        store.advanceMinutes(30);
         store.stats.apply({ energy: -12 });
         const wolfDef = DAY_GAME.find((d) => d.id === "wolf")!;
         store.pushLog("🐺 굶주린 늑대가 달려든다! 공격력이 높으니 조심하라.");
@@ -888,7 +908,7 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "boar": {
-        store.time.advanceMinutes(35);
+        store.advanceMinutes(35);
         store.stats.apply({ energy: -14 });
         const boarDef = DAY_GAME.find((d) => d.id === "boar")!;
         store.pushLog("🐗 성난 멧돼지가 엄니를 들이댄다! 도망은 불가능하다.");
@@ -900,7 +920,7 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "bear": {
-        store.time.advanceMinutes(40);
+        store.advanceMinutes(40);
         store.stats.apply({ energy: -16 });
         const bearDef = DAY_GAME.find((d) => d.id === "bear")!;
         store.pushLog("🐻 거대한 곰이 두 발로 일어서며 포효한다! 만만치 않다.");
@@ -913,7 +933,7 @@ export class WorldScene extends Phaser.Scene {
 
       case "flower": {
         store.map.removeEntity(entity.id);
-        store.time.advanceMinutes(5);
+        store.advanceMinutes(5);
         store.pushLog("🌼 들꽃이 피어있다. 향기가 은은하다.");
         if (Math.random() < 0.1) {
           store.inv.add("cloth", 1);
@@ -930,7 +950,7 @@ export class WorldScene extends Phaser.Scene {
         }
         store.pushLog("⛏ 동굴 안으로 들어간다... 어두운 돌 벽을 곡괭이로 두드리면 광석을 캘 수 있다.");
         store.caveDepth = 1;
-        store.time.advanceMinutes(10);
+        store.advanceMinutes(10);
         this.cameras.main.fadeOut(400, 0, 0, 0);
         this.time.delayedCall(420, () => {
           this.scene.launch("CaveScene");
@@ -951,7 +971,7 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "cliff_lookout": {
-        store.time.advanceMinutes(20);
+        store.advanceMinutes(20);
         if (store.time.phase === "night") {
           store.pushLog("🏔 어두운 밤바다 위로 별이 쏟아진다...");
           this.rollNightSkyEvent();
@@ -972,7 +992,7 @@ export class WorldScene extends Phaser.Scene {
       case "river_spring": {
         const count = Phaser.Math.Between(1, 2);
         store.inv.add("water_dirty", count);
-        store.time.advanceMinutes(10);
+        store.advanceMinutes(10);
         store.pushLog(`💧 샘물을 길었다. 더러운 물 ×${count} (끓여야 마실 수 있다)`);
         store.discoverRecipes("water_dirty");
         // 낚싯대 있으면 낚시 포인트 힌트
@@ -1056,7 +1076,7 @@ export class WorldScene extends Phaser.Scene {
 
       case "ripe_plant": {
         store.map.removeEntity(entity.id);
-        store.time.advanceMinutes(5);
+        store.advanceMinutes(5);
         const berryCount = Phaser.Math.Between(2, 4);
         const seedCount = Math.random() < 0.6 ? 1 : 0;
         store.inv.add("berry", berryCount);
@@ -1103,7 +1123,7 @@ export class WorldScene extends Phaser.Scene {
           store.pushLog("❌ 땅이 수상하게 부풀어있다. 곡괭이(⛏)가 있어야 파낼 수 있다.");
           break;
         }
-        store.time.advanceMinutes(30);
+        store.advanceMinutes(30);
         store.stats.apply({ energy: -12 });
         store.map.removeEntity(entity.id);
 
@@ -1151,7 +1171,7 @@ export class WorldScene extends Phaser.Scene {
     const store = getStore(this);
     const lootLeft = entity.meta?.lootLeft ?? 0;
 
-    store.time.advanceMinutes(30);
+    store.advanceMinutes(30);
     store.stats.apply({ energy: -5 });
 
     const lootPools = [
@@ -1204,11 +1224,11 @@ export class WorldScene extends Phaser.Scene {
       if (store.time.phase === "day") {
         // 현재 낮의 남은 분 + 1로 밤으로 전환
         const remaining = Math.ceil((1 - store.time.phaseProgress) * 12 * 60);
-        store.time.advanceMinutes(remaining + 1);
+        store.advanceMinutes(remaining + 1);
       } else {
         // 밤 → 아침으로
         const remaining = Math.ceil((1 - store.time.phaseProgress) * 12 * 60);
-        store.time.advanceMinutes(remaining + 1);
+        store.advanceMinutes(remaining + 1);
         break; // 밤을 건너뛰면 아침 → 종료
       }
     }
@@ -1625,7 +1645,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private triggerCombat(enemy: EnemyDef): void {
-    this.scene.launch("CombatScene", { enemy });
+    this.scene.launch("CombatScene", { enemy, returnScene: "WorldScene" });
     this.scene.pause();
   }
 
@@ -1702,7 +1722,7 @@ export class WorldScene extends Phaser.Scene {
   /** 낚시 미니게임: 찌가 잠기면 제때 버튼 클릭 */
   private startFishing(fishTx: number, fishTy: number): void {
     const store = getStore(this);
-    store.time.advanceMinutes(20);
+    store.advanceMinutes(20);
     store.stats.apply({ energy: -4 });
     store.pushLog("🎣 낚싯대를 드리웠다. 찌가 잠기면 '낚아채기!' 버튼을 눌러라!");
 
@@ -1774,7 +1794,8 @@ export class WorldScene extends Phaser.Scene {
       textColor: "#88cc88",
       onClick: () => {
         if (!canCatch) return;
-        clearTimeout(missTimer);
+        if (missTimer !== undefined) clearTimeout(missTimer);
+        biteTimer?.remove(false);
         idleTween.stop();
         c.destroy();
         this.grantFishLoot(fishTx, fishTy);
@@ -1792,7 +1813,8 @@ export class WorldScene extends Phaser.Scene {
       hover: 0x4a1520,
       border: 0x8a2230,
       onClick: () => {
-        clearTimeout(missTimer);
+        if (missTimer !== undefined) clearTimeout(missTimer);
+        biteTimer?.remove(false);
         idleTween.stop();
         c.destroy();
         store.pushLog("🎣 낚시를 그만뒀다.");
@@ -1806,9 +1828,11 @@ export class WorldScene extends Phaser.Scene {
 
     // 무작위 1.5~4초 뒤 찌가 잠김
     const waitMs = 1500 + Math.random() * 2500;
-    let missTimer: ReturnType<typeof setTimeout>;
+    let missTimer: ReturnType<typeof setTimeout> | undefined;
+    let biteTimer: Phaser.Time.TimerEvent | undefined;
 
-    this.time.delayedCall(waitMs, () => {
+    biteTimer = this.time.delayedCall(waitMs, () => {
+      if (!c.active) return;
       idleTween.stop();
       // 찌 급격히 아래로 ↓ (bite 애니메이션)
       this.tweens.add({

@@ -12,6 +12,8 @@ import type { GameState, ItemId } from "../types";
 import { ACHIEVEMENTS, type Achievement } from "../data/achievements";
 import { RECIPE_UNLOCK_TRIGGERS } from "../data/recipes";
 
+const ACTION_TIME_STAT_DRAIN_MULT = 0.6;
+
 /**
  * 모든 시스템과 게임 상태의 단일 소유자. Phaser game.registry에 'store'로 저장.
  */
@@ -334,20 +336,40 @@ export class GameStore extends Phaser.Events.EventEmitter {
     });
   }
 
+  /** 행동 비용으로 게임 시간을 넘길 때도 일부 생존 스탯 소모를 적용한다. */
+  advanceMinutes(minutes: number): void {
+    if (minutes <= 0) return;
+    for (let i = 0; i < minutes; i++) {
+      const realMs = (this.time.totalPhaseSeconds / (12 * 60)) * 1000 * ACTION_TIME_STAT_DRAIN_MULT;
+      this.stats.tick(realMs, this.time.phase);
+      if (this.stats.dead) return;
+      this.time.advanceMinutes(1);
+    }
+  }
+
   loadFrom(blob: SaveBlob): void {
     this.time.fromJSON(blob.time);
     this.stats.fromJSON(blob.stats);
     this.inv.fromJSON(blob.inventory);
-    this.flags = blob.flags;
-    // backwards compatibility for older saves
-    if (!this.flags.unlockedAchievements) this.flags.unlockedAchievements = [];
-    if (!this.flags.discoveredRecipes) {
-      this.flags.discoveredRecipes = [
-        "wood_club", "stone_axe", "stone_spear", "rope", "torch",
-        "stone_pickaxe", "bandage", "bonfire", "tent",
-      ];
-    }
-    if (this.flags.fishCaught == null) this.flags.fishCaught = 0;
+    const savedFlags = blob.flags as Partial<GameState["flags"]>;
+    this.flags = {
+      lootedCrates: savedFlags.lootedCrates ?? 0,
+      hasTent: savedFlags.hasTent ?? false,
+      hasBonfire: savedFlags.hasBonfire ?? false,
+      firstTimeVisited: savedFlags.firstTimeVisited ?? {},
+      bossesDefeated: Array.isArray(savedFlags.bossesDefeated) ? savedFlags.bossesDefeated : [],
+      unlockedAchievements: Array.isArray(savedFlags.unlockedAchievements) ? savedFlags.unlockedAchievements : [],
+      discoveredRecipes: Array.isArray(savedFlags.discoveredRecipes)
+        ? savedFlags.discoveredRecipes
+        : [
+            "wood_club", "stone_axe", "stone_spear", "rope", "torch",
+            "stone_pickaxe", "bandage", "bonfire", "tent",
+          ],
+      fishCaught: savedFlags.fishCaught ?? 0,
+      nightSkyBuff: savedFlags.nightSkyBuff,
+      lastNightSkyDay: savedFlags.lastNightSkyDay,
+      sentBottle: savedFlags.sentBottle,
+    };
 
     this.caveDepth = blob.caveDepth;
     if (blob.map) {

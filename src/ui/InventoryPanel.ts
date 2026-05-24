@@ -474,8 +474,8 @@ export class InventoryPanel {
     store.pushLog(`🗑 ${def.icon} ${def.name}을(를) 버렸다.`);
     audio.play("click");
     this.selectedSlotIdx = null;
-    const w = 760;
-    const h = 570;
+    const w = 780;
+    const h = 620;
     const x = (GAME_WIDTH - w) / 2;
     const y = (GAME_HEIGHT - h) / 2;
     this.renderGrid(x, y, w);

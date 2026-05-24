@@ -9,6 +9,7 @@ import { audio } from "../systems/AudioManager";
 
 interface InitData {
   enemy: EnemyDef;
+  returnScene?: "WorldScene" | "CaveScene";
 }
 
 const DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
@@ -24,6 +25,7 @@ export class CombatScene extends Phaser.Scene {
   private defending = false;
   private buttons: ButtonNode[] = [];
   private turnLock = false;
+  private returnScene: "WorldScene" | "CaveScene" = "WorldScene";
 
   // 플레이어 HP 표시
   private playerHpBar!: Phaser.GameObjects.Rectangle;
@@ -91,6 +93,7 @@ export class CombatScene extends Phaser.Scene {
   init(data: InitData): void {
     this.enemy = data.enemy;
     this.enemyHp = data.enemy.hp;
+    this.returnScene = data.returnScene ?? "WorldScene";
     this.defending = false;
     this.turnLock = false;
     this.buttons = [];
@@ -1062,12 +1065,18 @@ export class CombatScene extends Phaser.Scene {
       if (dead) {
         this.scene.stop();
         this.scene.stop("WorldScene");
+        this.scene.stop("CaveScene");
         this.scene.stop("HUDScene");
         this.scene.start("GameOverScene");
         return;
       }
       this.scene.stop();
-      this.scene.resume("WorldScene");
+      this.scene.resume(this.returnScene);
+      if (this.returnScene === "CaveScene") {
+        audio.playBgm("cave");
+        this.scene.get("CaveScene").cameras.main.fadeIn(400, 0, 0, 0);
+        return;
+      }
       const world = this.scene.get("WorldScene") as import("./WorldScene").WorldScene;
       (world.resumeFromOverlay as () => void).call(world);
       this.scene.get("WorldScene").cameras.main.fadeIn(400, 0, 0, 0);

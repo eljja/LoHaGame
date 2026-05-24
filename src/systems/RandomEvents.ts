@@ -10,10 +10,14 @@ interface RandomEventsDeps {
 /** 매일 아침 무작위 이벤트를 돌린다. dayChange 후 2.5초 뒤 트리거. */
 export function setupRandomEvents(scene: Phaser.Scene, deps: RandomEventsDeps): void {
   const store = getStore(scene);
-  store.time.on("dayChange", () => {
+  const dayChangeHandler = () => {
     if (Math.random() < 0.55) {
       scene.time.delayedCall(2500, () => rollMorningEvent(scene, deps));
     }
+  };
+  store.time.on("dayChange", dayChangeHandler);
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+    store.time.off("dayChange", dayChangeHandler);
   });
 }
 
