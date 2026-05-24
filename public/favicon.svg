@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="무인도에서의 50일 아이콘">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#111b3c"/>
+      <stop offset="0.58" stop-color="#152752"/>
+      <stop offset="1" stop-color="#0a1024"/>
+    </linearGradient>
+    <linearGradient id="sea" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#146c89"/>
+      <stop offset="0.52" stop-color="#20b6b0"/>
+      <stop offset="1" stop-color="#0b5b7f"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="12" fill="#05070f"/>
+  <rect x="5" y="5" width="54" height="54" rx="9" fill="url(#sky)"/>
+  <path d="M5 39h54v20H5z" fill="url(#sea)"/>
+  <path d="M8 45h48M14 52h38" stroke="#93f2e5" stroke-width="2" stroke-linecap="square" opacity="0.65"/>
+  <path d="M17 42l13-10 18 10-8 8H25z" fill="#e9c56a"/>
+  <path d="M22 39l9-7 13 7-8 5H28z" fill="#3fa85c"/>
+  <path d="M31 32c-1-7 2-13 7-18" stroke="#613b21" stroke-width="4" stroke-linecap="square"/>
+  <path d="M37 15c-6 1-11 4-14 9 5-2 9-2 14-1z" fill="#51c96f"/>
+  <path d="M38 15c2 4 2 9 0 14 3-3 7-6 10-11z" fill="#2fa55e"/>
+  <path d="M39 16c3 0 7 2 11 5-4 0-8 1-11 3z" fill="#77dc7f"/>
+  <text x="14" y="31" fill="#fff6cf" font-family="Arial Black, Arial, sans-serif" font-size="19" font-weight="900" letter-spacing="-1">50</text>
+  <path d="M8 8h48v48H8z" fill="none" stroke="#f7dd7c" stroke-width="2" opacity="0.55"/>
+</svg>
