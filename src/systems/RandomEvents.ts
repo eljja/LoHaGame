@@ -39,42 +39,42 @@ function rollMorningEvent(scene: Phaser.Scene, deps: RandomEventsDeps): void {
   const store = getStore(scene);
   const events: Array<() => void> = [
     () => {
-      // 갈매기가 물고기를 떨어뜨림
+      // 밀물 뒤 남은 물고기
       store.inv.add("fish_raw", 1);
-      store.pushLog("🕊 갈매기 한 마리가 머리 위를 지나가며 생 물고기를 떨어뜨렸다!");
+      store.pushLog("🐟 밀물이 빠진 웅덩이에서 생 물고기 한 마리를 건졌다.");
       deps.spawnPickupFx(store.playerTx, store.playerTy - 1, "+🐟×1", "#9fd5ff");
       audio.play("pickup");
     },
     () => {
-      // 해안가 유리병 편지
-      store.pushLog("🫙 해변에 유리병이 떠밀려왔다. 안에는 오래된 기도문이 있다. 마음이 차분해진다.");
+      // 잔잔한 아침
+      store.pushLog("🌤 아침 공기가 맑다. 잠시 숨을 고르자 몸이 조금 가벼워졌다.");
       store.stats.apply({ energy: 12, hp: 4 });
     },
     () => {
-      // 야생 꿀벌의 선물 - 열매
+      // 숲 가장자리 열매
       const n = Phaser.Math.Between(2, 3);
       store.inv.add("berry", n);
-      store.pushLog(`🐝 꿀벌들이 발견한 열매를 나누어준다. 열매 ×${n}.`);
+      store.pushLog(`🫐 숲 가장자리의 낮은 덤불에서 잘 익은 열매를 찾았다. 열매 ×${n}.`);
       deps.spawnPickupFx(store.playerTx, store.playerTy - 1, `+🫐×${n}`);
       audio.play("pickup");
     },
     () => {
-      // 토끼가 둥지에 남긴 덩굴
+      // 마른 덩굴
       const n = Phaser.Math.Between(2, 3);
       store.inv.add("vine", n);
-      store.pushLog(`🐇 토끼가 둥지에 남긴 덩굴 뭉치를 발견했다. 덩굴 ×${n}.`);
+      store.pushLog(`🌿 바위틈에 말라붙은 덩굴 뭉치를 걷어냈다. 덩굴 ×${n}.`);
       deps.spawnPickupFx(store.playerTx, store.playerTy - 1, `+🌿×${n}`);
       audio.play("pickup");
     },
     () => {
-      // 기묘한 꿈
-      store.pushLog("💭 지난밤 꿈에서 구조선을 보았다. 왠지 의지가 솟구친다.");
+      // 몸 상태 회복
+      store.pushLog("💭 밤새 얕게 쉬었지만 몸이 생각보다 가볍다. 다시 움직일 힘이 난다.");
       store.stats.apply({ energy: 20 });
     },
     () => {
-      // 낡은 보물 지도가 든 유리병
+      // 낡은 지도 조각
       store.inv.add("treasure_map", 1);
-      store.pushLog("🫙 파도에 떠밀려온 유리병 안에서 낡은 보물 지도(🗺)를 발견했다!");
+      store.pushLog("🗺 젖은 모래 아래에서 낡은 지도 조각을 발견했다!");
       deps.spawnPickupFx(store.playerTx, store.playerTy - 1, "+🗺×1", "#ffd97a");
       audio.play("pickup");
     },
@@ -90,9 +90,9 @@ function rollMorningEvent(scene: Phaser.Scene, deps: RandomEventsDeps): void {
       audio.play("pickup");
     },
     () => {
-      // 빈 유리병 표류 — 유리병 무역의 입구
+      // 빈 유리병 표류 — 해류 표식의 입구
       store.inv.add("glass_bottle", 1);
-      store.pushLog("🫙 해변에 빈 유리병이 떠밀려왔다. 인벤토리에서 재료를 담아 띄우면 선물이 돌아올지도...");
+      store.pushLog("🫙 해변에 빈 유리병이 걸려 있다. 재료를 넣어 해류에 띄우면 흐름을 읽는 표식으로 쓸 수 있다.");
       deps.spawnPickupFx(store.playerTx, store.playerTy - 1, "+🫙×1", "#a0e0ff");
       audio.play("pickup");
     },

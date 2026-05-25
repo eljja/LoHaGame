@@ -5,6 +5,8 @@ import { SaveManager } from "../systems/SaveManager";
 import { getStore } from "../systems/GameStore";
 import { audio } from "../systems/AudioManager";
 
+const LAST_UPDATE = "2026.05.25";
+
 export class TitleScene extends Phaser.Scene {
   constructor() {
     super("TitleScene");
@@ -113,7 +115,7 @@ export class TitleScene extends Phaser.Scene {
     });
 
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 30, "ⓒ 무인도에서의 50일 · Phaser 3", {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT - 30, `ⓒ 무인도에서의 50일 · Phaser 3 · 최종 update ${LAST_UPDATE}`, {
         fontFamily: "Galmuri11, monospace",
         fontSize: "12px",
         color: "#5a6ba0",

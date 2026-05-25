@@ -7,7 +7,7 @@ import { makeButton } from "./Button";
 import { getStore } from "../systems/GameStore";
 import { audio } from "../systems/AudioManager";
 
-/** 유리병 무역 가능한 재료 목록. 희귀도별로 돌아오는 보상이 다르다. */
+/** 해류 표식으로 띄울 수 있는 재료 목록. 희귀도별로 얽혀 돌아오는 표류물이 다르다. */
 export const BOTTLE_TRADE_ITEMS: ItemId[] = [
   "stick", "stone", "vine", "cloth", "rope", "berry", "mushroom",
   "metal_scrap", "iron_ore", "diamond", "bandage", "herbal_drink",
@@ -37,13 +37,13 @@ export class BottleTradePanel {
       .setOrigin(0, 0).setInteractive();
     const panel = drawPanel(this.scene, x, y, w, h, { fill: 0x0b1228, alpha: 0.98 });
 
-    const title = this.scene.add.text(x + 22, y + 18, "🫙 유리병 무역", {
+    const title = this.scene.add.text(x + 22, y + 18, "🫙 해류 표류병", {
       fontFamily: "Galmuri11, monospace", fontSize: "24px", color: "#eaf0ff",
     });
     const hint = this.scene.add.text(x + 22, y + 50,
       available.length === 0
         ? "담을 수 있는 재료가 없다. 일반 재료·광물·회복품을 가져오자."
-        : "담아 보낼 재료를 하나 고르면, 2~3일 뒤 더 귀한 것이 돌아올지도 모른다.",
+        : "담을 재료를 하나 고르면, 2~3일 뒤 해류에 얽힌 표류물이 돌아올지도 모른다.",
       {
         fontFamily: "Galmuri11, monospace", fontSize: "13px",
         color: "#9fb7ff", wordWrap: { width: w - 60 },
@@ -56,7 +56,7 @@ export class BottleTradePanel {
       const sentDef = ITEMS[store.flags.sentBottle.itemId];
       const daysAgo = store.time.day - store.flags.sentBottle.sentDay;
       const warn = this.scene.add.text(x + 22, y + 82,
-        `⚠ 이미 ${sentDef.icon}${sentDef.name}이(가) 담긴 병을 ${daysAgo}일 전 띄웠다. 돌아오기 전에 또 띄우면 덮어쓴다.`,
+        `⚠ 이미 ${sentDef.icon}${sentDef.name}이(가) 담긴 병을 ${daysAgo}일 전 띄웠다. 해류가 되밀기 전에 또 띄우면 덮어쓴다.`,
         { fontFamily: "Galmuri11, monospace", fontSize: "12px", color: "#ffcc44", wordWrap: { width: w - 60 } }
       );
       c.add(warn);
@@ -129,7 +129,7 @@ export class BottleTradePanel {
     store.inv.remove(id, 1);
     store.flags.sentBottle = { itemId: id, sentDay: store.time.day };
     const def = ITEMS[id];
-    store.pushLog(`🫙 ${def.icon}${def.name}을(를) 담은 유리병을 바다에 띄웠다. 2~3일 뒤 돌아올 것.`);
+    store.pushLog(`🫙 ${def.icon}${def.name}을(를) 담은 유리병을 해류에 띄웠다. 2~3일 뒤 흐름을 타고 되밀려올 수 있다.`);
     audio.play("pickup");
     this.close();
   }

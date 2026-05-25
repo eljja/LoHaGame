@@ -1639,7 +1639,7 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
-  /** 바다에 띄운 유리병의 귀환 처리. dayChange마다 호출. */
+  /** 해류에 띄운 유리병의 귀환 처리. dayChange마다 호출. */
   private processBottleReturn(): void {
     const store = getStore(this);
     const sent = store.flags.sentBottle;
@@ -1650,7 +1650,7 @@ export class WorldScene extends Phaser.Scene {
     if (elapsed === 2 && Math.random() < 0.4) return; // 하루 더 기다려봄
 
     if (Math.random() < 0.15) {
-      store.pushLog("🫙 띄워 보낸 유리병이 끝내 돌아오지 않았다...");
+      store.pushLog("🫙 해류에 띄운 유리병이 끝내 되밀려오지 않았다...");
     } else {
       const rewards = this.bottleRewardFor(sent.itemId);
       for (const r of rewards) {
@@ -1658,14 +1658,14 @@ export class WorldScene extends Phaser.Scene {
         store.discoverRecipes(r.id);
       }
       const txt = rewards.map((r) => `${ITEMS[r.id].icon}${ITEMS[r.id].name}×${r.count}`).join(", ");
-      store.pushLog(`🫙 파도에 유리병이 떠밀려왔다! 안에서 ${txt}을(를) 발견했다.`);
+      store.pushLog(`🫙 해류가 유리병을 되밀어왔다. 병에 얽힌 표류물에서 ${txt}을(를) 건졌다.`);
       this.spawnPickupFx(store.playerTx, store.playerTy - 1, "🫙✨", "#a0e0ff");
       audio.play("pickup");
     }
     store.flags.sentBottle = undefined;
   }
 
-  /** 보낸 아이템의 희귀도에 따라 돌아올 보상 풀. */
+  /** 띄운 아이템의 희귀도에 따라 얽혀 돌아올 표류물 풀. */
   private bottleRewardFor(sent: ItemId): Array<{ id: ItemId; count: number }> {
     const basicPool: Array<{ id: ItemId; count: number }[]> = [
       [{ id: "rope", count: 2 }, { id: "cloth", count: 2 }],
