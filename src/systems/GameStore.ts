@@ -337,14 +337,16 @@ export class GameStore extends Phaser.Events.EventEmitter {
   }
 
   /** 행동 비용으로 게임 시간을 넘길 때도 일부 생존 스탯 소모를 적용한다. */
-  advanceMinutes(minutes: number): void {
-    if (minutes <= 0) return;
+  advanceMinutes(minutes: number): boolean {
+    if (this.stats.dead) return false;
+    if (minutes <= 0) return true;
     for (let i = 0; i < minutes; i++) {
       const realMs = (this.time.totalPhaseSeconds / (12 * 60)) * 1000 * ACTION_TIME_STAT_DRAIN_MULT;
       this.stats.tick(realMs, this.time.phase);
-      if (this.stats.dead) return;
+      if (this.stats.dead) return false;
       this.time.advanceMinutes(1);
     }
+    return true;
   }
 
   loadFrom(blob: SaveBlob): void {

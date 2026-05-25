@@ -16,6 +16,7 @@ export const BOTTLE_TRADE_ITEMS: ItemId[] = [
 
 export class BottleTradePanel {
   private container?: Phaser.GameObjects.Container;
+  private escHandler?: () => void;
   constructor(private scene: Phaser.Scene) {}
 
   open(): void {
@@ -105,7 +106,8 @@ export class BottleTradePanel {
       });
     }
 
-    this.scene.input.keyboard?.once("keydown-ESC", () => this.close());
+    this.escHandler = () => this.close();
+    this.scene.input.keyboard?.once("keydown-ESC", this.escHandler);
 
     const worldCam = this.scene.cameras.main;
     if (worldCam) worldCam.ignore(c);
@@ -133,6 +135,10 @@ export class BottleTradePanel {
   }
 
   close(): void {
+    if (this.escHandler) {
+      this.scene.input.keyboard?.off("keydown-ESC", this.escHandler);
+      this.escHandler = undefined;
+    }
     this.container?.destroy();
     this.container = undefined;
     this.scene.scene.bringToTop("HUDScene");

@@ -16,6 +16,7 @@ export class InventoryPanel {
   private onUseCallback?: (id: ItemId) => void;
   private gridScrollY = 0;
   private gridMaxScroll = 0;
+  private escHandler?: () => void;
 
   constructor(private scene: Phaser.Scene) {}
 
@@ -101,7 +102,8 @@ export class InventoryPanel {
     c.add(detailSlot);
     this.renderDetail(x, y, w, h);
 
-    this.scene.input.keyboard?.once("keydown-ESC", () => this.close());
+    this.escHandler = () => this.close();
+    this.scene.input.keyboard?.once("keydown-ESC", this.escHandler);
 
     const worldCam = this.scene.cameras.main;
     if (worldCam) worldCam.ignore(c);
@@ -486,6 +488,10 @@ export class InventoryPanel {
     if (this.container) {
       const h = (this.container as any)._wheelHandler;
       if (h) this.scene.input.off("wheel", h);
+    }
+    if (this.escHandler) {
+      this.scene.input.keyboard?.off("keydown-ESC", this.escHandler);
+      this.escHandler = undefined;
     }
     this.container?.destroy();
     this.container = undefined;

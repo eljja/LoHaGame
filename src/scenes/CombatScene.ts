@@ -50,6 +50,7 @@ export class CombatScene extends Phaser.Scene {
   private parryLabel?: Phaser.GameObjects.Text;
   private parryBtn?: ButtonNode;
   private parryResolve?: (quality: "perfect" | "good" | "miss") => void;
+  private parryKeyHandler?: () => void;
   /** 다음 공격 ×2 데미지 (퍼펙트 패리 보상) */
   private nextAttackCrit = false;
 
@@ -99,6 +100,7 @@ export class CombatScene extends Phaser.Scene {
     this.buttons = [];
     this.comboHits = 0;
     this.nextAttackCrit = false;
+    this.parryKeyHandler = undefined;
   }
 
   create(): void {
@@ -193,6 +195,29 @@ export class CombatScene extends Phaser.Scene {
 
     this.updatePlayerHp();
     store.stats.on("change", this.updatePlayerHp, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      store.stats.off("change", this.updatePlayerHp, this);
+      if (this.parryKeyHandler) {
+        this.input.keyboard?.off("keydown-SPACE", this.parryKeyHandler);
+        this.parryKeyHandler = undefined;
+      }
+      if (this.attackKeyHandler) {
+        this.input.keyboard?.off("keydown-SPACE", this.attackKeyHandler);
+        this.attackKeyHandler = undefined;
+      }
+      if (this.attackPointerHandler) {
+        this.input.off("pointerdown", this.attackPointerHandler);
+        this.attackPointerHandler = undefined;
+      }
+      if (this.defenseKeyHandler) {
+        this.input.keyboard?.off("keydown-SPACE", this.defenseKeyHandler);
+        this.defenseKeyHandler = undefined;
+      }
+      if (this.defensePointerHandler) {
+        this.input.off("pointerdown", this.defensePointerHandler);
+        this.defensePointerHandler = undefined;
+      }
+    });
 
     // ── 로그 & 버튼 ───────────────────────────────────────
     drawPanel(this, 0, GAME_HEIGHT - 180, GAME_WIDTH, 180, { fill: 0x0a0f1e, alpha: 0.88 });
@@ -967,8 +992,8 @@ export class CombatScene extends Phaser.Scene {
     this.buttons.forEach((b) => b.setVisible(false));
 
     // 스페이스바 단축키
-    const spaceHandler = () => this.resolveParry();
-    this.input.keyboard?.once("keydown-SPACE", spaceHandler);
+    this.parryKeyHandler = () => this.resolveParry();
+    this.input.keyboard?.once("keydown-SPACE", this.parryKeyHandler);
 
     // 시간 초과 시 MISS
     this.time.delayedCall(this.parryDurationMs + 50, () => {
@@ -1026,8 +1051,10 @@ export class CombatScene extends Phaser.Scene {
     this.parryLabel?.destroy(); this.parryLabel = undefined;
     this.parryBtn?.destroy(); this.parryBtn = undefined;
     this.buttons.forEach((b) => b.setVisible(true));
-    // 스페이스바 핸들러 정리 (한 번만 등록되었지만 안전하게)
-    this.input.keyboard?.off("keydown-SPACE");
+    if (this.parryKeyHandler) {
+      this.input.keyboard?.off("keydown-SPACE", this.parryKeyHandler);
+      this.parryKeyHandler = undefined;
+    }
 
     const resolve = this.parryResolve;
     this.parryResolve = undefined;

@@ -160,8 +160,7 @@ export class CaveScene extends Phaser.Scene {
       height: 44,
       fontSize: 13,
       onClick: () => {
-        store.advanceMinutes(20);
-        store.stats.apply({ energy: -4 });
+        if (!this.spendActionTime(20, 4)) return;
         store.pushLog("다른 구역으로 이동해 새 돌벽을 찾았다.");
         this.regenerateGrid();
       },
@@ -290,6 +289,13 @@ export class CaveScene extends Phaser.Scene {
     }
   }
 
+  private spendActionTime(minutes: number, energyCost = 0): boolean {
+    const store = getStore(this);
+    if (!store.advanceMinutes(minutes)) return false;
+    if (energyCost > 0) store.stats.apply({ energy: -energyCost });
+    return !store.stats.dead;
+  }
+
   private mineTile(idx: number, tile: Phaser.GameObjects.Rectangle, icon: Phaser.GameObjects.Text): void {
     const store = getStore(this);
     if (!tile.input) return;
@@ -313,6 +319,7 @@ export class CaveScene extends Phaser.Scene {
 
     // 보물 상자 처리
     if (idx === this.chestIdx) {
+      if (!this.spendActionTime(5)) return;
       this.chestIdx = -1;
       tile.disableInteractive();
       audio.play("pickup");
@@ -329,14 +336,12 @@ export class CaveScene extends Phaser.Scene {
       for (const [id, cnt] of chestLoot) store.inv.add(id, cnt);
       const lootStr = chestLoot.map(([id, n]) => `${ITEMS[id].icon}×${n}`).join(" + ");
       store.pushLog(`📦 동굴 보물 상자 발견! ${lootStr} 획득!`);
-      store.advanceMinutes(5);
       return;
     }
 
+    if (!this.spendActionTime(10, 3)) return;
     // 채굴 성공 — 위험도 누적 후 사고 판정
     audio.play("mine");
-    store.advanceMinutes(10);
-    store.stats.apply({ energy: -3 });
     this.addDanger(1);
     // 사고 판정 — 위험도 6 이상부터 (위험도 × 5%) 확률
     if (this.dangerMeter >= 6 && Math.random() < this.dangerMeter * 0.05) {
@@ -433,9 +438,8 @@ export class CaveScene extends Phaser.Scene {
     const store = getStore(this);
     if (!this.canDescend()) return;
     const next = Math.min(3, store.caveDepth + 1) as 1 | 2 | 3;
+    if (!this.spendActionTime(20, 8)) return;
     store.caveDepth = next;
-    store.advanceMinutes(20);
-    store.stats.apply({ energy: -8 });
     this.addDanger(2);
     store.pushLog(`⬇ ${store.caveDepth}층으로 내려왔다. (위험도 +2)`);
     this.depthText.setText(`깊이 ${store.caveDepth}층`);

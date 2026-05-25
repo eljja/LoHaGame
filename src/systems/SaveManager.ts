@@ -55,7 +55,7 @@ export const SaveManager = {
       const raw = localStorage.getItem(KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as unknown;
-      return isSaveBlob(parsed) ? parsed : null;
+      return normalizeSaveBlob(parsed);
     } catch {
       return null;
     }
@@ -73,7 +73,7 @@ export const SaveManager = {
 
   hasSave(): boolean {
     try {
-      return localStorage.getItem(KEY) != null;
+      return SaveManager.load() != null;
     } catch {
       return false;
     }
@@ -88,21 +88,24 @@ function isNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-function isSaveBlob(value: unknown): value is SaveBlob {
-  if (!isRecord(value)) return false;
+function normalizeSaveBlob(value: unknown): SaveBlob | null {
+  if (!isRecord(value)) return null;
   const time = value.time;
   const stats = value.stats;
-  if (!isRecord(time) || !isNumber(time.day) || !isNumber(time.hour) || !isNumber(time.elapsedInPhase)) return false;
-  if (time.phase !== "day" && time.phase !== "night") return false;
-  if (!isRecord(stats) || !isNumber(stats.hp) || !isNumber(stats.hunger) || !isNumber(stats.thirst) || !isNumber(stats.energy)) return false;
-  if (!Array.isArray(value.inventory) || !isInventory(value.inventory)) return false;
-  if (!isRecord(value.flags)) return false;
-  if (value.caveDepth !== 0 && value.caveDepth !== 1 && value.caveDepth !== 2 && value.caveDepth !== 3) return false;
-  if (value.map !== undefined && !isWorldMapBlob(value.map)) return false;
-  if (value.playerTx !== undefined && !isNumber(value.playerTx)) return false;
-  if (value.playerTy !== undefined && !isNumber(value.playerTy)) return false;
-  if (!isNumber(value.savedAt)) return false;
-  return true;
+  if (!isRecord(time) || !isNumber(time.day) || !isNumber(time.hour) || !isNumber(time.elapsedInPhase)) return null;
+  if (time.phase !== "day" && time.phase !== "night") return null;
+  if (!isRecord(stats) || !isNumber(stats.hp) || !isNumber(stats.hunger) || !isNumber(stats.thirst) || !isNumber(stats.energy)) return null;
+  if (!Array.isArray(value.inventory) || !isInventory(value.inventory)) return null;
+  if (!isRecord(value.flags)) return null;
+  if (value.caveDepth !== 0 && value.caveDepth !== 1 && value.caveDepth !== 2 && value.caveDepth !== 3) return null;
+  if (value.map !== undefined && !isWorldMapBlob(value.map)) return null;
+  if (value.playerTx !== undefined && !isNumber(value.playerTx)) return null;
+  if (value.playerTy !== undefined && !isNumber(value.playerTy)) return null;
+  if (value.savedAt !== undefined && !isNumber(value.savedAt)) return null;
+  return {
+    ...(value as unknown as Omit<SaveBlob, "savedAt">),
+    savedAt: isNumber(value.savedAt) ? value.savedAt : 0,
+  };
 }
 
 function isInventory(value: unknown[]): boolean {

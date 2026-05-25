@@ -9,5 +9,13 @@ export default defineConfig({
   build: {
     target: "es2020",
     sourcemap: true,
+    chunkSizeWarningLimit: 1700,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          phaser: ["phaser"],
+        },
+      },
+    },
   },
 });

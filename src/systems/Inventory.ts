@@ -50,6 +50,9 @@ export class Inventory extends Phaser.Events.EventEmitter {
   }
 
   remove(id: ItemId, count = 1): boolean {
+    if (count <= 0) return true;
+    if (!this.has(id, count)) return false;
+
     let need = count;
     for (let i = 0; i < this.slots.length && need > 0; i++) {
       const s = this.slots[i];

@@ -7,6 +7,7 @@ import { WIN_DAY } from "../config";
 
 export class JournalPanel {
   private container?: Phaser.GameObjects.Container;
+  private escHandler?: () => void;
   constructor(private scene: Phaser.Scene) {}
 
   open(): void {
@@ -90,7 +91,8 @@ export class JournalPanel {
     });
     c.add(closeX);
 
-    this.scene.input.keyboard?.once("keydown-ESC", () => this.close());
+    this.escHandler = () => this.close();
+    this.scene.input.keyboard?.once("keydown-ESC", this.escHandler);
 
     // 씬 레벨 wheel 이벤트
     const wheelHandler = (_p: unknown, _gs: unknown, _dx: number, dy: number) => {
@@ -109,6 +111,10 @@ export class JournalPanel {
     if (this.container) {
       const h = (this.container as any)._wheelHandler;
       if (h) this.scene.input.off("wheel", h);
+    }
+    if (this.escHandler) {
+      this.scene.input.keyboard?.off("keydown-ESC", this.escHandler);
+      this.escHandler = undefined;
     }
     this.container?.destroy();
     this.container = undefined;

@@ -18,6 +18,7 @@ export class CraftingPanel {
   private panelH = 0;
   private listScrollY = 0;
   private listMaxScroll = 0;
+  private escHandler?: () => void;
 
   constructor(private scene: Phaser.Scene) {}
 
@@ -97,7 +98,8 @@ export class CraftingPanel {
       onClick: () => this.close(),
     });
     c.add(closeX);
-    this.scene.input.keyboard?.once("keydown-ESC", () => this.close());
+    this.escHandler = () => this.close();
+    this.scene.input.keyboard?.once("keydown-ESC", this.escHandler);
     this.container = c;
 
     const worldCam = this.scene.cameras.main;
@@ -332,6 +334,10 @@ export class CraftingPanel {
     if (this.container) {
       const h = (this.container as any)._wheelHandler;
       if (h) this.scene.input.off("wheel", h);
+    }
+    if (this.escHandler) {
+      this.scene.input.keyboard?.off("keydown-ESC", this.escHandler);
+      this.escHandler = undefined;
     }
     this.container?.destroy();
     this.container = undefined;

@@ -53,6 +53,7 @@ export class WorldScene extends Phaser.Scene {
 
   // World object layer (tagged so UI cam can ignore them)
   private worldObjects: Phaser.GameObjects.GameObject[] = [];
+  private keyboardHandlers: Array<[string, () => void]> = [];
 
   constructor() {
     super("WorldScene");
@@ -60,6 +61,7 @@ export class WorldScene extends Phaser.Scene {
 
   create(): void {
     const store = getStore(this);
+    this.keyboardHandlers = [];
 
     // HUDScene이 실행 중이 아니면 런치 (TitleScene/IntroScene에서 이미 런치했으면 무시됨)
     if (!this.scene.isActive("HUDScene")) {
@@ -291,20 +293,24 @@ export class WorldScene extends Phaser.Scene {
       store.stats.off("death", deathHandler);
       store.inv.off("change", inventoryChangeHandler);
       this.events.off(Phaser.Scenes.Events.RESUME, resumeHandler);
+      for (const [event, handler] of this.keyboardHandlers) {
+        this.input.keyboard?.off(event, handler);
+      }
+      this.keyboardHandlers = [];
     });
 
     // ── Keyboard ──────────────────────────────────────────
-    this.input.keyboard?.on("keydown-UP", () => this.tryMove(0, -1));
-    this.input.keyboard?.on("keydown-DOWN", () => this.tryMove(0, 1));
-    this.input.keyboard?.on("keydown-LEFT", () => this.tryMove(-1, 0));
-    this.input.keyboard?.on("keydown-RIGHT", () => this.tryMove(1, 0));
-    this.input.keyboard?.on("keydown-I", () => this.toggleInventory());
-    this.input.keyboard?.on("keydown-C", () => this.toggleCrafting());
-    this.input.keyboard?.on("keydown-J", () => this.toggleJournal());
-    this.input.keyboard?.on("keydown-Z", () => this.trySleep());
-    this.input.keyboard?.on("keydown-NUMPAD_FIVE", () => this.pickupAtPlayer());
-    this.input.keyboard?.on("keydown-ENTER", () => this.pickupAtPlayer());
-    this.input.keyboard?.on("keydown-SPACE", () => this.pickupAtPlayer());
+    this.bindKeyboard("keydown-UP", () => this.tryMove(0, -1));
+    this.bindKeyboard("keydown-DOWN", () => this.tryMove(0, 1));
+    this.bindKeyboard("keydown-LEFT", () => this.tryMove(-1, 0));
+    this.bindKeyboard("keydown-RIGHT", () => this.tryMove(1, 0));
+    this.bindKeyboard("keydown-I", () => this.toggleInventory());
+    this.bindKeyboard("keydown-C", () => this.toggleCrafting());
+    this.bindKeyboard("keydown-J", () => this.toggleJournal());
+    this.bindKeyboard("keydown-Z", () => this.trySleep());
+    this.bindKeyboard("keydown-NUMPAD_FIVE", () => this.pickupAtPlayer());
+    this.bindKeyboard("keydown-ENTER", () => this.pickupAtPlayer());
+    this.bindKeyboard("keydown-SPACE", () => this.pickupAtPlayer());
 
     // First visit hint
     const store2 = getStore(this);
@@ -324,6 +330,18 @@ export class WorldScene extends Phaser.Scene {
         store2.pushLog(`   → 배는 현재 위치에서 ${dir} 방향에 있다.`);
       }
     }
+  }
+
+  private bindKeyboard(event: string, handler: () => void): void {
+    this.input.keyboard?.on(event, handler);
+    this.keyboardHandlers.push([event, handler]);
+  }
+
+  private spendActionTime(minutes: number, energyCost = 0): boolean {
+    const store = getStore(this);
+    if (!store.advanceMinutes(minutes)) return false;
+    if (energyCost > 0) store.stats.apply({ energy: -energyCost });
+    return !store.stats.dead;
   }
 
   // ── Terrain rendering ──────────────────────────────────────────
@@ -659,10 +677,9 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
+    if (!this.spendActionTime(3, 0.5)) return;
     store.playerTx = nx;
     store.playerTy = ny;
-    store.advanceMinutes(3);
-    store.stats.apply({ energy: -0.5 });
 
     // Animate player
     const newX = nx * TILE_PX + TILE_PX / 2;
@@ -757,11 +774,10 @@ export class WorldScene extends Phaser.Scene {
 
     switch (entity.type) {
       case "tree": {
+        if (!this.spendActionTime(15, 3)) return;
         const count = Phaser.Math.Between(2, 3);
         store.inv.add("stick", count);
         store.map.removeEntity(entity.id);
-        store.advanceMinutes(15);
-        store.stats.apply({ energy: -3 });
         store.pushLog(`🌳 나무에서 나뭇가지를 구했다. 나뭇가지 ×${count}`);
         this.spawnPickupFx(entity.tx, entity.ty, `+🪵×${count}`);
         this.gatherPerkBonus(entity.tx, entity.ty, "stick");
@@ -771,10 +787,10 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "berry_bush": {
+        if (!this.spendActionTime(10)) return;
         const count = Phaser.Math.Between(1, 2);
         store.inv.add("berry", count);
         store.map.removeEntity(entity.id);
-        store.advanceMinutes(10);
         let msg = `🫐 열매덤불에서 열매를 땄다. 열매 ×${count}`;
         // 씨앗 드롭 (30%)
         if (Math.random() < 0.30) {
@@ -792,13 +808,12 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "stone_outcrop": {
+        if (!this.spendActionTime(20, 5)) return;
         const baseCount = Phaser.Math.Between(1, 2);
         const forgeBonus = store.activeCombos.has("forge") ? baseCount : 0;
         const count = baseCount + forgeBonus;
         store.inv.add("stone", count);
         store.map.removeEntity(entity.id);
-        store.advanceMinutes(20);
-        store.stats.apply({ energy: -5 });
         const msg = forgeBonus > 0
           ? `🪨 돌을 캤다. 돌 ×${count} (🏭화로 보너스 +${forgeBonus})`
           : `🪨 돌을 캤다. 돌 ×${count}`;
@@ -811,10 +826,10 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "vine": {
+        if (!this.spendActionTime(10)) return;
         const count = Phaser.Math.Between(1, 2);
         store.inv.add("vine", count);
         store.map.removeEntity(entity.id);
-        store.advanceMinutes(10);
         store.pushLog(`🌿 덩굴을 모았다. 덩굴 ×${count}`);
         this.spawnPickupFx(entity.tx, entity.ty, `+🌿×${count}`);
         this.gatherPerkBonus(entity.tx, entity.ty, "vine");
@@ -824,9 +839,9 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "shell": {
+        if (!this.spendActionTime(10)) return;
         const r = Math.random();
         store.map.removeEntity(entity.id);
-        store.advanceMinutes(10);
         if (r < 0.25) {
           store.inv.add("fish_raw", 1);
           store.pushLog("🐚 조개에서 날것 물고기를 찾았다.");
@@ -854,10 +869,10 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "driftwood": {
+        if (!this.spendActionTime(10)) return;
         const count = Phaser.Math.Between(1, 2);
         store.inv.add("stick", count);
         store.map.removeEntity(entity.id);
-        store.advanceMinutes(10);
         let msg = `🪵 유목에서 나뭇가지를 모았다. 나뭇가지 ×${count}`;
         this.spawnPickupFx(entity.tx, entity.ty, `+🪵×${count}`);
         if (Math.random() < 0.2) {
@@ -871,10 +886,10 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "mushroom": {
+        if (!this.spendActionTime(10)) return;
         const count = Phaser.Math.Between(1, 2);
         store.inv.add("mushroom", count);
         store.map.removeEntity(entity.id);
-        store.advanceMinutes(10);
         store.pushLog(`🍄 버섯을 채취했다. 버섯 ×${count} (약한 회복 효과)`);
         this.spawnPickupFx(entity.tx, entity.ty, `+🍄×${count}`, "#ffb3d1");
         this.gatherPerkBonus(entity.tx, entity.ty, "mushroom");
@@ -884,8 +899,7 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "rabbit": {
-        store.advanceMinutes(40);
-        store.stats.apply({ energy: -10 });
+        if (!this.spendActionTime(40, 10)) return;
         const target = DAY_GAME[0] as EnemyDef;
         store.pushLog(`🐇 토끼를 발견했다!`);
         store.unlockAchievement("first_hunt");
@@ -896,8 +910,7 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "wolf": {
-        store.advanceMinutes(30);
-        store.stats.apply({ energy: -12 });
+        if (!this.spendActionTime(30, 12)) return;
         const wolfDef = DAY_GAME.find((d) => d.id === "wolf")!;
         store.pushLog("🐺 굶주린 늑대가 달려든다! 공격력이 높으니 조심하라.");
         audio.play("boss_alert");
@@ -908,8 +921,7 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "boar": {
-        store.advanceMinutes(35);
-        store.stats.apply({ energy: -14 });
+        if (!this.spendActionTime(35, 14)) return;
         const boarDef = DAY_GAME.find((d) => d.id === "boar")!;
         store.pushLog("🐗 성난 멧돼지가 엄니를 들이댄다! 도망은 불가능하다.");
         audio.play("boss_alert");
@@ -920,8 +932,7 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "bear": {
-        store.advanceMinutes(40);
-        store.stats.apply({ energy: -16 });
+        if (!this.spendActionTime(40, 16)) return;
         const bearDef = DAY_GAME.find((d) => d.id === "bear")!;
         store.pushLog("🐻 거대한 곰이 두 발로 일어서며 포효한다! 만만치 않다.");
         audio.play("boss_alert");
@@ -932,8 +943,8 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "flower": {
+        if (!this.spendActionTime(5)) return;
         store.map.removeEntity(entity.id);
-        store.advanceMinutes(5);
         store.pushLog("🌼 들꽃이 피어있다. 향기가 은은하다.");
         if (Math.random() < 0.1) {
           store.inv.add("cloth", 1);
@@ -948,9 +959,9 @@ export class WorldScene extends Phaser.Scene {
           store.pushLog("⛏ 동굴 입구다. 안으로 들어가려면 곡괭이(⛏)가 필요하다.\n   제작 패널(C키)에서 돌 곡괭이를 만들어보자: 나뭇가지×2 + 돌×3 + 덩굴×1");
           break;
         }
+        if (!this.spendActionTime(10)) return;
         store.pushLog("⛏ 동굴 안으로 들어간다... 어두운 돌 벽을 곡괭이로 두드리면 광석을 캘 수 있다.");
         store.caveDepth = 1;
-        store.advanceMinutes(10);
         this.cameras.main.fadeOut(400, 0, 0, 0);
         this.time.delayedCall(420, () => {
           this.scene.launch("CaveScene");
@@ -971,7 +982,7 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "cliff_lookout": {
-        store.advanceMinutes(20);
+        if (!this.spendActionTime(20)) return;
         if (store.time.phase === "night") {
           store.pushLog("🏔 어두운 밤바다 위로 별이 쏟아진다...");
           this.rollNightSkyEvent();
@@ -990,9 +1001,9 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "river_spring": {
+        if (!this.spendActionTime(10)) return;
         const count = Phaser.Math.Between(1, 2);
         store.inv.add("water_dirty", count);
-        store.advanceMinutes(10);
         store.pushLog(`💧 샘물을 길었다. 더러운 물 ×${count} (끓여야 마실 수 있다)`);
         store.discoverRecipes("water_dirty");
         // 낚싯대 있으면 낚시 포인트 힌트
@@ -1075,8 +1086,8 @@ export class WorldScene extends Phaser.Scene {
       }
 
       case "ripe_plant": {
+        if (!this.spendActionTime(5)) return;
         store.map.removeEntity(entity.id);
-        store.advanceMinutes(5);
         const berryCount = Phaser.Math.Between(2, 4);
         const seedCount = Math.random() < 0.6 ? 1 : 0;
         store.inv.add("berry", berryCount);
@@ -1123,8 +1134,7 @@ export class WorldScene extends Phaser.Scene {
           store.pushLog("❌ 땅이 수상하게 부풀어있다. 곡괭이(⛏)가 있어야 파낼 수 있다.");
           break;
         }
-        store.advanceMinutes(30);
-        store.stats.apply({ energy: -12 });
+        if (!this.spendActionTime(30, 12)) return;
         store.map.removeEntity(entity.id);
 
         const roll = Math.random();
@@ -1171,8 +1181,7 @@ export class WorldScene extends Phaser.Scene {
     const store = getStore(this);
     const lootLeft = entity.meta?.lootLeft ?? 0;
 
-    store.advanceMinutes(30);
-    store.stats.apply({ energy: -5 });
+    if (!this.spendActionTime(30, 5)) return;
 
     const lootPools = [
       [
@@ -1224,11 +1233,11 @@ export class WorldScene extends Phaser.Scene {
       if (store.time.phase === "day") {
         // 현재 낮의 남은 분 + 1로 밤으로 전환
         const remaining = Math.ceil((1 - store.time.phaseProgress) * 12 * 60);
-        store.advanceMinutes(remaining + 1);
+        if (!store.advanceMinutes(remaining + 1)) return;
       } else {
         // 밤 → 아침으로
         const remaining = Math.ceil((1 - store.time.phaseProgress) * 12 * 60);
-        store.advanceMinutes(remaining + 1);
+        if (!store.advanceMinutes(remaining + 1)) return;
         break; // 밤을 건너뛰면 아침 → 종료
       }
     }
@@ -1722,8 +1731,7 @@ export class WorldScene extends Phaser.Scene {
   /** 낚시 미니게임: 찌가 잠기면 제때 버튼 클릭 */
   private startFishing(fishTx: number, fishTy: number): void {
     const store = getStore(this);
-    store.advanceMinutes(20);
-    store.stats.apply({ energy: -4 });
+    if (!this.spendActionTime(20, 4)) return;
     store.pushLog("🎣 낚싯대를 드리웠다. 찌가 잠기면 '낚아채기!' 버튼을 눌러라!");
 
     const PW = 400;
