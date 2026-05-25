@@ -11,6 +11,20 @@ interface RandomEventsDeps {
 export function setupRandomEvents(scene: Phaser.Scene, deps: RandomEventsDeps): void {
   const store = getStore(scene);
   const dayChangeHandler = () => {
+    if (store.flags.pendingStormDay != null && store.flags.pendingStormDay < store.time.day) {
+      store.flags.pendingStormDay = undefined;
+    }
+    if (store.flags.pendingStormDay === store.time.day) {
+      scene.time.delayedCall(1800, () => triggerForecastStorm(scene, deps));
+      return;
+    }
+    if (store.time.day > 2 && store.flags.pendingStormDay == null && Math.random() < 0.18) {
+      store.flags.pendingStormDay = store.time.day + 1;
+      scene.time.delayedCall(1200, () => {
+        store.pushLog("🌫 먼 바다 위로 먹구름이 뭉친다. 내일 아침 폭풍이 섬을 훑고 지나갈 것 같다.");
+        audio.play("phase_night");
+      });
+    }
     if (Math.random() < 0.55) {
       scene.time.delayedCall(2500, () => rollMorningEvent(scene, deps));
     }
@@ -85,4 +99,24 @@ function rollMorningEvent(scene: Phaser.Scene, deps: RandomEventsDeps): void {
   ];
   const pick = Phaser.Utils.Array.GetRandom(events) as () => void;
   pick();
+}
+
+function triggerForecastStorm(scene: Phaser.Scene, deps: RandomEventsDeps): void {
+  const store = getStore(scene);
+  store.flags.pendingStormDay = undefined;
+  const energyLoss = store.inv.has("tent") || store.flags.hasTent ? 8 : 16;
+  const lostSticks = Math.min(store.inv.count("stick"), Phaser.Math.Between(0, 2));
+  const lostVines = Math.min(store.inv.count("vine"), Phaser.Math.Between(0, 1));
+  if (lostSticks > 0) store.inv.remove("stick", lostSticks);
+  if (lostVines > 0) store.inv.remove("vine", lostVines);
+  store.stats.apply({ energy: -energyLoss });
+  const losses = [
+    lostSticks > 0 ? `나뭇가지 ${lostSticks}개` : "",
+    lostVines > 0 ? `덩굴 ${lostVines}개` : "",
+  ].filter(Boolean).join(", ");
+  store.pushLog(losses
+    ? `⛈ 예고된 폭풍이 지나갔다. 몸을 웅크려 버텼지만 ${losses}가 흩어졌다.`
+    : "⛈ 예고된 폭풍이 지나갔다. 큰 피해는 없지만 밤새 버티느라 기운이 빠졌다.");
+  deps.spawnPickupFx(store.playerTx, store.playerTy, "⛈", "#9fb7ff");
+  audio.play("phase_night");
 }

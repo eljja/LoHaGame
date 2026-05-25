@@ -149,6 +149,8 @@ export interface GameState {
     fishCaught: number;
     nightSkyBuff?: boolean; // next sleep at tent gives bonus HP
     lastNightSkyDay?: number; // game-day key of last sky observation
+    hazardWarnings?: string[]; // already shown warning keys
+    pendingStormDay?: number; // day when a forecast storm should arrive
     /** 바다에 띄운 유리병 (2~3일 뒤 돌아옴) */
     sentBottle?: { itemId: ItemId; sentDay: number };
   };

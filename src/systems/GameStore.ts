@@ -41,6 +41,8 @@ export class GameStore extends Phaser.Events.EventEmitter {
       "stone_pickaxe", "bandage", "bonfire", "tent",
     ],
     fishCaught: 0,
+    hazardWarnings: [],
+    pendingStormDay: undefined,
   };
 
   caveDepth: 0 | 1 | 2 | 3 = 0;
@@ -307,6 +309,8 @@ export class GameStore extends Phaser.Events.EventEmitter {
         "stone_pickaxe", "bandage", "bonfire", "tent",
       ],
       fishCaught: 0,
+      hazardWarnings: [],
+      pendingStormDay: undefined,
     };
     this.crafting = new Crafting(this.inv, () => ({
       hasBonfire: this.isNearStructure("bonfire_placed", this.playerTx, this.playerTy),
@@ -370,6 +374,8 @@ export class GameStore extends Phaser.Events.EventEmitter {
       fishCaught: savedFlags.fishCaught ?? 0,
       nightSkyBuff: savedFlags.nightSkyBuff,
       lastNightSkyDay: savedFlags.lastNightSkyDay,
+      hazardWarnings: Array.isArray(savedFlags.hazardWarnings) ? savedFlags.hazardWarnings : [],
+      pendingStormDay: savedFlags.pendingStormDay,
       sentBottle: savedFlags.sentBottle,
     };
 

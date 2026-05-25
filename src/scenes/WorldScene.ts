@@ -243,6 +243,7 @@ export class WorldScene extends Phaser.Scene {
 
     const dayChangeHandler = (d: number) => {
       store.pushLog(`☀ Day ${d}가 밝았다.`);
+      this.warnMorningHazards(d);
       store.checkTimedAchievements();
       // 심은 씨앗 2일 뒤 수확 가능 단계로 성장
       this.matureGardenPlants();
@@ -254,6 +255,18 @@ export class WorldScene extends Phaser.Scene {
       }
     };
     store.time.on("dayChange", dayChangeHandler);
+
+    const hourChangeHandler = (h: number) => {
+      if (store.time.phase === "day" && h >= 16) {
+        this.warnHazardOnce(
+          `nightfall-${store.time.day}`,
+          store.inv.has("torch")
+            ? "🌇 해가 낮게 기운다. 곧 밤이지만 횃불이 있어 첫 어둠은 버틸 만하다."
+            : "🌇 해가 낮게 기운다. 밤이 오면 시야가 줄고 야생 동물이 가까워질 것이다. 횃불을 준비하자."
+        );
+      }
+    };
+    store.time.on("hourChange", hourChangeHandler);
 
     const day10TickHandler = (d: number) => this.triggerSeaBoss(d);
     store.time.on("day10Tick", day10TickHandler);
@@ -302,6 +315,7 @@ export class WorldScene extends Phaser.Scene {
       store.off("recipesDiscovered", recipesDiscoveredHandler);
       store.time.off("phaseChange", phaseChangeHandler);
       store.time.off("dayChange", dayChangeHandler);
+      store.time.off("hourChange", hourChangeHandler);
       store.time.off("day10Tick", day10TickHandler);
       store.stats.off("death", deathHandler);
       store.inv.off("change", inventoryChangeHandler);
@@ -1403,6 +1417,34 @@ export class WorldScene extends Phaser.Scene {
       ? `${goal.recipe.icon} ${goal.recipe.name}: ${goal.canCraft ? "제작 가능" : goal.discovered ? goal.needs : "재료 찾기"}`
       : "50일 생존 또는 뗏목 탈출";
     this.guideText.setText(`🎯 ${goalLine}   🗺 ${formatNearestMarkerLine(store)}`);
+  }
+
+  private warnMorningHazards(day: number): void {
+    if (day > WIN_DAY) return;
+    if (day % 10 === 0) {
+      this.warnHazardOnce(
+        `sea-boss-today-${day}`,
+        "🌊 새벽부터 바다가 비정상적으로 부풀어 오른다. 오늘 해안에서 큰 위협이 올라올 것이다.",
+        true
+      );
+      return;
+    }
+    if ((day + 1) % 10 === 0) {
+      this.warnHazardOnce(
+        `sea-boss-tomorrow-${day}`,
+        "🌊 수평선 아래에서 둔탁한 울림이 이어진다. 내일 바다에서 무언가 올라올 것 같다.",
+        true
+      );
+    }
+  }
+
+  private warnHazardOnce(key: string, message: string, bossAlert = false): void {
+    const store = getStore(this);
+    const warnings = store.flags.hazardWarnings ??= [];
+    if (warnings.includes(key)) return;
+    warnings.push(key);
+    store.pushLog(message);
+    if (bossAlert) audio.play("boss_alert");
   }
 
   /** 플레이어 인접 타일에서 잠들 수 있는 장소(설치된 천막/수색 완료된 난파선)를 찾는다. */
