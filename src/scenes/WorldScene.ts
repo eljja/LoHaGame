@@ -18,6 +18,7 @@ import { showComboToast, COMBO_META } from "../ui/ComboToast";
 import { setupWildlifeAI } from "../systems/WildlifeAI";
 import { setupClouds, setupWeather } from "../systems/WeatherSystem";
 import { setupRandomEvents } from "../systems/RandomEvents";
+import { formatNearestMarkerLine, getNextCraftingGoal } from "../systems/ProgressGuide";
 import type { Achievement } from "../data/achievements";
 
 // Viewport constants
@@ -37,6 +38,7 @@ export class WorldScene extends Phaser.Scene {
   private uiContainer!: Phaser.GameObjects.Container;
   private actionHintText!: Phaser.GameObjects.Text;
   private equipBarText!: Phaser.GameObjects.Text;
+  private guideText!: Phaser.GameObjects.Text;
   private menuBar!: Phaser.GameObjects.Container;
   private dpad!: Phaser.GameObjects.Container;
   private nightOverlay!: Phaser.GameObjects.Rectangle;
@@ -140,6 +142,15 @@ export class WorldScene extends Phaser.Scene {
     this.uiContainer.add(this.equipBarText);
     this.refreshEquipBar();
 
+    this.guideText = this.add.text(305, 636, "", {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "12px",
+      color: "#9fb7ff",
+      wordWrap: { width: 720 },
+    });
+    this.uiContainer.add(this.guideText);
+    this.refreshGuideText();
+
     // 밤 어둠 오버레이 (횃불 없으면 짙어짐, worldCam 무관 — uiCam으로 렌더)
     this.nightOverlay = this.add
       .rectangle(VP_X, VP_Y, VP_W, VP_H, 0x000020, 0)
@@ -203,6 +214,7 @@ export class WorldScene extends Phaser.Scene {
           store.pushLog(`📜 새 레시피 발견: ${recipe.icon} ${recipe.name}!`);
         });
       });
+      this.refreshGuideText();
     };
     store.on("achievement", achievementHandler);
     store.on("comboActivated", comboActivatedHandler);
@@ -281,6 +293,7 @@ export class WorldScene extends Phaser.Scene {
     const inventoryChangeHandler = () => {
       this.refreshEquipBar();
       this.updateNightOverlay();
+      this.refreshGuideText();
     };
     store.inv.on("change", inventoryChangeHandler);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -1348,6 +1361,7 @@ export class WorldScene extends Phaser.Scene {
 
   private updateActionHint(): void {
     const store = getStore(this);
+    this.refreshGuideText();
     const { playerTx, playerTy } = store;
     // Check adjacent entities
     const adjacent: WorldEntity[] = [];
@@ -1379,6 +1393,16 @@ export class WorldScene extends Phaser.Scene {
       if (sleepable) s += " | 💤 Z:잠자기 가능";
       this.actionHintText.setText(s);
     }
+  }
+
+  private refreshGuideText(): void {
+    if (!this.guideText) return;
+    const store = getStore(this);
+    const goal = getNextCraftingGoal(store);
+    const goalLine = goal
+      ? `${goal.recipe.icon} ${goal.recipe.name}: ${goal.canCraft ? "제작 가능" : goal.discovered ? goal.needs : "재료 찾기"}`
+      : "50일 생존 또는 뗏목 탈출";
+    this.guideText.setText(`🎯 ${goalLine}   🗺 ${formatNearestMarkerLine(store)}`);
   }
 
   /** 플레이어 인접 타일에서 잠들 수 있는 장소(설치된 천막/수색 완료된 난파선)를 찾는다. */

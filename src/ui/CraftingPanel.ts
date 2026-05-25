@@ -5,6 +5,7 @@ import { drawPanel } from "./Panel";
 import { makeButton, type ButtonNode } from "./Button";
 import { getStore } from "../systems/GameStore";
 import { audio } from "../systems/AudioManager";
+import { formatCraftingGoalLine, getNextCraftingGoal } from "../systems/ProgressGuide";
 import type { Recipe } from "../types";
 
 export class CraftingPanel {
@@ -43,10 +44,12 @@ export class CraftingPanel {
       fontSize: "26px",
       color: "#eaf0ff",
     });
-    const hint = this.scene.add.text(x + 24, y + 56, "레시피를 클릭해 필요 재료와 제작 버튼을 확인한다.", {
+    const goal = getNextCraftingGoal(getStore(this.scene));
+    const hint = this.scene.add.text(x + 24, y + 56, `🎯 ${formatCraftingGoalLine(goal)} | 레시피를 클릭해 필요 재료를 확인한다.`, {
       fontFamily: "Galmuri11, monospace",
-      fontSize: "13px",
+      fontSize: "12px",
       color: "#8d9bd1",
+      wordWrap: { width: w - 120 },
     });
 
     // 좌/우 구역 분리선

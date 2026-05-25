@@ -4,6 +4,7 @@ import { drawPanel } from "./Panel";
 import { makeButton } from "./Button";
 import { getStore } from "../systems/GameStore";
 import { WIN_DAY } from "../config";
+import { formatCraftingGoalLine, getCraftingGoals, getExplorationMarkers, getNextCraftingGoal } from "../systems/ProgressGuide";
 
 export class JournalPanel {
   private container?: Phaser.GameObjects.Container;
@@ -45,8 +46,29 @@ export class JournalPanel {
       fontFamily: "Galmuri11, monospace", fontSize: "14px", color: "#cfd8ff", lineSpacing: 4,
     });
 
+    const nextGoal = getNextCraftingGoal(store);
+    const goalLines = getCraftingGoals(store).slice(0, 4).map((goal) => {
+      const mark = goal.complete ? "✓" : goal.canCraft ? "!" : "·";
+      return `${mark} ${goal.recipe.icon} ${goal.recipe.name} - ${goal.purpose}`;
+    });
+    const markers = getExplorationMarkers(store).slice(0, 6).map((marker) =>
+      `${marker.icon} ${marker.label}: ${marker.direction} ${marker.distance}칸 (${marker.status})`
+    );
+
+    const guideTxt = this.scene.add.text(x + 22, y + 154, [
+      `🎯 다음 제작: ${formatCraftingGoalLine(nextGoal)}`,
+      `제작 단계: ${goalLines.join("  ")}`,
+      `🗺 탐험 지도: ${markers.length > 0 ? markers.join("  ") : "주요 장소를 수색 중"}`,
+    ].join("\n"), {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "12px",
+      color: "#a9b8ef",
+      lineSpacing: 5,
+      wordWrap: { width: w - 50 },
+    });
+
     // ── 구분선 ──────────────────────────────────────
-    const divY = y + 186;
+    const divY = y + 250;
     const divLine = this.scene.add.text(x + 22, divY, "━━ 최근 기록 ━━", {
       fontFamily: "Galmuri11, monospace", fontSize: "14px", color: "#5566aa",
     });
@@ -81,7 +103,7 @@ export class JournalPanel {
       fontFamily: "Galmuri11, monospace", fontSize: "11px", color: "#445588",
     }).setOrigin(1, 1);
 
-    c.add([overlay, panel, title, bodyTxt, divLine, logTxt, hintTxt]);
+    c.add([overlay, panel, title, bodyTxt, guideTxt, divLine, logTxt, hintTxt]);
 
     // 닫기 버튼
     const closeX = makeButton(this.scene, x + w - 40, y + 36, {
