@@ -166,30 +166,31 @@ export class CombatScene extends Phaser.Scene {
     // buildDicePanel() 함수는 레거시 보존용으로 남겨둠.
 
     // ── 플레이어 영역 ──────────────────────────────────────
-    this.add.text(60, GAME_HEIGHT - 228, "🧑", { fontSize: "68px" }).setOrigin(0.5);
+    const playerHpPanelY = GAME_HEIGHT - 286;
+    this.add.text(60, playerHpPanelY - 30, "🧑", { fontSize: "68px" }).setOrigin(0.5);
 
-    // 플레이어 HP 패널 (왼쪽 하단)
-    drawPanel(this, 6, GAME_HEIGHT - 180, 278, 100, { fill: 0x0a1428, alpha: 0.9 });
+    // 플레이어 HP 패널. 하단 로그 패널 위에 배치해 전투 중에도 가리지 않는다.
+    drawPanel(this, 6, playerHpPanelY, 278, 96, { fill: 0x0a1428, alpha: 0.94 });
 
-    this.add.text(20, GAME_HEIGHT - 174, "❤ 생존자", {
+    this.add.text(20, playerHpPanelY + 8, "❤ 생존자", {
       fontFamily: "Galmuri11, monospace",
-      fontSize: "12px",
+      fontSize: "13px",
       color: "#ff9fb7",
     });
 
     // HP 바 배경
     this.playerHpBarBg = this.add
-      .rectangle(14, GAME_HEIGHT - 152, this.playerHpBarMaxWidth, 14, 0x1a0a10, 1)
+      .rectangle(14, playerHpPanelY + 34, this.playerHpBarMaxWidth, 16, 0x1a0a10, 1)
       .setOrigin(0, 0)
       .setStrokeStyle(1, 0x5a2230);
     // HP 바
     this.playerHpBar = this.add
-      .rectangle(14, GAME_HEIGHT - 152, this.playerHpBarMaxWidth, 14, 0x4aff8a, 1)
+      .rectangle(14, playerHpPanelY + 34, this.playerHpBarMaxWidth, 16, 0x4aff8a, 1)
       .setOrigin(0, 0);
 
-    this.playerHpText = this.add.text(14, GAME_HEIGHT - 132, "", {
+    this.playerHpText = this.add.text(14, playerHpPanelY + 58, "", {
       fontFamily: "Galmuri11, monospace",
-      fontSize: "13px",
+      fontSize: "14px",
       color: "#eaf0ff",
     });
 
@@ -243,7 +244,7 @@ export class CombatScene extends Phaser.Scene {
     const hp = Math.max(0, store.stats.hp);
     const pct = hp / 100;
     const w = Math.max(0, this.playerHpBarMaxWidth * pct);
-    this.playerHpBar.setSize(w, 14);
+    this.playerHpBar.setSize(w, 16);
 
     const col = hp > 60 ? 0x4aff8a : hp > 30 ? 0xffcc44 : 0xff5a6a;
     this.playerHpBar.setFillStyle(col);
