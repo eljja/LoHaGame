@@ -19,6 +19,7 @@ import { setupWildlifeAI } from "../systems/WildlifeAI";
 import { setupClouds, setupWeather } from "../systems/WeatherSystem";
 import { setupRandomEvents } from "../systems/RandomEvents";
 import { formatNearestMarkerLine, getNextCraftingGoal } from "../systems/ProgressGuide";
+import { determineVictoryEnding } from "../systems/RunSummary";
 import type { Achievement } from "../data/achievements";
 
 // Viewport constants
@@ -251,7 +252,7 @@ export class WorldScene extends Phaser.Scene {
       this.processBottleReturn();
       if (d > WIN_DAY) {
         this.scene.stop("HUDScene");
-        this.scene.start("VictoryScene", { raftEscape: false, days: d });
+        this.scene.start("VictoryScene", { ending: determineVictoryEnding(store), days: d });
       }
     };
     store.time.on("dayChange", dayChangeHandler);
@@ -343,6 +344,8 @@ export class WorldScene extends Phaser.Scene {
     const store2 = getStore(this);
     if (!store2.flags.firstTimeVisited["world" as never]) {
       (store2.flags.firstTimeVisited as Record<string, boolean>)["world"] = true;
+      const profile = store2.map.profileDef;
+      store2.pushLog(`🏝 이번 섬: ${profile.icon} ${profile.name} — ${profile.desc}`);
       store2.pushLog("💡 화살표/D-패드로 이동. 가운데 ✋ 버튼·Numpad5·Enter·Space로 현재 위치 또는 인접 자원을 줍는다.");
       store2.pushLog("💤 쉴 곳: 🏕 거점 자리에 ⛺ 천막을 설치하거나, 🚢 난파선 수색을 마치면 근처에서 Z 키/잠자기 버튼으로 잘 수 있다.");
       store2.pushLog("🚢 근처에 좌초된 배가 있다! 가까이 다가가 탭하면 내부를 수색할 수 있다.");
@@ -1635,7 +1638,7 @@ export class WorldScene extends Phaser.Scene {
     this.cameras.main.fadeOut(1500, 0, 0, 0);
     this.time.delayedCall(1600, () => {
       this.scene.stop("HUDScene");
-      this.scene.start("VictoryScene", { raftEscape: true, days: store.time.day });
+      this.scene.start("VictoryScene", { ending: "raft", raftEscape: true, days: store.time.day });
     });
   }
 

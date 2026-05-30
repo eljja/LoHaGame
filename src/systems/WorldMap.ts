@@ -1,5 +1,95 @@
 import { ENTITIES, TERRAIN, WORLD_TILES, type EntityType, type TerrainType } from "../data/tiles";
 
+export type IslandProfileId = "balanced" | "long_coast" | "deep_forest" | "rough_sea" | "dry_rock";
+
+export interface IslandProfileDef {
+  id: IslandProfileId;
+  name: string;
+  icon: string;
+  desc: string;
+  islandScale: number;
+  beachScale: number;
+  forestBias: number;
+  rockScale: number;
+  cliffScale: number;
+  riverShift: number;
+  riverWidthBonus: number;
+  capMult: Partial<Record<EntityType, number>>;
+}
+
+export const ISLAND_PROFILES: Record<IslandProfileId, IslandProfileDef> = {
+  balanced: {
+    id: "balanced",
+    name: "균형 잡힌 섬",
+    icon: "🏝",
+    desc: "해변, 숲, 돌산이 고르게 섞여 있다.",
+    islandScale: 1,
+    beachScale: 1,
+    forestBias: 0,
+    rockScale: 1,
+    cliffScale: 1,
+    riverShift: 0,
+    riverWidthBonus: 0,
+    capMult: {},
+  },
+  long_coast: {
+    id: "long_coast",
+    name: "긴 해안선",
+    icon: "🐚",
+    desc: "해변이 넓어 조개와 표류물이 많지만 숲 자원은 조금 적다.",
+    islandScale: 0.98,
+    beachScale: 1.14,
+    forestBias: -0.08,
+    rockScale: 0.95,
+    cliffScale: 1,
+    riverShift: 2,
+    riverWidthBonus: 0,
+    capMult: { shell: 1.35, driftwood: 1.3, tree: 0.9, vine: 0.9 },
+  },
+  deep_forest: {
+    id: "deep_forest",
+    name: "깊은 숲",
+    icon: "🌲",
+    desc: "숲이 짙어 목재와 덩굴, 야생동물이 더 자주 보인다.",
+    islandScale: 1.03,
+    beachScale: 0.94,
+    forestBias: 0.18,
+    rockScale: 0.95,
+    cliffScale: 0.95,
+    riverShift: -1,
+    riverWidthBonus: 0,
+    capMult: { tree: 1.25, vine: 1.25, mushroom: 1.2, rabbit: 1.15, wolf: 1.15, shell: 0.85 },
+  },
+  rough_sea: {
+    id: "rough_sea",
+    name: "거친 바다",
+    icon: "🌊",
+    desc: "파도가 거칠어 해안 표류물이 많고 낚시터가 조금 더 열린다.",
+    islandScale: 0.96,
+    beachScale: 1.08,
+    forestBias: -0.03,
+    rockScale: 1,
+    cliffScale: 1.08,
+    riverShift: 3,
+    riverWidthBonus: 1,
+    capMult: { driftwood: 1.45, shell: 1.15 },
+  },
+  dry_rock: {
+    id: "dry_rock",
+    name: "마른 돌섬",
+    icon: "🪨",
+    desc: "돌산과 절벽이 넓어 광물은 찾기 쉽지만 식생은 성기다.",
+    islandScale: 1,
+    beachScale: 0.96,
+    forestBias: -0.12,
+    rockScale: 1.38,
+    cliffScale: 1.25,
+    riverShift: -3,
+    riverWidthBonus: 0,
+    capMult: { stone_outcrop: 1.35, tree: 0.85, berry_bush: 0.85, flower: 0.85 },
+  },
+};
+
 export interface WorldEntity {
   id: number;
   type: EntityType;
@@ -11,6 +101,7 @@ export interface WorldEntity {
 
 export interface WorldMapSaveBlob {
   seed: number;
+  profile?: IslandProfileId;
   entities: WorldEntity[];
   nextId: number;
 }
@@ -32,12 +123,18 @@ export class WorldMap {
   terrain: TerrainType[][] = [];
   entities: WorldEntity[] = [];
   seed: number;
+  profile: IslandProfileId;
   private nextId = 1;
 
-  constructor(seed?: number) {
+  constructor(seed?: number, profile?: IslandProfileId) {
     this.seed = seed ?? Math.floor(Math.random() * 2 ** 31);
+    this.profile = profile ?? pickProfile(this.seed);
     this.generateTerrain();
     this.seedEntities();
+  }
+
+  get profileDef(): IslandProfileDef {
+    return ISLAND_PROFILES[this.profile];
   }
 
   // ── 지형 생성 ──
@@ -46,9 +143,10 @@ export class WorldMap {
     const N = this.size;
     const cx = (N - 1) / 2;
     const cy = (N - 1) / 2;
+    const profile = this.profileDef;
     // 비례 상수: N=64 기준 → islandR≈27, beachR≈29.6
-    const islandR = N * 0.422;
-    const beachR  = N * 0.463;
+    const islandR = N * 0.422 * profile.islandScale;
+    const beachR  = N * 0.463 * profile.beachScale;
 
     const forestNoise: number[][] = [];
     for (let y = 0; y < N; y++) {
@@ -60,7 +158,7 @@ export class WorldMap {
 
     // 강: 북→남 가로지르는 곡선 (시드 기반 오프셋)
     const riverOffsets: number[] = [];
-    const baseRiverX = Math.floor(N * 0.32);
+    const baseRiverX = Math.floor(N * 0.32) + profile.riverShift;
     for (let y = 0; y < N; y++) {
       const wave = Math.sin(y * 0.18 + rnd() * 0.3) * 3 + rnd() * 1.2 - 0.6;
       riverOffsets.push(Math.round(baseRiverX + wave));
@@ -81,7 +179,7 @@ export class WorldMap {
         else {
           // 섬 내부: 중심부는 숲 많고 가장자리는 풀
           const nz = forestNoise[y][x];
-          const forestBias = d < N * 0.25 ? 0.55 : 0.4;
+          const forestBias = clamp((d < N * 0.25 ? 0.55 : 0.4) + profile.forestBias, 0.15, 0.8);
           t = nz > 1 - forestBias ? "forest" : "grass";
         }
         row.push(t);
@@ -94,7 +192,7 @@ export class WorldMap {
     for (let y = 0; y < N; y++) {
       for (let x = 0; x < N; x++) {
         const d = Math.sqrt((x - rockCenter.x) ** 2 + (y - rockCenter.y) ** 2);
-        if (d < N * 0.07 && this.in(x, y) && this.terrain[y][x] !== "deep_water" && this.terrain[y][x] !== "shallow_water") {
+        if (d < N * 0.07 * profile.rockScale && this.in(x, y) && this.terrain[y][x] !== "deep_water" && this.terrain[y][x] !== "shallow_water") {
           this.terrain[y][x] = "rock";
         }
       }
@@ -105,7 +203,7 @@ export class WorldMap {
     for (let y = 0; y < N; y++) {
       for (let x = 0; x < N; x++) {
         const d = Math.sqrt((x - cliffCenter.x) ** 2 + (y - cliffCenter.y) ** 2);
-        if (d < N * 0.056 && this.in(x, y) && this.terrain[y][x] !== "deep_water" && this.terrain[y][x] !== "shallow_water") {
+        if (d < N * 0.056 * profile.cliffScale && this.in(x, y) && this.terrain[y][x] !== "deep_water" && this.terrain[y][x] !== "shallow_water") {
           this.terrain[y][x] = "cliff_rock";
         }
       }
@@ -116,6 +214,7 @@ export class WorldMap {
       const rx = riverOffsets[y];
       const widths = [0, 1]; // 기본 2칸 폭
       if (rnd() > 0.5) widths.push(2); // 가끔 3칸
+      for (let w = 0; w < profile.riverWidthBonus; w++) widths.push(2 + w);
       for (const w of widths) {
         const x = rx + w;
         if (this.in(x, y)) {
@@ -148,6 +247,9 @@ export class WorldMap {
     this.placePoi("fishing_spot", rnd, (tx, ty) => this.adjacentTo(tx, ty, "river"));
     this.placePoi("fishing_spot", rnd, (tx, ty) => this.adjacentTo(tx, ty, "river"));
     this.placePoi("fishing_spot", rnd, (tx, ty) => this.terrain[ty][tx] === "sand" && this.adjacentTo(tx, ty, "shallow_water"));
+    if (this.profile === "rough_sea") {
+      this.placePoi("fishing_spot", rnd, (tx, ty) => this.terrain[ty][tx] === "sand" && this.adjacentTo(tx, ty, "shallow_water"));
+    }
 
     // 자원 리스폰
     this.nightRespawn();
@@ -240,7 +342,8 @@ export class WorldMap {
     for (const [type, def] of Object.entries(ENTITIES) as Array<[EntityType, typeof ENTITIES[EntityType]]>) {
       if (!def.respawn) continue;
       const current = this.entities.filter((e) => e.type === type).length;
-      const toSpawn = Math.max(0, def.cap - current);
+      const cap = Math.max(0, Math.round(def.cap * (this.profileDef.capMult[type] ?? 1)));
+      const toSpawn = Math.max(0, cap - current);
       for (let i = 0; i < toSpawn; i++) {
         if (!this.trySpawn(type, rnd)) break;
         spawned++;
@@ -265,13 +368,27 @@ export class WorldMap {
   }
 
   toJSON(): WorldMapSaveBlob {
-    return { seed: this.seed, entities: this.entities.map((e) => ({ ...e })), nextId: this.nextId };
+    return { seed: this.seed, profile: this.profile, entities: this.entities.map((e) => ({ ...e })), nextId: this.nextId };
   }
 
   static fromJSON(b: WorldMapSaveBlob): WorldMap {
-    const m = new WorldMap(b.seed);
+    const m = new WorldMap(b.seed, isIslandProfileId(b.profile) ? b.profile : undefined);
     m.entities = b.entities.map((e) => ({ ...e }));
     m.nextId = b.nextId;
     return m;
   }
+}
+
+function pickProfile(seed: number): IslandProfileId {
+  const ids = Object.keys(ISLAND_PROFILES) as IslandProfileId[];
+  const rnd = mulberry32(seed ^ 0x51a7);
+  return ids[Math.floor(rnd() * ids.length)] ?? "balanced";
+}
+
+export function isIslandProfileId(value: unknown): value is IslandProfileId {
+  return typeof value === "string" && value in ISLAND_PROFILES;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }

@@ -1,9 +1,11 @@
 import Phaser from "phaser";
 import { GAME_WIDTH, GAME_HEIGHT } from "../config";
 import { makeButton } from "../ui/Button";
+import { drawPanel } from "../ui/Panel";
 import { SaveManager } from "../systems/SaveManager";
 import { getStore } from "../systems/GameStore";
 import { audio } from "../systems/AudioManager";
+import { buildRunSummary } from "../systems/RunSummary";
 
 export class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -43,11 +45,26 @@ export class GameOverScene extends Phaser.Scene {
     this.tweens.add({ targets: title, alpha: 0.7, duration: 1400, yoyo: true, repeat: -1 });
 
     const store = getStore(this);
-    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, `Day ${store.time.day}에 이야기는 막을 내렸다.`, {
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 6, `Day ${store.time.day}에 이야기는 막을 내렸다.`, {
       fontFamily: "Galmuri11, monospace",
       fontSize: "22px",
       color: "#cfd8ff",
     }).setOrigin(0.5);
+
+    const panelX = GAME_WIDTH / 2 - 360;
+    const panelY = GAME_HEIGHT / 2 + 44;
+    drawPanel(this, panelX, panelY, 720, 178, { fill: 0x060a18, alpha: 0.86 });
+    this.add.text(panelX + 24, panelY + 16, "도전 기록", {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "17px",
+      color: "#ffcfda",
+    });
+    this.add.text(panelX + 24, panelY + 48, buildRunSummary(store, { failed: true }).join("\n"), {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "14px",
+      color: "#cfd8ff",
+      lineSpacing: 6,
+    });
 
     makeButton(this, GAME_WIDTH / 2 - 140, GAME_HEIGHT - 90, {
       label: "🔁 다시 도전",

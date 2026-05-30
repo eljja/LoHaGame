@@ -33,7 +33,9 @@ export class JournalPanel {
     const bosses = store.flags.bossesDefeated;
     const remaining = WIN_DAY - store.time.day;
     const nextBoss = Math.ceil(store.time.day / 10) * 10;
+    const profile = store.map.profileDef;
     const summary = [
+      `섬 성격: ${profile.icon} ${profile.name}`,
       `Day ${store.time.day} / ${WIN_DAY}`,
       `구조선까지 ${remaining}일 남음`,
       `다음 해양 습격: Day ${nextBoss} ${bosses.includes(nextBoss) ? "(격퇴)" : ""}`,
@@ -55,7 +57,7 @@ export class JournalPanel {
       `${marker.icon} ${marker.label}: ${marker.direction} ${marker.distance}칸 (${marker.status})`
     );
 
-    const guideTxt = this.scene.add.text(x + 22, y + 154, [
+    const guideTxt = this.scene.add.text(x + 22, y + 182, [
       `🎯 다음 제작: ${formatCraftingGoalLine(nextGoal)}`,
       `제작 단계: ${goalLines.join("  ")}`,
       `🗺 탐험 지도: ${markers.length > 0 ? markers.join("  ") : "주요 장소를 수색 중"}`,
@@ -68,7 +70,7 @@ export class JournalPanel {
     });
 
     // ── 구분선 ──────────────────────────────────────
-    const divY = y + 250;
+    const divY = y + 278;
     const divLine = this.scene.add.text(x + 22, divY, "━━ 최근 기록 ━━", {
       fontFamily: "Galmuri11, monospace", fontSize: "14px", color: "#5566aa",
     });

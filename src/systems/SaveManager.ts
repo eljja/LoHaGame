@@ -118,6 +118,7 @@ function isInventory(value: unknown[]): boolean {
 
 function isWorldMapBlob(value: unknown): value is WorldMapSaveBlob {
   if (!isRecord(value) || !isNumber(value.seed) || !isNumber(value.nextId) || !Array.isArray(value.entities)) return false;
+  if (value.profile !== undefined && typeof value.profile !== "string") return false;
   return value.entities.every((entity) => {
     if (!isRecord(entity)) return false;
     return isNumber(entity.id) && typeof entity.type === "string" && entity.type in ENTITIES && isNumber(entity.tx) && isNumber(entity.ty);

@@ -1,17 +1,20 @@
 import Phaser from "phaser";
 import { GAME_WIDTH, GAME_HEIGHT, WIN_DAY } from "../config";
 import { makeButton } from "../ui/Button";
+import { drawPanel } from "../ui/Panel";
 import { SaveManager } from "../systems/SaveManager";
 import { getStore } from "../systems/GameStore";
 import { audio } from "../systems/AudioManager";
+import { buildRunSummary, determineVictoryEnding, type VictoryEnding } from "../systems/RunSummary";
 
 interface VictoryInit {
   raftEscape?: boolean;
+  ending?: VictoryEnding;
   days?: number;
 }
 
 export class VictoryScene extends Phaser.Scene {
-  private raftEscape = false;
+  private ending?: VictoryEnding;
   private daysSurvived = WIN_DAY;
 
   constructor() {
@@ -19,7 +22,7 @@ export class VictoryScene extends Phaser.Scene {
   }
 
   init(data: VictoryInit): void {
-    this.raftEscape = !!data?.raftEscape;
+    this.ending = data?.raftEscape ? "raft" : data?.ending;
     this.daysSurvived = data?.days ?? WIN_DAY;
   }
 
@@ -30,21 +33,28 @@ export class VictoryScene extends Phaser.Scene {
     audio.playBgm("victory");
     audio.play("victory");
 
-    if (this.raftEscape) {
-      this.drawRaftEnding();
-    } else {
-      this.drawRescueEnding();
+    const store = getStore(this);
+    const ending = determineVictoryEnding(store, this.ending);
+
+    switch (ending) {
+      case "raft":
+        this.drawRaftEnding();
+        break;
+      case "signal":
+        this.drawSignalEnding();
+        break;
+      case "cave":
+        this.drawCaveEnding();
+        break;
+      case "settlement":
+        this.drawSettlementEnding();
+        break;
+      default:
+        this.drawRescueEnding();
+        break;
     }
 
-    const store = getStore(this);
-    const bosses = store.flags.bossesDefeated.length;
-    const achievements = store.flags.unlockedAchievements?.length ?? 0;
-
-    this.add.text(GAME_WIDTH / 2, 270, `처치한 해양 보스: ${bosses}/5   ·   달성한 도전 과제: ${achievements}/9`, {
-      fontFamily: "Galmuri11, monospace",
-      fontSize: "16px",
-      color: "#ffe8bb",
-    }).setOrigin(0.5);
+    this.drawRunSummary(ending);
 
     makeButton(this, GAME_WIDTH / 2, GAME_HEIGHT - 90, {
       label: "🏠 타이틀로",
@@ -90,6 +100,111 @@ export class VictoryScene extends Phaser.Scene {
       fontSize: "22px",
       color: "#fff3d0",
     }).setOrigin(0.5);
+  }
+
+  // ── 봉화 엔딩: 신호망으로 구조 ───────────────────────
+  private drawSignalEnding(): void {
+    const bg = this.add.graphics();
+    bg.fillGradientStyle(0x172040, 0x172040, 0xff9a54, 0xffd889, 1);
+    bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    const seaY = GAME_HEIGHT * 0.62;
+    this.add.rectangle(0, seaY, GAME_WIDTH, GAME_HEIGHT - seaY, 0x143f65, 0.9).setOrigin(0, 0);
+    this.add.text(GAME_WIDTH / 2 - 280, seaY - 52, "🏔🔥", { fontSize: "84px" }).setOrigin(0.5);
+    this.add.text(GAME_WIDTH / 2 + 220, seaY - 30, "🚢", { fontSize: "88px" }).setOrigin(0.5);
+
+    const beam = this.add.graphics();
+    beam.fillStyle(0xfff1a8, 0.32);
+    beam.fillTriangle(GAME_WIDTH / 2 - 275, seaY - 82, GAME_WIDTH / 2 + 185, seaY - 65, GAME_WIDTH / 2 + 185, seaY + 5);
+
+    const title = this.add.text(GAME_WIDTH / 2, 120, "🔥 봉화 구조 🔥", {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "58px",
+      color: "#ffffff",
+      stroke: "#301006",
+      strokeThickness: 6,
+    }).setOrigin(0.5);
+    this.tweens.add({ targets: title, scale: 1.03, duration: 1500, yoyo: true, repeat: -1 });
+
+    this.add.text(GAME_WIDTH / 2, 196, `Day ${this.daysSurvived}, 절벽의 불빛이 먼 바다에 닿았다.`, {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "20px",
+      color: "#fff3d0",
+    }).setOrigin(0.5);
+  }
+
+  // ── 동굴 엔딩: 섬의 비밀 발견 ───────────────────────
+  private drawCaveEnding(): void {
+    const bg = this.add.graphics();
+    bg.fillGradientStyle(0x05060c, 0x05060c, 0x25283a, 0x505070, 1);
+    bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    const cave = this.add.graphics();
+    cave.fillStyle(0x11131f, 0.92);
+    cave.fillEllipse(GAME_WIDTH / 2, GAME_HEIGHT * 0.58, 520, 260);
+    cave.lineStyle(4, 0x89808f, 0.7);
+    cave.strokeEllipse(GAME_WIDTH / 2, GAME_HEIGHT * 0.58, 520, 260);
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT * 0.58 - 10, "💎", { fontSize: "92px" }).setOrigin(0.5);
+    this.add.text(GAME_WIDTH / 2 - 190, GAME_HEIGHT * 0.58 + 52, "🧑", { fontSize: "56px" }).setOrigin(0.5);
+
+    const title = this.add.text(GAME_WIDTH / 2, 120, "💎 섬의 비밀 💎", {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "58px",
+      color: "#ffffff",
+      stroke: "#101020",
+      strokeThickness: 6,
+    }).setOrigin(0.5);
+    this.tweens.add({ targets: title, scale: 1.03, duration: 1500, yoyo: true, repeat: -1 });
+
+    this.add.text(GAME_WIDTH / 2, 196, `Day ${this.daysSurvived}, 동굴 깊은 곳에서 섬의 흔적을 밝혀냈다.`, {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "20px",
+      color: "#dce6ff",
+    }).setOrigin(0.5);
+  }
+
+  // ── 거점 엔딩: 정착에 가까운 생존 ─────────────────────
+  private drawSettlementEnding(): void {
+    const bg = this.add.graphics();
+    bg.fillGradientStyle(0x284b61, 0x284b61, 0x7aa56e, 0xd7b66f, 1);
+    bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    this.add.rectangle(0, GAME_HEIGHT * 0.62, GAME_WIDTH, GAME_HEIGHT * 0.38, 0x345f37, 0.95).setOrigin(0, 0);
+    this.add.text(GAME_WIDTH / 2 - 105, GAME_HEIGHT * 0.58, "⛺", { fontSize: "86px" }).setOrigin(0.5);
+    this.add.text(GAME_WIDTH / 2 + 10, GAME_HEIGHT * 0.6, "🔥", { fontSize: "70px" }).setOrigin(0.5);
+    this.add.text(GAME_WIDTH / 2 + 110, GAME_HEIGHT * 0.58, "🧑", { fontSize: "60px" }).setOrigin(0.5);
+
+    const title = this.add.text(GAME_WIDTH / 2, 120, "⛺ 섬 거점 ⛺", {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "58px",
+      color: "#ffffff",
+      stroke: "#183010",
+      strokeThickness: 6,
+    }).setOrigin(0.5);
+    this.tweens.add({ targets: title, scale: 1.03, duration: 1500, yoyo: true, repeat: -1 });
+
+    this.add.text(GAME_WIDTH / 2, 196, `Day ${this.daysSurvived}, 임시 피난처는 살아갈 만한 거점이 됐다.`, {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "20px",
+      color: "#fff3d0",
+    }).setOrigin(0.5);
+  }
+
+  private drawRunSummary(ending: VictoryEnding): void {
+    const store = getStore(this);
+    const panelX = GAME_WIDTH / 2 - 390;
+    const panelY = 282;
+    drawPanel(this, panelX, panelY, 780, 224, { fill: 0x071022, alpha: 0.78 });
+    this.add.text(panelX + 26, panelY + 18, "생존 기록", {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "18px",
+      color: "#ffe8bb",
+    });
+    this.add.text(panelX + 26, panelY + 54, buildRunSummary(store, { days: this.daysSurvived, ending }).join("\n"), {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "15px",
+      color: "#dce6ff",
+      lineSpacing: 8,
+    });
   }
 
   // ── 뗏목 엔딩: 조기 탈출 ────────────────────────────
