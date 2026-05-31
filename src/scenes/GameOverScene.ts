@@ -51,8 +51,16 @@ export class GameOverScene extends Phaser.Scene {
       color: "#cfd8ff",
     }).setOrigin(0.5);
 
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 28, `실패 원인: ${store.stats.deathReason ?? "체력이 모두 소진됐다."}`, {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "17px",
+      color: "#ffcfda",
+      wordWrap: { width: GAME_WIDTH - 180 },
+      align: "center",
+    }).setOrigin(0.5);
+
     const panelX = GAME_WIDTH / 2 - 360;
-    const panelY = GAME_HEIGHT / 2 + 44;
+    const panelY = GAME_HEIGHT / 2 + 72;
     drawPanel(this, panelX, panelY, 720, 178, { fill: 0x060a18, alpha: 0.86 });
     this.add.text(panelX + 24, panelY + 16, "도전 기록", {
       fontFamily: "Galmuri11, monospace",

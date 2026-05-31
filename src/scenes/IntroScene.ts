@@ -17,6 +17,9 @@ export class IntroScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.elapsed = 0;
+    this.done = false;
+
     const cam = this.cameras.main;
     cam.fadeIn(600, 0, 0, 0);
 

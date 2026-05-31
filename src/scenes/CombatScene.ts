@@ -501,7 +501,7 @@ export class CombatScene extends Phaser.Scene {
       // 시간 초과 = 방어 실패 = 풀 피해
       if (t === null) {
         this.pushLog(`😬 방어 실패! ${this.enemy.name}의 공격 ${baseDmg} 피해.`);
-        store.stats.apply({ hp: -baseDmg });
+        store.stats.apply({ hp: -baseDmg }, `${this.enemy.name}의 공격을 막지 못했다.`);
         this.cameras.main.shake(220, 0.012);
         audio.play("hurt");
         this.time.delayedCall(450, () => this.endDefenseTurn());
@@ -539,7 +539,7 @@ export class CombatScene extends Phaser.Scene {
       this.pushLog(`${label} → 피해 ${dmgTaken}.`);
 
       if (dmgTaken > 0) {
-        store.stats.apply({ hp: -dmgTaken });
+        store.stats.apply({ hp: -dmgTaken }, `${this.enemy.name}의 공격으로 쓰러졌다.`);
         audio.play("hurt");
         if (dmgTaken > baseDmg * 0.5) this.cameras.main.shake(150, 0.008);
       } else {
@@ -903,7 +903,7 @@ export class CombatScene extends Phaser.Scene {
       }
       this.defending = false;
       this.pushLog(logMsg);
-      if (dmg > 0) store.stats.apply({ hp: -dmg });
+      if (dmg > 0) store.stats.apply({ hp: -dmg }, `${this.enemy.name}의 공격으로 쓰러졌다.`);
 
       this.time.delayedCall(quality === "perfect" ? 600 : 400, () => {
         if (this.enemyHp <= 0) {

@@ -8,20 +8,18 @@ export class PlayerStats extends Phaser.Events.EventEmitter {
   thirst = 80;
   energy = 90;
   dead = false;
+  deathReason?: string;
   /** Perk multipliers set by GameStore when achievements unlock */
   hungerMult = 1.0;
   energyMult = 1.0;
 
-  apply(delta: StatDelta): void {
+  apply(delta: StatDelta, deathReason?: string): void {
     if (delta.hp != null) this.hp = Phaser.Math.Clamp(this.hp + delta.hp, 0, 100);
     if (delta.hunger != null) this.hunger = Phaser.Math.Clamp(this.hunger + delta.hunger, 0, 100);
     if (delta.thirst != null) this.thirst = Phaser.Math.Clamp(this.thirst + delta.thirst, 0, 100);
     if (delta.energy != null) this.energy = Phaser.Math.Clamp(this.energy + delta.energy, 0, 100);
     this.emit("change");
-    if (this.hp <= 0 && !this.dead) {
-      this.dead = true;
-      this.emit("death");
-    }
+    if (this.hp <= 0 && !this.dead) this.markDead(deathReason ?? this.inferDirectDeathReason(delta));
   }
 
   tick(deltaMs: number, phase: Phase): void {
@@ -48,16 +46,14 @@ export class PlayerStats extends Phaser.Events.EventEmitter {
     if (prevHunger > 0 && this.hunger <= 0)  this.emit("warn", "hunger");
     if (prevThirst > 0 && this.thirst <= 0)  this.emit("warn", "thirst");
 
-    if (this.hp <= 0 && !this.dead) {
-      this.dead = true;
-      this.emit("death");
-    }
+    if (this.hp <= 0 && !this.dead) this.markDead(this.inferSurvivalDeathReason());
     this.emit("change");
   }
 
   restFull(): void {
     this.energy = 100;
     this.hp = Math.min(100, this.hp + 20);
+    if (this.hp > 0) this.deathReason = undefined;
     this.emit("change");
   }
 
@@ -71,5 +67,26 @@ export class PlayerStats extends Phaser.Events.EventEmitter {
     this.thirst = d.thirst;
     this.energy = d.energy;
     this.dead = this.hp <= 0;
+    this.deathReason = this.dead ? this.inferSurvivalDeathReason() : undefined;
+  }
+
+  private markDead(reason: string): void {
+    this.dead = true;
+    this.deathReason = reason;
+    this.emit("death", reason);
+  }
+
+  private inferDirectDeathReason(delta: StatDelta): string {
+    if ((delta.hp ?? 0) < 0) return "체력이 모두 소진됐다.";
+    return this.inferSurvivalDeathReason();
+  }
+
+  private inferSurvivalDeathReason(): string {
+    const causes: string[] = [];
+    if (this.thirst <= 0) causes.push("탈수");
+    if (this.hunger <= 0) causes.push("굶주림");
+    if (this.energy <= 0) causes.push("탈진");
+    if (causes.length === 0) return "체력이 모두 소진됐다.";
+    return `${causes.join(" + ")}로 버티지 못했다.`;
   }
 }
