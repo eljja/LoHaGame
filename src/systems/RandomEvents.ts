@@ -22,6 +22,7 @@ export function setupRandomEvents(scene: Phaser.Scene, deps: RandomEventsDeps): 
       store.flags.pendingStormDay = store.time.day + 1;
       scene.time.delayedCall(1200, () => {
         store.pushLog("🌫 먼 바다 위로 먹구름이 뭉친다. 내일 아침 폭풍이 섬을 훑고 지나갈 것 같다.");
+        store.pushLog("   → 천막이나 난파선 근처에서 쉬면 폭풍 뒤 피로를 줄일 수 있다.");
         audio.play("phase_night");
       });
     }

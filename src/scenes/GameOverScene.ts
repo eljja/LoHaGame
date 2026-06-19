@@ -6,6 +6,7 @@ import { SaveManager } from "../systems/SaveManager";
 import { getStore } from "../systems/GameStore";
 import { audio } from "../systems/AudioManager";
 import { buildRunSummary } from "../systems/RunSummary";
+import { recordRun } from "../systems/RunHistory";
 
 export class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -45,6 +46,7 @@ export class GameOverScene extends Phaser.Scene {
     this.tweens.add({ targets: title, alpha: 0.7, duration: 1400, yoyo: true, repeat: -1 });
 
     const store = getStore(this);
+    recordRun(store, "failed");
     this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 6, `Day ${store.time.day}에 이야기는 막을 내렸다.`, {
       fontFamily: "Galmuri11, monospace",
       fontSize: "22px",

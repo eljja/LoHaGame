@@ -5,6 +5,7 @@ import { drawPanel } from "../ui/Panel";
 import { SaveManager } from "../systems/SaveManager";
 import { getStore } from "../systems/GameStore";
 import { audio } from "../systems/AudioManager";
+import { recordRun } from "../systems/RunHistory";
 import { buildRunSummary, determineVictoryEnding, type VictoryEnding } from "../systems/RunSummary";
 
 interface VictoryInit {
@@ -35,6 +36,7 @@ export class VictoryScene extends Phaser.Scene {
 
     const store = getStore(this);
     const ending = determineVictoryEnding(store, this.ending);
+    recordRun(store, "victory", { ending, day: this.daysSurvived });
 
     switch (ending) {
       case "raft":

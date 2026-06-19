@@ -18,6 +18,7 @@ import { showComboToast, COMBO_META } from "../ui/ComboToast";
 import { setupWildlifeAI } from "../systems/WildlifeAI";
 import { setupClouds, setupWeather } from "../systems/WeatherSystem";
 import { setupRandomEvents } from "../systems/RandomEvents";
+import { formatDangerSignals } from "../systems/DangerTracker";
 import { formatNearestMarkerLine, getNextCraftingGoal } from "../systems/ProgressGuide";
 import { determineVictoryEnding } from "../systems/RunSummary";
 import type { Achievement } from "../data/achievements";
@@ -143,9 +144,9 @@ export class WorldScene extends Phaser.Scene {
     this.uiContainer.add(this.equipBarText);
     this.refreshEquipBar();
 
-    this.guideText = this.add.text(305, 636, "", {
+    this.guideText = this.add.text(305, 664, "", {
       fontFamily: "Galmuri11, monospace",
-      fontSize: "12px",
+      fontSize: "11px",
       color: "#9fb7ff",
       wordWrap: { width: 720 },
     });
@@ -225,6 +226,7 @@ export class WorldScene extends Phaser.Scene {
       audio.play(phase === "day" ? "phase_day" : "phase_night");
       this.syncBgm();
       this.updateNightOverlay();
+      this.refreshGuideText();
       if (phase === "day") {
         const count = store.map.nightRespawn();
         this.renderEntities();
@@ -259,6 +261,7 @@ export class WorldScene extends Phaser.Scene {
 
     const hourChangeHandler = (h: number) => {
       if (store.time.phase === "day" && h >= 16) {
+        this.refreshGuideText();
         this.warnHazardOnce(
           `nightfall-${store.time.day}`,
           store.inv.has("torch")
@@ -1437,7 +1440,7 @@ export class WorldScene extends Phaser.Scene {
     const goalLine = goal
       ? `${goal.recipe.icon} ${goal.recipe.name}: ${goal.canCraft ? "제작 가능" : goal.discovered ? goal.needs : "재료 찾기"}`
       : "50일 생존 또는 뗏목 탈출";
-    this.guideText.setText(`🎯 ${goalLine}   🗺 ${formatNearestMarkerLine(store)}`);
+    this.guideText.setText(`🎯 ${goalLine}   🗺 ${formatNearestMarkerLine(store)}\n⚠ ${formatDangerSignals(store)}`);
   }
 
   private warnMorningHazards(day: number): void {
@@ -1445,7 +1448,7 @@ export class WorldScene extends Phaser.Scene {
     if (day % 10 === 0) {
       this.warnHazardOnce(
         `sea-boss-today-${day}`,
-        "🌊 새벽부터 바다가 비정상적으로 부풀어 오른다. 오늘 해안에서 큰 위협이 올라올 것이다.",
+        "🌊 새벽부터 바다가 비정상적으로 부풀어 오른다. 오늘 해안에서 큰 위협이 올라올 것이다.\n   → 해안에서 움직이기 전 회복품과 무기를 확인하자.",
         true
       );
       return;
@@ -1453,7 +1456,7 @@ export class WorldScene extends Phaser.Scene {
     if ((day + 1) % 10 === 0) {
       this.warnHazardOnce(
         `sea-boss-tomorrow-${day}`,
-        "🌊 수평선 아래에서 둔탁한 울림이 이어진다. 내일 바다에서 무언가 올라올 것 같다.",
+        "🌊 수평선 아래에서 둔탁한 울림이 이어진다. 내일 바다에서 무언가 올라올 것 같다.\n   → 봉화대나 회복품을 준비하면 싸움이 쉬워진다.",
         true
       );
     }

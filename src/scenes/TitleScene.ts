@@ -4,6 +4,7 @@ import { makeButton } from "../ui/Button";
 import { SaveManager } from "../systems/SaveManager";
 import { getStore } from "../systems/GameStore";
 import { audio } from "../systems/AudioManager";
+import { formatRunHistoryLine, loadRunHistory } from "../systems/RunHistory";
 
 const LAST_UPDATE = "2026.06.20";
 
@@ -113,6 +114,29 @@ export class TitleScene extends Phaser.Scene {
         this.scene.restart();
       },
     });
+
+    const history = loadRunHistory();
+    const hx = 48;
+    const hy = 384;
+    this.add.text(hx, hy, "최근 생존 기록", {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "18px",
+      color: "#cfd8ff",
+    });
+    this.add.text(
+      hx,
+      hy + 34,
+      history.length > 0
+        ? history.map((entry, i) => `${i + 1}. ${formatRunHistoryLine(entry)}`).join("\n")
+        : "아직 기록된 도전이 없다.",
+      {
+        fontFamily: "Galmuri11, monospace",
+        fontSize: "12px",
+        color: "#8d9bd1",
+        lineSpacing: 6,
+        wordWrap: { width: 450 },
+      }
+    );
 
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT - 30, `ⓒ 무인도에서의 50일 · Phaser 3 · 최종 update ${LAST_UPDATE}`, {
