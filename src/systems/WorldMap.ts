@@ -372,7 +372,7 @@ export class WorldMap {
   }
 
   static fromJSON(b: WorldMapSaveBlob): WorldMap {
-    const m = new WorldMap(b.seed, isIslandProfileId(b.profile) ? b.profile : undefined);
+    const m = new WorldMap(b.seed, isIslandProfileId(b.profile) ? b.profile : "balanced");
     m.entities = b.entities.map((e) => ({ ...e }));
     m.nextId = b.nextId;
     return m;

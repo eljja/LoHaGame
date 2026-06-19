@@ -273,6 +273,7 @@ export class WorldScene extends Phaser.Scene {
     store.time.on("day10Tick", day10TickHandler);
 
     const deathHandler = () => {
+      if (this.scene.isActive("CombatScene")) return;
       this.scene.stop("HUDScene");
       this.scene.start("GameOverScene");
     };
@@ -328,17 +329,17 @@ export class WorldScene extends Phaser.Scene {
     });
 
     // ── Keyboard ──────────────────────────────────────────
-    this.bindKeyboard("keydown-UP", () => this.tryMove(0, -1));
-    this.bindKeyboard("keydown-DOWN", () => this.tryMove(0, 1));
-    this.bindKeyboard("keydown-LEFT", () => this.tryMove(-1, 0));
-    this.bindKeyboard("keydown-RIGHT", () => this.tryMove(1, 0));
+    this.bindKeyboard("keydown-UP", () => { if (this.canUseWorldControls()) this.tryMove(0, -1); });
+    this.bindKeyboard("keydown-DOWN", () => { if (this.canUseWorldControls()) this.tryMove(0, 1); });
+    this.bindKeyboard("keydown-LEFT", () => { if (this.canUseWorldControls()) this.tryMove(-1, 0); });
+    this.bindKeyboard("keydown-RIGHT", () => { if (this.canUseWorldControls()) this.tryMove(1, 0); });
     this.bindKeyboard("keydown-I", () => this.toggleInventory());
     this.bindKeyboard("keydown-C", () => this.toggleCrafting());
     this.bindKeyboard("keydown-J", () => this.toggleJournal());
-    this.bindKeyboard("keydown-Z", () => this.trySleep());
-    this.bindKeyboard("keydown-NUMPAD_FIVE", () => this.pickupAtPlayer());
-    this.bindKeyboard("keydown-ENTER", () => this.pickupAtPlayer());
-    this.bindKeyboard("keydown-SPACE", () => this.pickupAtPlayer());
+    this.bindKeyboard("keydown-Z", () => { if (this.canUseWorldControls()) this.trySleep(); });
+    this.bindKeyboard("keydown-NUMPAD_FIVE", () => { if (this.canUseWorldControls()) this.pickupAtPlayer(); });
+    this.bindKeyboard("keydown-ENTER", () => { if (this.canUseWorldControls()) this.pickupAtPlayer(); });
+    this.bindKeyboard("keydown-SPACE", () => { if (this.canUseWorldControls()) this.pickupAtPlayer(); });
 
     // First visit hint
     const store2 = getStore(this);
@@ -365,6 +366,21 @@ export class WorldScene extends Phaser.Scene {
   private bindKeyboard(event: string, handler: () => void): void {
     this.input.keyboard?.on(event, handler);
     this.keyboardHandlers.push([event, handler]);
+  }
+
+  private canUseWorldControls(): boolean {
+    return !this.hasOpenModal();
+  }
+
+  private hasOpenModal(): boolean {
+    return this.inventoryPanel.isOpen || this.craftingPanel.isOpen || this.journalPanel.isOpen || this.bottleTradePanel.isOpen;
+  }
+
+  private closeOpenPanels(): void {
+    if (this.bottleTradePanel.isOpen) this.bottleTradePanel.close();
+    if (this.inventoryPanel.isOpen) this.inventoryPanel.close();
+    if (this.craftingPanel.isOpen) this.craftingPanel.close();
+    if (this.journalPanel.isOpen) this.journalPanel.close();
   }
 
   private spendActionTime(minutes: number, energyCost = 0): boolean {
@@ -694,6 +710,7 @@ export class WorldScene extends Phaser.Scene {
 
   // ── Player movement ────────────────────────────────────────────
   private tryMove(dx: number, dy: number): void {
+    if (!this.canUseWorldControls()) return;
     const store = getStore(this);
     const nx = store.playerTx + dx;
     const ny = store.playerTy + dy;
@@ -770,6 +787,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** 현재 플레이어 위치(같은 타일 우선) 또는 4방향 인접 타일의 엔티티에 상호작용한다. */
   private pickupAtPlayer(): void {
+    if (!this.canUseWorldControls()) return;
     const store = getStore(this);
     const tx = store.playerTx;
     const ty = store.playerTy;
@@ -1471,6 +1489,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** 잠자기 버튼/Z 키. 쉼터가 있으면 자고, 없으면 안내 메시지. */
   private trySleep(): void {
+    if (!this.canUseWorldControls()) return;
     const store = getStore(this);
     const spot = this.findSleepSpot();
     if (spot) {
@@ -1589,6 +1608,8 @@ export class WorldScene extends Phaser.Scene {
 
     store.pushLog(`⚠ ${baseBoss.name}이(가) 해안에 나타났다!`);
     if (debuffPct > 0) {
+      store.flags.signalFiresUsed = (store.flags.signalFiresUsed ?? 0) + litCount;
+      if (store.activeCombos.has("signal_network") || litCount >= 3) store.flags.signalNetworkBuilt = true;
       store.pushLog(`🗼 점화된 봉화 ${litCount}개의 빛이 괴물을 방해한다. HP·공격력 ${debuffPct}% 감소.`);
       // 봉화는 1회성 — 점화된 봉화는 꺼져서 사라진다
       for (const e of [...store.map.entities]) {
@@ -1735,10 +1756,17 @@ export class WorldScene extends Phaser.Scene {
   // ── Panel toggles ──────────────────────────────────────────────
   private toggleInventory(): void {
     audio.play("menu");
-    if (this.inventoryPanel.isOpen) this.inventoryPanel.close();
-    else this.inventoryPanel.open((id) => {
+    if (this.inventoryPanel.isOpen) {
+      this.inventoryPanel.close();
+      return;
+    }
+    this.closeOpenPanels();
+    this.inventoryPanel.open((id) => {
       if (id === "treasure_map") this.revealTreasure();
-      if (id === "glass_bottle") this.bottleTradePanel.open();
+      if (id === "glass_bottle") {
+        this.inventoryPanel.close();
+        this.bottleTradePanel.open();
+      }
       this.renderEntities();
       this.updateActionHint();
     });
@@ -1775,14 +1803,22 @@ export class WorldScene extends Phaser.Scene {
 
   private toggleCrafting(): void {
     audio.play("menu");
-    if (this.craftingPanel.isOpen) this.craftingPanel.close();
-    else this.craftingPanel.open();
+    if (this.craftingPanel.isOpen) {
+      this.craftingPanel.close();
+      return;
+    }
+    this.closeOpenPanels();
+    this.craftingPanel.open();
   }
 
   private toggleJournal(): void {
     audio.play("menu");
-    if (this.journalPanel.isOpen) this.journalPanel.close();
-    else this.journalPanel.open();
+    if (this.journalPanel.isOpen) {
+      this.journalPanel.close();
+      return;
+    }
+    this.closeOpenPanels();
+    this.journalPanel.open();
   }
 
   private manualSave(): void {

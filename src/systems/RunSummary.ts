@@ -18,7 +18,11 @@ export function determineVictoryEnding(store: GameStore, forced?: VictoryEnding)
   const signalFires = store.map.entities.filter(
     (e) => e.type === "signal_fire_lit" || e.type === "signal_fire_unlit"
   ).length;
-  const hasSignalNetwork = store.activeCombos.has("signal_network") || signalFires >= 3;
+  const hasSignalNetwork =
+    store.activeCombos.has("signal_network") ||
+    signalFires >= 3 ||
+    !!store.flags.signalNetworkBuilt ||
+    (store.flags.signalFiresUsed ?? 0) >= 3;
   if (hasSignalNetwork) return "signal";
 
   if (store.caveDepth >= 3 || store.inv.count("diamond") > 0) return "cave";
@@ -58,7 +62,11 @@ function describeStructures(store: GameStore): string {
   const parts: string[] = [];
   if (store.map.entities.some((e) => e.type === "bonfire_placed") || store.flags.hasBonfire) parts.push("모닥불");
   if (store.map.entities.some((e) => e.type === "tent_placed") || store.flags.hasTent) parts.push("천막");
-  if (store.map.entities.some((e) => e.type === "signal_fire_lit" || e.type === "signal_fire_unlit")) parts.push("봉화");
+  if (
+    store.map.entities.some((e) => e.type === "signal_fire_lit" || e.type === "signal_fire_unlit") ||
+    (store.flags.signalFiresUsed ?? 0) > 0 ||
+    store.flags.signalNetworkBuilt
+  ) parts.push("봉화");
   if (store.map.entities.some((e) => e.type === "raft_placed")) parts.push("뗏목");
   return parts.length > 0 ? parts.join(" / ") : "없음";
 }

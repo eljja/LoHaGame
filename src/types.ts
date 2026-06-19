@@ -151,6 +151,8 @@ export interface GameState {
     lastNightSkyDay?: number; // game-day key of last sky observation
     hazardWarnings?: string[]; // already shown warning keys
     pendingStormDay?: number; // day when a forecast storm should arrive
+    signalFiresUsed?: number; // lit signal fires consumed against sea bosses
+    signalNetworkBuilt?: boolean; // whether a 3+ lit signal network was ever formed
     /** 바다에 띄운 유리병 (2~3일 뒤 돌아옴) */
     sentBottle?: { itemId: ItemId; sentDay: number };
   };

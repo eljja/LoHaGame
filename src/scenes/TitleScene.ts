@@ -5,7 +5,7 @@ import { SaveManager } from "../systems/SaveManager";
 import { getStore } from "../systems/GameStore";
 import { audio } from "../systems/AudioManager";
 
-const LAST_UPDATE = "2026.05.25";
+const LAST_UPDATE = "2026.06.20";
 
 export class TitleScene extends Phaser.Scene {
   constructor() {

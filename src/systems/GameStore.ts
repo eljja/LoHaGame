@@ -43,6 +43,8 @@ export class GameStore extends Phaser.Events.EventEmitter {
     fishCaught: 0,
     hazardWarnings: [],
     pendingStormDay: undefined,
+    signalFiresUsed: 0,
+    signalNetworkBuilt: false,
   };
 
   caveDepth: 0 | 1 | 2 | 3 = 0;
@@ -235,6 +237,7 @@ export class GameStore extends Phaser.Events.EventEmitter {
     if (litFires.length >= 3) {
       next.add("signal_network");
       anchors.set("signal_network", litFires.map((e) => e.id));
+      this.flags.signalNetworkBuilt = true;
     }
 
     this.activeCombos = next;
@@ -311,6 +314,8 @@ export class GameStore extends Phaser.Events.EventEmitter {
       fishCaught: 0,
       hazardWarnings: [],
       pendingStormDay: undefined,
+      signalFiresUsed: 0,
+      signalNetworkBuilt: false,
     };
     this.crafting = new Crafting(this.inv, () => ({
       hasBonfire: this.isNearStructure("bonfire_placed", this.playerTx, this.playerTy),
@@ -376,6 +381,8 @@ export class GameStore extends Phaser.Events.EventEmitter {
       lastNightSkyDay: savedFlags.lastNightSkyDay,
       hazardWarnings: Array.isArray(savedFlags.hazardWarnings) ? savedFlags.hazardWarnings : [],
       pendingStormDay: savedFlags.pendingStormDay,
+      signalFiresUsed: savedFlags.signalFiresUsed ?? 0,
+      signalNetworkBuilt: savedFlags.signalNetworkBuilt ?? false,
       sentBottle: savedFlags.sentBottle,
     };
 
