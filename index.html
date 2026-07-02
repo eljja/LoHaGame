@@ -4,8 +4,40 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#0b1020" />
+    <meta name="description" content="무인도에서의 50일은 난파 후 무인도에서 50일을 버티는 한국어 웹 생존 게임입니다. 자원 채집, 제작, 사냥, 낚시, 동굴 탐험, 날씨와 해양 위협을 관리하며 살아남아 보세요." />
+    <meta name="keywords" content="무인도에서의 50일, 무인도 생존 게임, 웹 생존 게임, LoHaGame, survival game, Phaser game" />
+    <meta name="robots" content="index, follow" />
+    <meta name="application-name" content="무인도에서의 50일" />
     <title>무인도에서의 50일</title>
+    <link rel="canonical" href="https://eljja.github.io/LoHaGame/" />
     <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta property="og:title" content="무인도에서의 50일" />
+    <meta property="og:description" content="난파 후 무인도에서 50일을 버티는 한국어 웹 생존 게임. 채집, 제작, 전투, 날씨와 위험 예고를 관리하며 살아남으세요." />
+    <meta property="og:url" content="https://eljja.github.io/LoHaGame/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="무인도에서의 50일" />
+    <meta name="twitter:description" content="무인도에서 50일을 버티는 한국어 웹 생존 게임입니다." />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "VideoGame",
+        "name": "무인도에서의 50일",
+        "alternateName": "LoHaGame",
+        "url": "https://eljja.github.io/LoHaGame/",
+        "description": "난파 후 무인도에서 50일을 버티는 한국어 웹 생존 게임입니다. 자원 채집, 제작, 사냥, 낚시, 동굴 탐험, 날씨와 해양 위협을 관리하며 살아남는 게임입니다.",
+        "inLanguage": "ko",
+        "genre": ["Survival", "Adventure"],
+        "gamePlatform": "Web browser",
+        "playMode": "SinglePlayer",
+        "dateModified": "2026-07-03",
+        "publisher": {
+          "@type": "Person",
+          "name": "eljja"
+        }
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Galmuri11&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
@@ -71,6 +103,14 @@
         text-shadow: 0 0 10px #3a58ff;
       }
       #boot-splash .sub { opacity: 0.6; font-size: 13px; }
+      .seo-content {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
       canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
     </style>
   </head>
@@ -80,6 +120,12 @@
         <div class="title">무인도에서의 50일</div>
         <div class="sub">게임을 불러오는 중…</div>
       </div>
+      <section class="seo-content" aria-label="게임 소개">
+        <h1>무인도에서의 50일</h1>
+        <p>무인도에서의 50일은 브라우저에서 바로 플레이할 수 있는 한국어 생존 게임입니다.</p>
+        <p>플레이어는 난파 후 무인도에서 자원을 채집하고, 도구와 거점을 만들고, 사냥과 낚시, 동굴 탐험, 날씨와 해양 위협을 관리하며 50일 동안 살아남아야 합니다.</p>
+        <p>LoHaGame은 Phaser 3로 제작된 싱글 플레이 웹 게임입니다.</p>
+      </section>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

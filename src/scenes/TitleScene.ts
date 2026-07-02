@@ -6,7 +6,7 @@ import { getStore } from "../systems/GameStore";
 import { audio } from "../systems/AudioManager";
 import { formatRunHistoryLine, loadRunHistory } from "../systems/RunHistory";
 
-const LAST_UPDATE = "2026.06.20";
+const LAST_UPDATE = "2026.07.03";
 
 export class TitleScene extends Phaser.Scene {
   constructor() {
