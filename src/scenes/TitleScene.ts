@@ -21,8 +21,6 @@ export class TitleScene extends Phaser.Scene {
     g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     g.fillGradientStyle(0x020713, 0x020713, 0x061226, 0x061226, 0.16);
     g.fillRect(0, 0, GAME_WIDTH, 260);
-    g.fillStyle(0x040a18, 0.82);
-    g.fillRect(0, 500, GAME_WIDTH, 300);
 
     // 타이틀
     const title = this.add
