@@ -1,11 +1,12 @@
 import Phaser from "phaser";
 import { ENTITIES, type EntityType } from "../data/tiles";
 
-const PLAYER_KEY = "art-player-v2";
+const PLAYER_PREFIX = "art-player-v3-";
 const ENTITY_PREFIX = "art-entity-v2-";
 const COMBAT_PREFIX = "art-combat-v2-";
 
 type Ctx = CanvasRenderingContext2D;
+export type PlayerDirection = "down" | "left" | "up" | "right";
 
 function rounded(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {
   const rr = Math.min(r, w / 2, h / 2);
@@ -206,7 +207,7 @@ function drawEntity(ctx: Ctx, type: EntityType): void {
   ctx.shadowColor = "transparent";
 }
 
-function drawPlayer(ctx: Ctx): void {
+function drawPlayerFront(ctx: Ctx): void {
   ctx.shadowColor = "rgba(0,0,0,.35)"; ctx.shadowBlur = 5; ctx.shadowOffsetY = 3;
   ellipse(ctx,48,24,14,14,"#d7a26f");
   ellipse(ctx,48,18,14,8,"#3b2b24"); polygon(ctx,[34,20,38,10,51,8,61,15,61,22,53,16,45,18],"#33231e");
@@ -217,6 +218,46 @@ function drawPlayer(ctx: Ctx): void {
   stroke(ctx,[26,47,35,59,62,59],"#8e6d45",3);
   dot(ctx,43,24,1.8,"#17222a"); dot(ctx,53,24,1.8,"#17222a"); stroke(ctx,[44,31,52,31],"#975d50",1.5);
   ctx.shadowColor="transparent";
+}
+
+function drawPlayerBack(ctx: Ctx): void {
+  ctx.shadowColor = "rgba(0,0,0,.35)"; ctx.shadowBlur = 5; ctx.shadowOffsetY = 3;
+  ellipse(ctx,48,24,14,14,"#c58e62");
+  ellipse(ctx,48,17,15,9,"#33231e");
+  polygon(ctx,[34,19,38,10,52,8,63,17,59,28,50,22,41,27,34,23],"#3b2921");
+  rounded(ctx,31,37,34,34,9); ctx.fillStyle="#d9d1c3";ctx.fill();
+  polygon(ctx,[31,42,18,61,25,66,38,52],"#c9c0b2"); polygon(ctx,[65,42,78,61,71,66,58,52],"#c9c0b2");
+  rounded(ctx,27,66,17,20,6);ctx.fillStyle="#2e3e4d";ctx.fill(); rounded(ctx,52,66,17,20,6);ctx.fillStyle="#2e3e4d";ctx.fill();
+  rounded(ctx,30,39,36,31,9);ctx.fillStyle="#735739";ctx.fill();
+  rounded(ctx,35,43,26,22,6);ctx.fillStyle="#8b6b46";ctx.fill();
+  stroke(ctx,[31,45,48,57,65,45],"#c19a61",3); stroke(ctx,[39,67,57,67],"#4f3b2a",3);
+  ctx.shadowColor="transparent";
+}
+
+function drawPlayerSide(ctx: Ctx): void {
+  ctx.shadowColor = "rgba(0,0,0,.35)"; ctx.shadowBlur = 5; ctx.shadowOffsetY = 3;
+  ellipse(ctx,57,25,14,14,"#d7a26f");
+  ellipse(ctx,52,18,14,8,"#33231e"); polygon(ctx,[42,20,44,10,56,8,66,15,68,22,59,17,52,22],"#3b2921");
+  polygon(ctx,[68,24,75,28,68,31],"#bf835a"); dot(ctx,64,24,2,"#16212a"); stroke(ctx,[64,32,70,31],"#975d50",1.5);
+  rounded(ctx,39,38,31,34,9);ctx.fillStyle="#e0d7c8";ctx.fill();
+  rounded(ctx,27,41,20,29,7);ctx.fillStyle="#735739";ctx.fill();
+  stroke(ctx,[43,44,66,55,78,48],"#cfbfaa",8); dot(ctx,79,48,4,"#d7a26f");
+  rounded(ctx,37,66,17,20,6);ctx.fillStyle="#334453";ctx.fill(); rounded(ctx,55,66,17,20,6);ctx.fillStyle="#293946";ctx.fill();
+  stroke(ctx,[31,47,41,57,66,58],"#a27c4e",3);
+  ctx.shadowColor="transparent";
+}
+
+function drawPlayer(ctx: Ctx, direction: PlayerDirection): void {
+  if (direction === "down") drawPlayerFront(ctx);
+  else if (direction === "up") drawPlayerBack(ctx);
+  else if (direction === "right") drawPlayerSide(ctx);
+  else {
+    ctx.save();
+    ctx.translate(96, 0);
+    ctx.scale(-1, 1);
+    drawPlayerSide(ctx);
+    ctx.restore();
+  }
 }
 
 function drawMonster(ctx: Ctx, id: string, size: number): void {
@@ -263,13 +304,15 @@ function drawMonster(ctx: Ctx, id: string, size: number): void {
 }
 
 export function registerWorldArt(scene: Phaser.Scene): void {
-  makeCanvas(scene, PLAYER_KEY, 96, drawPlayer);
+  for (const direction of ["down", "left", "up", "right"] as PlayerDirection[]) {
+    makeCanvas(scene, playerTextureKey(direction), 96, (ctx) => drawPlayer(ctx, direction));
+  }
   for (const type of Object.keys(ENTITIES) as EntityType[]) {
     makeCanvas(scene, entityTextureKey(type), 96, (ctx) => drawEntity(ctx, type));
   }
 }
 
-export function playerTextureKey(): string { return PLAYER_KEY; }
+export function playerTextureKey(direction: PlayerDirection = "down"): string { return `${PLAYER_PREFIX}${direction}`; }
 export function entityTextureKey(type: EntityType): string { return `${ENTITY_PREFIX}${type}`; }
 
 export function entityDisplaySize(type: EntityType): number {

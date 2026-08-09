@@ -23,10 +23,10 @@ const MOVE_CHANCE: Record<string, number> = {
 };
 
 const TWEEN_DURATION: Record<string, number> = {
-  rabbit: 240, // 빠르고 통통 튀는 느낌
-  wolf: 380,   // 느릿한 사냥꾼
-  boar: 460,   // 우직하게 천천히
-  bear: 520,   // 큰 덩치, 무거운 발걸음
+  rabbit: 420,
+  wolf: 520,
+  boar: 620,
+  bear: 720,
 };
 
 function tickWildlife(
@@ -57,14 +57,33 @@ function tickWildlife(
       if (store.map.entityAt(nx, ny)) continue;
       const sprite = getEntitySprite(a.id);
       if (!sprite) continue;
+      if (sprite.getData("wildlifeMoving")) continue;
+      const startX = sprite.x;
+      const startY = sprite.y;
+      const endX = nx * TILE_PX + TILE_PX / 2;
+      const endY = ny * TILE_PX + TILE_PX / 2;
       a.tx = nx;
       a.ty = ny;
-      scene.tweens.add({
-        targets: sprite,
-        x: nx * TILE_PX + TILE_PX / 2,
-        y: ny * TILE_PX + TILE_PX / 2,
+      if (dx !== 0) sprite.setFlipX(dx < 0);
+      sprite.setData("wildlifeMoving", true);
+      scene.tweens.addCounter({
+        from: 0,
+        to: 1,
         duration: TWEEN_DURATION[a.type] ?? 300,
         ease: "Sine.InOut",
+        onUpdate: (tween) => {
+          if (!sprite.active) return;
+          const progress = tween.getValue() ?? 0;
+          const hop = Math.sin(progress * Math.PI) * (a.type === "rabbit" ? 2.5 : 1);
+          sprite.x = Phaser.Math.Linear(startX, endX, progress);
+          sprite.y = Phaser.Math.Linear(startY, endY, progress) - hop;
+        },
+        onComplete: () => {
+          if (!sprite.active) return;
+          sprite.x = endX;
+          sprite.y = endY;
+          sprite.setData("wildlifeMoving", false);
+        },
       });
       break;
     }

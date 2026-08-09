@@ -22,7 +22,7 @@ import { formatDangerSignals } from "../systems/DangerTracker";
 import { formatNearestMarkerLine, getNextCraftingGoal } from "../systems/ProgressGuide";
 import { determineVictoryEnding } from "../systems/RunSummary";
 import type { Achievement } from "../data/achievements";
-import { entityDisplaySize, entityTextureKey, playerTextureKey } from "../art/GameArt";
+import { entityDisplaySize, entityTextureKey, playerTextureKey, type PlayerDirection } from "../art/GameArt";
 
 // Viewport constants
 const VP_X = 0;
@@ -46,6 +46,7 @@ export class WorldScene extends Phaser.Scene {
   private entityDecorObjects: Phaser.GameObjects.GameObject[] = [];
   private playerSprite!: Phaser.GameObjects.Image;
   private playerShadow!: Phaser.GameObjects.Ellipse;
+  private playerDirection: PlayerDirection = "down";
 
   // UI-space objects (UI camera)
   private uiContainer!: Phaser.GameObjects.Container;
@@ -79,6 +80,7 @@ export class WorldScene extends Phaser.Scene {
   create(): void {
     const store = getStore(this);
     this.keyboardHandlers = [];
+    this.playerDirection = "down";
 
     // HUDScene이 실행 중이 아니면 런치 (TitleScene/IntroScene에서 이미 런치했으면 무시됨)
     if (!this.scene.isActive("HUDScene")) {
@@ -544,16 +546,7 @@ export class WorldScene extends Phaser.Scene {
       });
 
       // 살아있는 엔티티는 가볍게 흔들/호흡 애니메이션
-      if (entity.type === "rabbit") {
-        this.tweens.add({
-          targets: t,
-          y: worldY - 3,
-          duration: 320,
-          ease: "Sine.InOut",
-          yoyo: true,
-          repeat: -1,
-        });
-      } else if (entity.type === "flower" || entity.type === "berry_bush" || entity.type === "mushroom" || entity.type === "vine") {
+      if (entity.type === "flower" || entity.type === "berry_bush" || entity.type === "mushroom" || entity.type === "vine") {
         this.tweens.add({
           targets: t,
           angle: 4,
@@ -810,6 +803,7 @@ export class WorldScene extends Phaser.Scene {
   // ── Player movement ────────────────────────────────────────────
   private tryMove(dx: number, dy: number): void {
     if (!this.canUseWorldControls()) return;
+    this.setPlayerFacing(dx, dy);
     const store = getStore(this);
     const nx = store.playerTx + dx;
     const ny = store.playerTy + dy;
@@ -844,10 +838,10 @@ export class WorldScene extends Phaser.Scene {
       duration: 120,
       ease: "Linear",
     });
-    // 발자국 같은 잔상: 살짝 위아래로 튀어오르는 hop
+    // A small body lean reads as a step without fighting the position tween.
     this.tweens.add({
       targets: this.playerSprite,
-      scaleY: this.playerSprite.scaleX * 0.92,
+      angle: dx === 0 ? (dy > 0 ? 1.5 : -1.5) : dx * 2.5,
       duration: 60,
       yoyo: true,
       ease: "Quad.Out",
@@ -1522,6 +1516,15 @@ export class WorldScene extends Phaser.Scene {
       if (sleepable) s += " | 💤 Z:잠자기 가능";
       this.actionHintText.setText(s);
     }
+  }
+
+  private setPlayerFacing(dx: number, dy: number): void {
+    const direction: PlayerDirection = Math.abs(dx) >= Math.abs(dy)
+      ? (dx < 0 ? "left" : "right")
+      : (dy < 0 ? "up" : "down");
+    if (direction === this.playerDirection) return;
+    this.playerDirection = direction;
+    this.playerSprite.setTexture(playerTextureKey(direction));
   }
 
   private drawInteractionMarkers(entities: WorldEntity[]): void {
