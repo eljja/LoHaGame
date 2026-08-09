@@ -3,7 +3,17 @@ import type { VictoryEnding } from "./RunSummary";
 import { VICTORY_ENDINGS } from "./RunSummary";
 
 const KEY = "loha-run-history-v1";
+const LEGACY_KEY = "loha-run-legacy-v1";
 const MAX_RUNS = 5;
+
+export interface RunLegacy {
+  attempts: number;
+  victories: number;
+  bestDay: number;
+  bestGrade: string;
+  islands: string[];
+  endings: VictoryEnding[];
+}
 
 export interface RunHistoryEntry {
   id: string;
@@ -34,6 +44,7 @@ export function recordRun(store: GameStore, result: "victory" | "failed", opts: 
     achievements: store.flags.unlockedAchievements?.length ?? 0,
   };
 
+  updateRunLegacy(entry);
   const runs = [entry, ...loadRunHistory().filter((r) => r.id !== entry.id)].slice(0, MAX_RUNS);
   saveRunHistory(runs);
 }
@@ -57,12 +68,77 @@ export function formatRunHistoryLine(entry: RunHistoryEntry): string {
   return `Day ${entry.day} · ${entry.grade} · ${result} · ${entry.island}`;
 }
 
+export function loadRunLegacy(): RunLegacy {
+  const empty: RunLegacy = { attempts: 0, victories: 0, bestDay: 0, bestGrade: "-", islands: [], endings: [] };
+  try {
+    const raw = localStorage.getItem(LEGACY_KEY);
+    if (!raw) return legacyFromHistory(loadRunHistory(), empty);
+    const parsed = JSON.parse(raw) as Partial<RunLegacy>;
+    if (!parsed || typeof parsed !== "object") return empty;
+    return {
+      attempts: finiteNonNegative(parsed.attempts),
+      victories: finiteNonNegative(parsed.victories),
+      bestDay: finiteNonNegative(parsed.bestDay),
+      bestGrade: typeof parsed.bestGrade === "string" ? parsed.bestGrade : "-",
+      islands: Array.isArray(parsed.islands) ? parsed.islands.filter((v): v is string => typeof v === "string").slice(0, 8) : [],
+      endings: Array.isArray(parsed.endings)
+        ? parsed.endings.filter((v): v is VictoryEnding => typeof v === "string" && v in VICTORY_ENDINGS)
+        : [],
+    };
+  } catch {
+    return empty;
+  }
+}
+
+function legacyFromHistory(history: RunHistoryEntry[], fallback: RunLegacy): RunLegacy {
+  if (history.length === 0) return fallback;
+  const best = history.reduce((current, entry) => gradeValue(entry.grade) > gradeValue(current) ? entry.grade : current, "-");
+  return {
+    attempts: history.length,
+    victories: history.filter((entry) => entry.result === "victory").length,
+    bestDay: Math.max(...history.map((entry) => Math.floor(entry.day))),
+    bestGrade: best,
+    islands: [...new Set(history.map((entry) => entry.island))],
+    endings: [...new Set(history.map((entry) => entry.ending).filter((ending): ending is VictoryEnding => ending !== undefined))],
+  };
+}
+
+export function formatRunLegacy(): string {
+  const legacy = loadRunLegacy();
+  if (legacy.attempts === 0) return "첫 생존 기록을 남겨보자.";
+  return `도전 ${legacy.attempts}회 · 승리 ${legacy.victories}회 · 최고 Day ${legacy.bestDay} / ${legacy.bestGrade}\n` +
+    `발견한 섬 ${legacy.islands.length}/5 · 확인한 엔딩 ${legacy.endings.length}/5`;
+}
+
 function saveRunHistory(runs: RunHistoryEntry[]): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(runs));
   } catch {
     /* ignore */
   }
+}
+
+function updateRunLegacy(entry: RunHistoryEntry): void {
+  const legacy = loadRunLegacy();
+  legacy.attempts += 1;
+  if (entry.result === "victory") legacy.victories += 1;
+  legacy.bestDay = Math.max(legacy.bestDay, Math.floor(entry.day));
+  if (gradeValue(entry.grade) > gradeValue(legacy.bestGrade)) legacy.bestGrade = entry.grade;
+  if (!legacy.islands.includes(entry.island)) legacy.islands.push(entry.island);
+  if (entry.ending && !legacy.endings.includes(entry.ending)) legacy.endings.push(entry.ending);
+  try {
+    localStorage.setItem(LEGACY_KEY, JSON.stringify(legacy));
+  } catch {
+    /* ignore */
+  }
+}
+
+function finiteNonNegative(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+}
+
+function gradeValue(grade: string): number {
+  return ({ S: 5, A: 4, B: 3, C: 2, D: 1 } as Record<string, number>)[grade] ?? 0;
 }
 
 function calculateRunGrade(store: GameStore, failed: boolean, day = store.time.day): string {

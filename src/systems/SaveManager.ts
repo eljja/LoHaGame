@@ -4,7 +4,8 @@ import type { PlayerStats } from "./PlayerStats";
 import type { TimeSystem } from "./TimeSystem";
 import type { WorldMap, WorldMapSaveBlob } from "./WorldMap";
 import { ITEMS } from "../data/items";
-import { ENTITIES } from "../data/tiles";
+import { ENTITIES, WORLD_TILES } from "../data/tiles";
+import { DAY_PHASE_SECONDS, NIGHT_PHASE_SECONDS, WIN_DAY } from "../config";
 
 const KEY = "loha-save-v3";
 const LEGACY_KEY = "loha-save-v2";
@@ -31,7 +32,7 @@ export const SaveManager = {
     map: WorldMap;
     playerTx: number;
     playerTy: number;
-  }): void {
+  }): boolean {
     const blob: SaveBlob = {
       time: data.time.toJSON(),
       stats: data.stats.toJSON(),
@@ -45,8 +46,10 @@ export const SaveManager = {
     };
     try {
       localStorage.setItem(KEY, JSON.stringify(blob));
+      return true;
     } catch (e) {
       console.warn("save failed", e);
+      return false;
     }
   },
 
@@ -92,15 +95,17 @@ function normalizeSaveBlob(value: unknown): SaveBlob | null {
   if (!isRecord(value)) return null;
   const time = value.time;
   const stats = value.stats;
-  if (!isRecord(time) || !isNumber(time.day) || !isNumber(time.hour) || !isNumber(time.elapsedInPhase)) return null;
+  if (!isRecord(time) || !isIntegerInRange(time.day, 1, WIN_DAY + 1) || !isIntegerInRange(time.hour, 0, 23) || !isNumber(time.elapsedInPhase)) return null;
   if (time.phase !== "day" && time.phase !== "night") return null;
-  if (!isRecord(stats) || !isNumber(stats.hp) || !isNumber(stats.hunger) || !isNumber(stats.thirst) || !isNumber(stats.energy)) return null;
-  if (!Array.isArray(value.inventory) || !isInventory(value.inventory)) return null;
+  const phaseSeconds = time.phase === "day" ? DAY_PHASE_SECONDS : NIGHT_PHASE_SECONDS;
+  if (time.elapsedInPhase < 0 || time.elapsedInPhase >= phaseSeconds) return null;
+  if (!isRecord(stats) || !isStat(stats.hp) || !isStat(stats.hunger) || !isStat(stats.thirst) || !isStat(stats.energy)) return null;
+  if (!Array.isArray(value.inventory) || value.inventory.length > 500 || !isInventory(value.inventory)) return null;
   if (!isRecord(value.flags)) return null;
   if (value.caveDepth !== 0 && value.caveDepth !== 1 && value.caveDepth !== 2 && value.caveDepth !== 3) return null;
   if (value.map !== undefined && !isWorldMapBlob(value.map)) return null;
-  if (value.playerTx !== undefined && !isNumber(value.playerTx)) return null;
-  if (value.playerTy !== undefined && !isNumber(value.playerTy)) return null;
+  if (value.playerTx !== undefined && !isIntegerInRange(value.playerTx, 0, WORLD_TILES - 1)) return null;
+  if (value.playerTy !== undefined && !isIntegerInRange(value.playerTy, 0, WORLD_TILES - 1)) return null;
   if (value.savedAt !== undefined && !isNumber(value.savedAt)) return null;
   return {
     ...(value as unknown as Omit<SaveBlob, "savedAt">),
@@ -112,15 +117,27 @@ function isInventory(value: unknown[]): boolean {
   return value.every((slot) => {
     if (slot === null) return true;
     if (!isRecord(slot)) return false;
-    return typeof slot.id === "string" && slot.id in ITEMS && isNumber(slot.count) && slot.count > 0;
+    if (typeof slot.id !== "string" || !(slot.id in ITEMS) || !isIntegerInRange(slot.count, 1, 9999)) return false;
+    return slot.dur === undefined || (isNumber(slot.dur) && slot.dur > 0 && slot.dur <= 10000);
   });
 }
 
 function isWorldMapBlob(value: unknown): value is WorldMapSaveBlob {
-  if (!isRecord(value) || !isNumber(value.seed) || !isNumber(value.nextId) || !Array.isArray(value.entities)) return false;
+  if (!isRecord(value) || !isNumber(value.seed) || !Number.isInteger(value.seed) || !isNumber(value.nextId) || !Number.isInteger(value.nextId) || !Array.isArray(value.entities) || value.entities.length > 2000) return false;
   if (value.profile !== undefined && typeof value.profile !== "string") return false;
-  return value.entities.every((entity) => {
+  const valid = value.entities.every((entity) => {
     if (!isRecord(entity)) return false;
-    return isNumber(entity.id) && typeof entity.type === "string" && entity.type in ENTITIES && isNumber(entity.tx) && isNumber(entity.ty);
+    if (!isIntegerInRange(entity.id, 1, Number.MAX_SAFE_INTEGER) || typeof entity.type !== "string" || !(entity.type in ENTITIES)) return false;
+    if (!isIntegerInRange(entity.tx, 0, WORLD_TILES - 1) || !isIntegerInRange(entity.ty, 0, WORLD_TILES - 1)) return false;
+    return true;
   });
+  return valid && value.nextId >= 1;
+}
+
+function isIntegerInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
+}
+
+function isStat(value: unknown): value is number {
+  return isNumber(value) && value >= 0 && value <= 100;
 }

@@ -401,14 +401,8 @@ export class InventoryPanel {
 
       // 현재 타일에 이미 설치물이 있는지 확인
       const existing = map.entityAt(tx, ty);
-      const blocking = existing && (
-        existing.type === "bonfire_placed" || existing.type === "tent_placed" ||
-        existing.type === "signal_fire_unlit" || existing.type === "signal_fire_lit" ||
-        existing.type === "planted_seed" || existing.type === "ripe_plant" ||
-        existing.type === "raft_placed"
-      );
-      if (blocking) {
-        store.pushLog("이 타일에는 이미 무언가 있다. 한 칸 옆으로 이동해 설치하자.");
+      if (existing && existing.type !== "camp_spot") {
+        store.pushLog("이 타일에는 이미 자원이나 구조물이 있다. 비우거나 한 칸 옆에 설치하자.");
         return;
       }
       // camp_spot 위에 설치하면 camp_spot은 대체된다
@@ -422,10 +416,11 @@ export class InventoryPanel {
         def.placeable === "signal_fire" ? "signal_fire_unlit" :
         def.placeable === "raft" ? "raft_placed" :
         "planted_seed";
-      let maxId = 0;
-      for (const e of map.entities) if (e.id > maxId) maxId = e.id;
       const meta = def.placeable === "seed" ? { plantedDay: store.time.day } : undefined;
-      map.entities.push({ id: maxId + 1, type: placedType, tx, ty, meta });
+      if (!map.addEntity(placedType, tx, ty, meta)) {
+        store.pushLog("이곳에는 설치할 수 없다. 위치를 다시 확인하자.");
+        return;
+      }
       store.inv.remove(id, 1);
 
       if (def.placeable === "bonfire") {

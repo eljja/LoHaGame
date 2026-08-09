@@ -30,14 +30,14 @@ export interface TerrainDef {
 }
 
 export const TERRAIN: Record<TerrainType, TerrainDef> = {
-  deep_water: { name: "깊은 바다", color: 0x0a1e44, walkable: false, mottle: 0x0e2a5c },
-  shallow_water: { name: "얕은 바다", color: 0x1f4b7c, walkable: false, mottle: 0x2a5a92 },
-  sand: { name: "해변", color: 0xd6c084, walkable: true, mottle: 0xc9b27a },
-  grass: { name: "풀밭", color: 0x3a6b3a, walkable: true, mottle: 0x2e5a2e },
-  forest: { name: "숲", color: 0x254a28, walkable: true, mottle: 0x1b3a1d, accent: { icon: "🌲", freq: 0.35 } },
-  rock: { name: "돌산", color: 0x5a6070, walkable: true, mottle: 0x474c5c },
-  river: { name: "강", color: 0x3a7cb5, walkable: false, mottle: 0x2e6aa1 },
-  cliff_rock: { name: "절벽", color: 0x7a7088, walkable: true, mottle: 0x635a72 },
+  deep_water: { name: "깊은 바다", color: 0x123766, walkable: false, mottle: 0x164579 },
+  shallow_water: { name: "얕은 바다", color: 0x2d72a0, walkable: false, mottle: 0x3986b3 },
+  sand: { name: "해변", color: 0xe0ca8e, walkable: true, mottle: 0xcfb978 },
+  grass: { name: "풀밭", color: 0x4f8a46, walkable: true, mottle: 0x41783b },
+  forest: { name: "숲", color: 0x32633a, walkable: true, mottle: 0x285331, accent: { icon: "🌲", freq: 0.35 } },
+  rock: { name: "돌산", color: 0x737b88, walkable: true, mottle: 0x626a78 },
+  river: { name: "강", color: 0x3f8dc2, walkable: false, mottle: 0x347bac },
+  cliff_rock: { name: "절벽", color: 0x8b8098, walkable: true, mottle: 0x756b83 },
 };
 
 export type EntityType =

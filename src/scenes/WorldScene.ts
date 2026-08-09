@@ -32,7 +32,9 @@ const VP_H = 552; // 56..608
 export class WorldScene extends Phaser.Scene {
   // World-space objects (followed by main camera)
   private terrainGfx!: Phaser.GameObjects.Graphics;
+  private interactionGfx!: Phaser.GameObjects.Graphics;
   private entityObjects: Map<number, Phaser.GameObjects.Text> = new Map();
+  private entityDecorObjects: Phaser.GameObjects.GameObject[] = [];
   private playerSprite!: Phaser.GameObjects.Text;
   private playerShadow!: Phaser.GameObjects.Ellipse;
 
@@ -58,6 +60,8 @@ export class WorldScene extends Phaser.Scene {
   // World object layer (tagged so UI cam can ignore them)
   private worldObjects: Phaser.GameObjects.GameObject[] = [];
   private keyboardHandlers: Array<[string, () => void]> = [];
+  private fishingOpen = false;
+  private fishingCleanup?: () => void;
 
   constructor() {
     super("WorldScene");
@@ -86,6 +90,8 @@ export class WorldScene extends Phaser.Scene {
     // ── World objects ─────────────────────────────────────
     this.terrainGfx = this.add.graphics();
     this.worldObjects.push(this.terrainGfx);
+    this.interactionGfx = this.add.graphics().setDepth(4);
+    this.worldObjects.push(this.interactionGfx);
 
     // Player shadow (elliptical, world space, behind player)
     const playerShadow = this.add
@@ -135,20 +141,21 @@ export class WorldScene extends Phaser.Scene {
     this.actionHintText = this.add.text(0, 0, "").setVisible(false);
 
     // 장비 상태 표시 — 액션 힌트 제거 후 그 자리(y=614)로 이동
-    this.equipBarText = this.add.text(305, 614, "", {
+    this.equipBarText = this.add.text(305, 616, "", {
       fontFamily: "Galmuri11, monospace",
       fontSize: "13px",
       color: "#ffd97a",
-      wordWrap: { width: 720 },
+      wordWrap: { width: 720, useAdvancedWrap: true },
     });
     this.uiContainer.add(this.equipBarText);
     this.refreshEquipBar();
 
-    this.guideText = this.add.text(305, 664, "", {
+    this.guideText = this.add.text(305, 644, "", {
       fontFamily: "Galmuri11, monospace",
       fontSize: "11px",
       color: "#9fb7ff",
-      wordWrap: { width: 720 },
+      lineSpacing: 3,
+      wordWrap: { width: 720, useAdvancedWrap: true },
     });
     this.uiContainer.add(this.guideText);
     this.refreshGuideText();
@@ -329,6 +336,7 @@ export class WorldScene extends Phaser.Scene {
         this.input.keyboard?.off(event, handler);
       }
       this.keyboardHandlers = [];
+      this.fishingCleanup?.();
     });
 
     // ── Keyboard ──────────────────────────────────────────
@@ -376,7 +384,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private hasOpenModal(): boolean {
-    return this.inventoryPanel.isOpen || this.craftingPanel.isOpen || this.journalPanel.isOpen || this.bottleTradePanel.isOpen;
+    return this.fishingOpen || this.inventoryPanel.isOpen || this.craftingPanel.isOpen || this.journalPanel.isOpen || this.bottleTradePanel.isOpen;
   }
 
   private closeOpenPanels(): void {
@@ -409,6 +417,24 @@ export class WorldScene extends Phaser.Scene {
         const col = useMottle ? def.mottle! : def.color;
         gfx.fillStyle(col, 1);
         gfx.fillRect(tx * TILE_PX, ty * TILE_PX, TILE_PX, TILE_PX);
+        const px = tx * TILE_PX;
+        const py = ty * TILE_PX;
+        const hash = (tx * 31 + ty * 17) & 7;
+        if (terrType === "deep_water" || terrType === "shallow_water" || terrType === "river") {
+          if (hash <= 2) {
+            gfx.fillStyle(0xb9e8ff, terrType === "deep_water" ? 0.10 : 0.18);
+            gfx.fillRect(px + 5 + hash * 3, py + 9 + (ty % 3) * 5, 9, 1);
+          }
+        } else {
+          gfx.fillStyle(0xffffff, 0.08);
+          gfx.fillRect(px, py, TILE_PX, 1);
+          if (hash === 0) {
+            gfx.fillStyle(0xffffff, 0.10);
+            gfx.fillRect(px + 7, py + 8, 2, 2);
+          }
+        }
+        gfx.lineStyle(1, 0x07101a, 0.10);
+        gfx.strokeRect(px, py, TILE_PX, TILE_PX);
       }
     }
   }
@@ -423,10 +449,12 @@ export class WorldScene extends Phaser.Scene {
     // Remove all existing entity sprites
     this.entityObjects.forEach((t) => t.destroy());
     this.entityObjects.clear();
+    this.entityDecorObjects.forEach((obj) => obj.destroy());
+    this.entityDecorObjects = [];
 
     // Remove old entity objects from worldObjects tracking
     this.worldObjects = this.worldObjects.filter(
-      (o) => o === this.terrainGfx || o === this.playerSprite || o === this.playerShadow
+      (o) => o === this.terrainGfx || o === this.interactionGfx || o === this.playerSprite || o === this.playerShadow
     );
 
     for (const entity of store.map.entities) {
@@ -434,10 +462,19 @@ export class WorldScene extends Phaser.Scene {
       const worldX = entity.tx * TILE_PX + TILE_PX / 2;
       const worldY = entity.ty * TILE_PX + TILE_PX / 2;
 
+      if (!def.respawn) {
+        const ring = this.add.circle(worldX, worldY, 14, 0x8edcff, 0.10)
+          .setStrokeStyle(1, 0xbdeeff, 0.35)
+          .setDepth(3);
+        this.entityDecorObjects.push(ring);
+        this.worldObjects.push(ring);
+      }
+
       const t = this.add
         .text(worldX, worldY, def.icon, { fontSize: "24px" })
         .setOrigin(0.5)
         .setDepth(5)
+        .setShadow(0, 2, "#000000", 5, true, true)
         .setInteractive({ useHandCursor: true });
 
       t.on("pointerdown", () => this.tapEntity(entity));
@@ -1080,9 +1117,7 @@ export class WorldScene extends Phaser.Scene {
         const onCamp = store.playerTx === entity.tx && store.playerTy === entity.ty;
         if (onCamp && store.inv.has("tent")) {
           store.map.removeEntity(entity.id);
-          let maxId = 0;
-          for (const e of store.map.entities) if (e.id > maxId) maxId = e.id;
-          store.map.entities.push({ id: maxId + 1, type: "tent_placed", tx: entity.tx, ty: entity.ty });
+          store.map.addEntity("tent_placed", entity.tx, entity.ty);
           store.inv.remove("tent", 1);
           store.flags.hasTent = true;
           store.pushLog("⛺ 거점 자리에 천막을 설치했다! 이 자리에서 잘 수 있고, 주변 2칸 이내는 밤에도 밝고 안전하다.");
@@ -1097,9 +1132,7 @@ export class WorldScene extends Phaser.Scene {
               const t = store.map.terrain[ny][nx];
               if (t !== "grass" && t !== "sand" && t !== "forest") continue;
               if (store.map.entityAt(nx, ny)) continue;
-              let mid = 0;
-              for (const e of store.map.entities) if (e.id > mid) mid = e.id;
-              store.map.entities.push({ id: mid + 1, type: "bonfire_placed", tx: nx, ty: ny });
+              store.map.addEntity("bonfire_placed", nx, ny);
               store.inv.remove("bonfire", 1);
               store.flags.hasBonfire = true;
               store.pushLog("🔥 천막 옆에 모닥불도 피웠다! 이제 요리가 가능하다.");
@@ -1160,9 +1193,7 @@ export class WorldScene extends Phaser.Scene {
         const tx = entity.tx;
         const ty = entity.ty;
         store.map.removeEntity(entity.id);
-        let maxId = 0;
-        for (const e of store.map.entities) if (e.id > maxId) maxId = e.id;
-        store.map.entities.push({ id: maxId + 1, type: "signal_fire_lit", tx, ty });
+        store.map.addEntity("signal_fire_lit", tx, ty);
         store.pushLog("🔥 봉화대에 불을 붙였다! 해양 보스의 힘이 약해진다.");
         audio.play("craft");
         this.spawnPickupFx(tx, ty, "🔥🔥🔥", "#ffcc44");
@@ -1319,7 +1350,7 @@ export class WorldScene extends Phaser.Scene {
   // ── UI ─────────────────────────────────────────────────────────
   private buildDpad(): void {
     this.dpad.removeAll(true);
-    const cx = GAME_WIDTH - 120;
+    const cx = GAME_WIDTH - 122;
     // 버튼 1.5배(52→78) 키우면서 화면 하단(800)에 맞추기 위해 cy 조정.
     // down 버튼 bottom edge = cy + 78 + 4 + 39 = cy + 121, ≤ 800 → cy ≤ 679
     const cy = 679;
@@ -1413,6 +1444,7 @@ export class WorldScene extends Phaser.Scene {
     // Also same tile
     const same = store.map.entityAt(playerTx, playerTy);
     if (same) adjacent.unshift(same);
+    this.drawInteractionMarkers(adjacent);
 
     // 쉼터가 가까이 있는지 체크 (잠자기 버튼 힌트)
     const sleepable = this.findSleepSpot();
@@ -1430,6 +1462,19 @@ export class WorldScene extends Phaser.Scene {
       let s = "화살표/D-패드 이동 | I:인벤 C:제작 J:일지";
       if (sleepable) s += " | 💤 Z:잠자기 가능";
       this.actionHintText.setText(s);
+    }
+  }
+
+  private drawInteractionMarkers(entities: WorldEntity[]): void {
+    this.interactionGfx.clear();
+    const unique = entities.filter((entity, index, all) => all.findIndex((e) => e.id === entity.id) === index);
+    for (const entity of unique.slice(0, 5)) {
+      const x = entity.tx * TILE_PX + TILE_PX / 2;
+      const y = entity.ty * TILE_PX + TILE_PX / 2;
+      this.interactionGfx.fillStyle(0xffe28a, 0.16);
+      this.interactionGfx.fillCircle(x, y, 15);
+      this.interactionGfx.lineStyle(2, 0xffe28a, 0.78);
+      this.interactionGfx.strokeCircle(x, y, 15);
     }
   }
 
@@ -1531,7 +1576,7 @@ export class WorldScene extends Phaser.Scene {
       hasTorch ? "🔥 횃불 보유" : "🌑 횃불 없음",
       rod ? `${rod} 낚싯대 보유` : "",
     ].filter(Boolean);
-    this.equipBarText.setText(lines.join("\n"));
+    this.equipBarText.setText(lines.join("   ·   "));
   }
 
   private updateNightOverlay(): void {
@@ -1788,9 +1833,7 @@ export class WorldScene extends Phaser.Scene {
       // 너무 가까우면 별로 재미없음 — 최소 8칸은 떨어지게
       const d = Math.max(Math.abs(tx - store.playerTx), Math.abs(ty - store.playerTy));
       if (d < 8) continue;
-      let maxId = 0;
-      for (const e of map.entities) if (e.id > maxId) maxId = e.id;
-      map.entities.push({ id: maxId + 1, type: "buried_treasure", tx, ty });
+      map.addEntity("buried_treasure", tx, ty);
       const dx = tx - store.playerTx;
       const dy = ty - store.playerTy;
       const ns = dy < 0 ? "북" : "남";
@@ -1826,8 +1869,9 @@ export class WorldScene extends Phaser.Scene {
 
   private manualSave(): void {
     const store = getStore(this);
-    store.save();
-    store.pushLog("💾 게임을 저장했다.");
+    const saved = store.save();
+    store.pushLog(saved ? "💾 게임을 저장했다." : "⚠ 저장 공간을 사용할 수 없어 저장하지 못했다.");
+    audio.play(saved ? "menu" : "error");
   }
 
   private backToTitle(): void {
@@ -1839,7 +1883,9 @@ export class WorldScene extends Phaser.Scene {
   /** 낚시 미니게임: 찌가 잠기면 제때 버튼 클릭 */
   private startFishing(fishTx: number, fishTy: number): void {
     const store = getStore(this);
+    if (this.fishingOpen) return;
     if (!this.spendActionTime(20, 4)) return;
+    this.fishingOpen = true;
     store.pushLog("🎣 낚싯대를 드리웠다. 찌가 잠기면 '낚아채기!' 버튼을 눌러라!");
 
     const PW = 400;
@@ -1899,6 +1945,21 @@ export class WorldScene extends Phaser.Scene {
 
     // 낚아채기 버튼 (처음엔 비활성)
     let canCatch = false;
+    let missTimer: ReturnType<typeof setTimeout> | undefined;
+    let biteTimer: Phaser.Time.TimerEvent | undefined;
+    let finished = false;
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      if (missTimer !== undefined) clearTimeout(missTimer);
+      biteTimer?.remove(false);
+      idleTween.stop();
+      if (c.active) c.destroy();
+      this.fishingOpen = false;
+      if (this.fishingCleanup === cleanup) this.fishingCleanup = undefined;
+    };
+    this.fishingCleanup?.();
+    this.fishingCleanup = cleanup;
     const catchBtn = makeButton(this, PX + PW / 2, PY + PH - 52, {
       label: "낚아채기! 🎣",
       width: 200,
@@ -1910,10 +1971,7 @@ export class WorldScene extends Phaser.Scene {
       textColor: "#88cc88",
       onClick: () => {
         if (!canCatch) return;
-        if (missTimer !== undefined) clearTimeout(missTimer);
-        biteTimer?.remove(false);
-        idleTween.stop();
-        c.destroy();
+        cleanup();
         this.grantFishLoot(fishTx, fishTy);
       },
       disabled: true,
@@ -1929,10 +1987,7 @@ export class WorldScene extends Phaser.Scene {
       hover: 0x4a1520,
       border: 0x8a2230,
       onClick: () => {
-        if (missTimer !== undefined) clearTimeout(missTimer);
-        biteTimer?.remove(false);
-        idleTween.stop();
-        c.destroy();
+        cleanup();
         store.pushLog("🎣 낚시를 그만뒀다.");
         this.renderEntities();
       },
@@ -1944,11 +1999,9 @@ export class WorldScene extends Phaser.Scene {
 
     // 무작위 1.5~4초 뒤 찌가 잠김
     const waitMs = 1500 + Math.random() * 2500;
-    let missTimer: ReturnType<typeof setTimeout> | undefined;
-    let biteTimer: Phaser.Time.TimerEvent | undefined;
 
     biteTimer = this.time.delayedCall(waitMs, () => {
-      if (!c.active) return;
+      if (finished || !c.active) return;
       idleTween.stop();
       // 찌 급격히 아래로 ↓ (bite 애니메이션)
       this.tweens.add({
@@ -1970,8 +2023,8 @@ export class WorldScene extends Phaser.Scene {
       // 1.5초 (+fish5 특성 0.5초) 내에 안 누르면 실패
       const catchWindowMs = 1500 + store.perkFishExtraMs;
       missTimer = setTimeout(() => {
-        idleTween.stop();
-        c.destroy();
+        if (finished || !c.active) return;
+        cleanup();
         store.pushLog("🎣 아뿔싸! 찌를 늦게 당겼다. 물고기가 도망쳤다.");
       }, catchWindowMs);
     });

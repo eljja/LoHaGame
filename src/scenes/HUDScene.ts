@@ -89,14 +89,14 @@ export class HUDScene extends Phaser.Scene {
       },
     });
 
-    // 로그 (최근 3줄) — 메뉴 버튼 오른쪽, equipBar 아래에 top-anchored로 배치.
-    // 액션 힌트(이전 y=614) 제거에 따라 46px 위로 이동.
+    // 중앙 하단의 고정 2행 로그. 긴 원문은 일지에서 확인한다.
     this.logText = this.add
-      .text(305, 660, "", {
+      .text(305, 690, "", {
         fontFamily: "Galmuri11, monospace",
-        fontSize: "13px",
-        color: "#9fb7ff",
-        wordWrap: { width: 720 },
+        fontSize: "12px",
+        color: "#d3dcff",
+        lineSpacing: 7,
+        wordWrap: { width: 720, useAdvancedWrap: true },
       })
       .setOrigin(0, 0);
 
@@ -216,7 +216,10 @@ export class HUDScene extends Phaser.Scene {
   }
 
   private refreshLog(): void {
-    const logs = getStore(this).logs.slice(0, 3).reverse();
+    const logs = getStore(this).logs.slice(0, 2).reverse().map((line) => {
+      const compact = line.replace(/\s*\n\s*/g, " ").replace(/\s+/g, " ").trim();
+      return compact.length > 92 ? `${compact.slice(0, 89)}...` : compact;
+    });
     this.logText.setText(logs.join("\n"));
   }
 

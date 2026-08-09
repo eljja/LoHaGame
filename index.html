@@ -17,7 +17,8 @@
     <meta property="og:title" content="무인도에서의 50일" />
     <meta property="og:description" content="난파 후 무인도에서 50일을 버티는 한국어 웹 생존 게임. 채집, 제작, 전투, 날씨와 위험 예고를 관리하며 살아남으세요." />
     <meta property="og:url" content="https://eljja.github.io/LoHaGame/" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:image" content="https://eljja.github.io/LoHaGame/assets/title-island-v2.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="무인도에서의 50일" />
     <meta name="twitter:description" content="무인도에서 50일을 버티는 한국어 웹 생존 게임입니다." />
     <script type="application/ld+json">
@@ -32,7 +33,7 @@
         "genre": ["Survival", "Adventure"],
         "gamePlatform": "Web browser",
         "playMode": "SinglePlayer",
-        "dateModified": "2026-07-03",
+        "dateModified": "2026-08-09",
         "publisher": {
           "@type": "Person",
           "name": "eljja"
@@ -68,8 +69,8 @@
           #05070f;
       }
       #game {
-        width: min(100vw, 1280px);
-        height: min(100vh, 800px);
+        width: min(100vw, 160vh, 1280px);
+        height: min(100vh, 62.5vw, 800px);
         aspect-ratio: 16 / 10;
         position: relative;
         box-shadow: 0 40px 120px rgba(0, 0, 0, 0.7), 0 0 0 1px #1a2342 inset;
@@ -112,7 +113,7 @@
         clip-path: inset(50%);
         white-space: nowrap;
       }
-      canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+      canvas { display: block; image-rendering: auto; }
     </style>
   </head>
   <body>

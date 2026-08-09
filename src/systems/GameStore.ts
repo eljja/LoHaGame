@@ -11,6 +11,7 @@ import type { WorldEntity } from "./WorldMap";
 import type { GameState, ItemId } from "../types";
 import { ACHIEVEMENTS, type Achievement } from "../data/achievements";
 import { RECIPE_UNLOCK_TRIGGERS } from "../data/recipes";
+import { ITEMS } from "../data/items";
 
 const ACTION_TIME_STAT_DRAIN_MULT = 0.6;
 
@@ -332,8 +333,8 @@ export class GameStore extends Phaser.Events.EventEmitter {
     this.emit("reset");
   }
 
-  save(): void {
-    SaveManager.save({
+  save(): boolean {
+    return SaveManager.save({
       time: this.time,
       stats: this.stats,
       inv: this.inv,
@@ -364,26 +365,34 @@ export class GameStore extends Phaser.Events.EventEmitter {
     this.inv.fromJSON(blob.inventory);
     const savedFlags = blob.flags as Partial<GameState["flags"]>;
     this.flags = {
-      lootedCrates: savedFlags.lootedCrates ?? 0,
-      hasTent: savedFlags.hasTent ?? false,
-      hasBonfire: savedFlags.hasBonfire ?? false,
-      firstTimeVisited: savedFlags.firstTimeVisited ?? {},
-      bossesDefeated: Array.isArray(savedFlags.bossesDefeated) ? savedFlags.bossesDefeated : [],
-      unlockedAchievements: Array.isArray(savedFlags.unlockedAchievements) ? savedFlags.unlockedAchievements : [],
+      lootedCrates: typeof savedFlags.lootedCrates === "number" ? Math.max(0, Math.floor(savedFlags.lootedCrates)) : 0,
+      hasTent: savedFlags.hasTent === true,
+      hasBonfire: savedFlags.hasBonfire === true,
+      firstTimeVisited: savedFlags.firstTimeVisited && typeof savedFlags.firstTimeVisited === "object" ? savedFlags.firstTimeVisited : {},
+      bossesDefeated: Array.isArray(savedFlags.bossesDefeated)
+        ? savedFlags.bossesDefeated.filter((day): day is number => typeof day === "number" && Number.isInteger(day))
+        : [],
+      unlockedAchievements: Array.isArray(savedFlags.unlockedAchievements)
+        ? savedFlags.unlockedAchievements.filter((id): id is string => typeof id === "string")
+        : [],
       discoveredRecipes: Array.isArray(savedFlags.discoveredRecipes)
-        ? savedFlags.discoveredRecipes
+        ? savedFlags.discoveredRecipes.filter((id): id is string => typeof id === "string")
         : [
             "wood_club", "stone_axe", "stone_spear", "rope", "torch",
             "stone_pickaxe", "bandage", "bonfire", "tent",
           ],
-      fishCaught: savedFlags.fishCaught ?? 0,
-      nightSkyBuff: savedFlags.nightSkyBuff,
-      lastNightSkyDay: savedFlags.lastNightSkyDay,
-      hazardWarnings: Array.isArray(savedFlags.hazardWarnings) ? savedFlags.hazardWarnings : [],
-      pendingStormDay: savedFlags.pendingStormDay,
-      signalFiresUsed: savedFlags.signalFiresUsed ?? 0,
-      signalNetworkBuilt: savedFlags.signalNetworkBuilt ?? false,
-      sentBottle: savedFlags.sentBottle,
+      fishCaught: typeof savedFlags.fishCaught === "number" ? Math.max(0, Math.floor(savedFlags.fishCaught)) : 0,
+      nightSkyBuff: savedFlags.nightSkyBuff === true ? true : undefined,
+      lastNightSkyDay: typeof savedFlags.lastNightSkyDay === "number" ? Math.floor(savedFlags.lastNightSkyDay) : undefined,
+      hazardWarnings: Array.isArray(savedFlags.hazardWarnings)
+        ? savedFlags.hazardWarnings.filter((key): key is string => typeof key === "string")
+        : [],
+      pendingStormDay: typeof savedFlags.pendingStormDay === "number" ? savedFlags.pendingStormDay : undefined,
+      signalFiresUsed: typeof savedFlags.signalFiresUsed === "number" ? Math.max(0, Math.floor(savedFlags.signalFiresUsed)) : 0,
+      signalNetworkBuilt: savedFlags.signalNetworkBuilt === true,
+      sentBottle: savedFlags.sentBottle && typeof savedFlags.sentBottle.itemId === "string" && savedFlags.sentBottle.itemId in ITEMS && typeof savedFlags.sentBottle.sentDay === "number"
+        ? savedFlags.sentBottle
+        : undefined,
     };
 
     this.caveDepth = blob.caveDepth;
@@ -409,11 +418,11 @@ export class GameStore extends Phaser.Events.EventEmitter {
     const camp = this.map.entities.find((e) => e.type === "camp_spot");
     if (this.flags.hasBonfire && !this.map.entities.some((e) => e.type === "bonfire_placed")) {
       const spot = this.findLegacySpawnTile(camp, "bonfire_placed");
-      if (spot) this.map.entities.push({ id: this.allocEntityId(), type: "bonfire_placed", tx: spot[0], ty: spot[1] });
+      if (spot) this.map.addEntity("bonfire_placed", spot[0], spot[1]);
     }
     if (this.flags.hasTent && !this.map.entities.some((e) => e.type === "tent_placed")) {
       const spot = this.findLegacySpawnTile(camp, "tent_placed");
-      if (spot) this.map.entities.push({ id: this.allocEntityId(), type: "tent_placed", tx: spot[0], ty: spot[1] });
+      if (spot) this.map.addEntity("tent_placed", spot[0], spot[1]);
     }
   }
 
@@ -429,11 +438,6 @@ export class GameStore extends Phaser.Events.EventEmitter {
     return null;
   }
 
-  private allocEntityId(): number {
-    let maxId = 0;
-    for (const e of this.map.entities) if (e.id > maxId) maxId = e.id;
-    return maxId + 1;
-  }
 }
 
 export function getStore(scene: Phaser.Scene): GameStore {

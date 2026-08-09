@@ -56,6 +56,6 @@ src/
 워크플로 로그는 저장소의 **Actions** 탭에서 확인 가능합니다.
 
 ## 크레딧 / 라이선스 참고
-- 그래픽은 Phaser Graphics + 시스템 이모지로 생성. 외부 에셋 없음.
+- 월드 그래픽은 Phaser Graphics + 시스템 이모지로 생성하며, 타이틀 배경은 프로젝트용 생성 이미지 에셋을 사용합니다.
 - 폰트: [Galmuri11](https://github.com/quiple/galmuri) (OFL).
 - "SCP"풍 크리처는 **오리지널 명칭·외형**으로 오마주했습니다.

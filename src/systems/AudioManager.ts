@@ -23,8 +23,10 @@ class AudioManager {
   private bgmDry: GainNode | null = null;
   private bgmWet: GainNode | null = null;
   private bgmInterval: number | null = null;
+  private bgmTrackGain: GainNode | null = null;
   private bgmPadOsc: OscillatorNode | null = null;
   private bgmPadGain: GainNode | null = null;
+  private bgmAmbientSources: AudioScheduledSourceNode[] = [];
   private currentBgm: BgmName | null = null;
   muted = false;
 
@@ -188,11 +190,16 @@ class AudioManager {
     this.init();
     if (!this.ctx || !this.bgmGain) return;
     if (this.currentBgm === name) return;
-    this.stopBgm();
+    this.fadeOutCurrentTrack();
     this.currentBgm = name;
 
     const pattern = this.bgmPattern(name);
     if (!pattern) return;
+    const trackGain = this.ctx.createGain();
+    trackGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+    trackGain.gain.exponentialRampToValueAtTime(1, this.ctx.currentTime + 0.7);
+    trackGain.connect(this.bgmGain);
+    this.bgmTrackGain = trackGain;
 
     if (pattern.pad) {
       const pad = this.ctx.createOscillator();
@@ -201,28 +208,64 @@ class AudioManager {
       pad.frequency.value = pattern.pad.f;
       g.gain.value = pattern.pad.gain;
       pad.connect(g);
-      g.connect(this.bgmGain);
+      g.connect(trackGain);
       pad.start();
       this.bgmPadOsc = pad;
       this.bgmPadGain = g;
     }
+    this.startAmbientBed(name, trackGain);
 
+    let nextLoopAt = this.ctx.currentTime + 0.08;
     const schedule = () => {
-      if (!this.ctx || !this.bgmGain) return;
-      const base = this.ctx.currentTime;
-      for (const n of pattern.notes) this.scheduleNote(n, base, this.bgmGain);
-      if (pattern.bass) for (const n of pattern.bass) this.scheduleNote(n, base, this.bgmGain, 0.65);
-      if (pattern.perc) for (const p of pattern.perc) this.schedulePerc(p, base);
+      if (!this.ctx || this.currentBgm !== name || this.bgmTrackGain !== trackGain) return;
+      while (nextLoopAt < this.ctx.currentTime + 1.5) {
+        const base = nextLoopAt;
+        for (const n of pattern.notes) this.scheduleNote(n, base, trackGain);
+        if (pattern.bass) for (const n of pattern.bass) this.scheduleNote(n, base, trackGain, 0.65);
+        if (pattern.perc) for (const p of pattern.perc) this.schedulePerc(p, base, trackGain);
+        nextLoopAt += pattern.loopSeconds;
+      }
     };
     schedule();
-    this.bgmInterval = window.setInterval(schedule, pattern.loopSeconds * 1000);
+    this.bgmInterval = window.setInterval(schedule, 250);
   }
 
   stopBgm(): void {
-    if (this.bgmInterval != null) { window.clearInterval(this.bgmInterval); this.bgmInterval = null; }
-    if (this.bgmPadOsc) { try { this.bgmPadOsc.stop(); } catch { /**/ } this.bgmPadOsc.disconnect(); this.bgmPadOsc = null; }
-    if (this.bgmPadGain) { this.bgmPadGain.disconnect(); this.bgmPadGain = null; }
+    this.fadeOutCurrentTrack(0.25);
     this.currentBgm = null;
+  }
+
+  private fadeOutCurrentTrack(duration = 0.55): void {
+    if (this.bgmInterval != null) {
+      window.clearInterval(this.bgmInterval);
+      this.bgmInterval = null;
+    }
+    const ctx = this.ctx;
+    const oldTrack = this.bgmTrackGain;
+    const oldPad = this.bgmPadOsc;
+    const oldPadGain = this.bgmPadGain;
+    const oldAmbient = this.bgmAmbientSources;
+    this.bgmTrackGain = null;
+    this.bgmPadOsc = null;
+    this.bgmPadGain = null;
+    this.bgmAmbientSources = [];
+    if (!ctx || !oldTrack) return;
+
+    const now = ctx.currentTime;
+    oldTrack.gain.cancelScheduledValues(now);
+    oldTrack.gain.setValueAtTime(Math.max(0.0001, oldTrack.gain.value), now);
+    oldTrack.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    if (oldPad) {
+      try { oldPad.stop(now + duration + 0.02); } catch { /* already stopped */ }
+    }
+    for (const source of oldAmbient) {
+      try { source.stop(now + duration + 0.02); } catch { /* already stopped */ }
+    }
+    window.setTimeout(() => {
+      try { oldPad?.disconnect(); } catch { /* ignore */ }
+      try { oldPadGain?.disconnect(); } catch { /* ignore */ }
+      try { oldTrack.disconnect(); } catch { /* ignore */ }
+    }, (duration + 0.15) * 1000);
   }
 
   private scheduleNote(n: Note, base: number, dest: AudioNode, gainMul = 1): void {
@@ -240,8 +283,8 @@ class AudioManager {
     osc.stop(base + n.t + n.dur + 0.05);
   }
 
-  private schedulePerc(p: PercHit, base: number): void {
-    if (!this.ctx || !this.bgmGain) return;
+  private schedulePerc(p: PercHit, base: number, dest: AudioNode): void {
+    if (!this.ctx) return;
     const bufSize = Math.max(1, Math.floor(this.ctx.sampleRate * p.dur));
     const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
     const data = buf.getChannelData(0);
@@ -255,9 +298,51 @@ class AudioManager {
     const g = this.ctx.createGain();
     g.gain.setValueAtTime(p.gain, base + p.t);
     g.gain.exponentialRampToValueAtTime(0.0001, base + p.t + p.dur);
-    src.connect(filt); filt.connect(g); g.connect(this.bgmGain);
+    src.connect(filt); filt.connect(g); g.connect(dest);
     src.start(base + p.t);
     src.stop(base + p.t + p.dur + 0.05);
+  }
+
+  private startAmbientBed(name: BgmName, dest: AudioNode): void {
+    if (!this.ctx || name === "combat" || name === "victory" || name === "gameover") return;
+    const settings: Partial<Record<BgmName, { type: BiquadFilterType; freq: number; gain: number }>> = {
+      title: { type: "lowpass", freq: 620, gain: 0.035 },
+      day: { type: "lowpass", freq: 950, gain: 0.028 },
+      night: { type: "bandpass", freq: 3900, gain: 0.012 },
+      cave: { type: "lowpass", freq: 260, gain: 0.042 },
+    };
+    const setting = settings[name];
+    if (!setting) return;
+
+    const duration = 4;
+    const size = Math.floor(this.ctx.sampleRate * duration);
+    const buffer = this.ctx.createBuffer(1, size, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < size; i++) {
+      const edge = Math.min(1, i / 1200, (size - i) / 1200);
+      data[i] = (Math.random() * 2 - 1) * edge;
+    }
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = setting.type;
+    filter.frequency.value = setting.freq;
+    filter.Q.value = name === "night" ? 2.5 : 0.7;
+    const gain = this.ctx.createGain();
+    gain.gain.value = setting.gain;
+    const lfo = this.ctx.createOscillator();
+    const lfoGain = this.ctx.createGain();
+    lfo.frequency.value = name === "cave" ? 0.07 : 0.12;
+    lfoGain.gain.value = setting.gain * 0.3;
+    lfo.connect(lfoGain);
+    lfoGain.connect(gain.gain);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(dest);
+    source.start();
+    lfo.start();
+    this.bgmAmbientSources.push(source, lfo);
   }
 
   // ── BGM 패턴 ────────────────────────────────────────────────

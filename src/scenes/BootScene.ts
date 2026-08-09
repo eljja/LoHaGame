@@ -33,8 +33,7 @@ export class BootScene extends Phaser.Scene {
       pct.setText(`${Math.floor(v * 100)}%`);
     });
 
-    // 이 게임은 생성형 그래픽(Graphics + 이모지)으로 제작되어 외부 에셋 없이도 동작.
-    // 필요 시 여기서 this.load.image / this.load.audio 추가.
+    this.load.image("title-island-v2", "assets/title-island-v2.jpg");
 
     // 최소 대기(타이틀 부드러운 전환)
     this.load.on("complete", () => {
@@ -49,11 +48,5 @@ export class BootScene extends Phaser.Scene {
     });
   }
 
-  create(): void {
-    // 에셋이 전혀 없으면 progress 이벤트가 뜨지 않을 수 있어 수동 트리거
-    if (this.load.totalToLoad === 0) {
-      // complete 콜백이 이미 preload에서 걸려있음. 수동 호출.
-      this.load.emit("complete");
-    }
-  }
+  create(): void {}
 }

@@ -25,6 +25,8 @@ export class CombatScene extends Phaser.Scene {
   private defending = false;
   private buttons: ButtonNode[] = [];
   private turnLock = false;
+  private outcomeResolved = false;
+  private transitionStarted = false;
   private returnScene: "WorldScene" | "CaveScene" = "WorldScene";
 
   // 플레이어 HP 표시
@@ -97,6 +99,8 @@ export class CombatScene extends Phaser.Scene {
     this.returnScene = data.returnScene ?? "WorldScene";
     this.defending = false;
     this.turnLock = false;
+    this.outcomeResolved = false;
+    this.transitionStarted = false;
     this.buttons = [];
     this.comboHits = 0;
     this.nextAttackCrit = false;
@@ -1063,6 +1067,8 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private victory(): void {
+    if (this.outcomeResolved || this.transitionStarted) return;
+    this.outcomeResolved = true;
     const store = getStore(this);
     this.pushLog(`✨ ${this.enemy.name}을(를) 쓰러뜨렸다!`);
     audio.play("victory");
@@ -1087,6 +1093,12 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private endCombat(_won: boolean, dead = false): void {
+    if (this.transitionStarted) return;
+    this.transitionStarted = true;
+    this.outcomeResolved = true;
+    this.attackActive = false;
+    this.defenseActive = false;
+    this.parryActive = false;
     getStore(this).stats.off("change", this.updatePlayerHp, this);
     this.cameras.main.fadeOut(500, 0, 0, 0);
     this.time.delayedCall(520, () => {

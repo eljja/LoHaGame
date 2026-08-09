@@ -335,6 +335,13 @@ export class WorldMap {
     if (idx >= 0) this.entities.splice(idx, 1);
   }
 
+  addEntity(type: EntityType, tx: number, ty: number, meta?: WorldEntity["meta"]): WorldEntity | null {
+    if (!this.in(tx, ty) || this.entityAt(tx, ty)) return null;
+    const entity: WorldEntity = { id: this.nextId++, type, tx, ty, meta };
+    this.entities.push(entity);
+    return entity;
+  }
+
   /** 매일 낮이 될 때 호출. 캡까지 부족한 자원을 다시 흩뿌린다. */
   nightRespawn(): number {
     const rnd = mulberry32((this.seed ^ 0x2b85) + this.entities.length + this.nextId);
@@ -373,8 +380,34 @@ export class WorldMap {
 
   static fromJSON(b: WorldMapSaveBlob): WorldMap {
     const m = new WorldMap(b.seed, isIslandProfileId(b.profile) ? b.profile : "balanced");
-    m.entities = b.entities.map((e) => ({ ...e }));
-    m.nextId = b.nextId;
+    const selected: WorldEntity[] = [];
+    const positionIndex = new Map<string, number>();
+    for (const entity of b.entities) {
+      const key = `${entity.tx},${entity.ty}`;
+      const existingIndex = positionIndex.get(key);
+      if (existingIndex === undefined) {
+        positionIndex.set(key, selected.length);
+        selected.push(entity);
+        continue;
+      }
+      const existing = selected[existingIndex];
+      if (ENTITIES[existing.type].respawn && !ENTITIES[entity.type].respawn) {
+        selected[existingIndex] = entity;
+      }
+    }
+    const usedIds = new Set<number>();
+    let nextId = Math.max(1, Math.floor(b.nextId));
+    m.entities = selected.map((e) => {
+      let id = Math.floor(e.id);
+      if (id <= 0 || usedIds.has(id)) {
+        while (usedIds.has(nextId)) nextId += 1;
+        id = nextId++;
+      }
+      usedIds.add(id);
+      nextId = Math.max(nextId, id + 1);
+      return { ...e, id };
+    });
+    m.nextId = nextId;
     return m;
   }
 }

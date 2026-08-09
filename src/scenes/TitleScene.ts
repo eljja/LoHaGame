@@ -4,9 +4,9 @@ import { makeButton } from "../ui/Button";
 import { SaveManager } from "../systems/SaveManager";
 import { getStore } from "../systems/GameStore";
 import { audio } from "../systems/AudioManager";
-import { formatRunHistoryLine, loadRunHistory } from "../systems/RunHistory";
+import { formatRunHistoryLine, formatRunLegacy, loadRunHistory } from "../systems/RunHistory";
 
-const LAST_UPDATE = "2026.07.03";
+const LAST_UPDATE = "2026.08.09";
 
 export class TitleScene extends Phaser.Scene {
   constructor() {
@@ -14,39 +14,19 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, "title-island-v2").setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+
     const g = this.add.graphics();
-    // 밤바다 그라디언트
-    g.fillGradientStyle(0x05070f, 0x05070f, 0x0a1430, 0x0a1430, 1);
+    g.fillStyle(0x020713, 0.28);
     g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    // 달
-    const moon = this.add.circle(GAME_WIDTH - 220, 160, 50, 0xe8eeff, 1);
-    moon.setStrokeStyle(12, 0xf6faff, 0.1);
-    // 별
-    for (let i = 0; i < 80; i++) {
-      const sx = Phaser.Math.Between(20, GAME_WIDTH - 20);
-      const sy = Phaser.Math.Between(20, GAME_HEIGHT / 2);
-      const star = this.add.circle(sx, sy, Phaser.Math.FloatBetween(0.5, 1.8), 0xffffff, Phaser.Math.FloatBetween(0.3, 1));
-      this.tweens.add({ targets: star, alpha: 0.2, duration: Phaser.Math.Between(1500, 3500), yoyo: true, repeat: -1 });
-    }
-    // 바다
-    const seaY = GAME_HEIGHT * 0.6;
-    const sea = this.add.graphics();
-    sea.fillGradientStyle(0x0c2750, 0x0c2750, 0x040b1c, 0x040b1c, 1);
-    sea.fillRect(0, seaY, GAME_WIDTH, GAME_HEIGHT - seaY);
-    // 섬 실루엣
-    const island = this.add.graphics();
-    island.fillStyle(0x06111f, 1);
-    island.fillTriangle(GAME_WIDTH / 2 - 300, seaY, GAME_WIDTH / 2 + 320, seaY, GAME_WIDTH / 2, seaY - 180);
-    island.fillTriangle(GAME_WIDTH / 2 + 60, seaY, GAME_WIDTH / 2 + 420, seaY, GAME_WIDTH / 2 + 220, seaY - 130);
-    // 좌초된 배 실루엣
-    const ship = this.add.text(GAME_WIDTH / 2 - 90, seaY - 20, "🚢", { fontSize: "96px" }).setOrigin(0.5, 1);
-    ship.setAngle(-18);
-    // 파도
-    this.tweens.add({ targets: ship, y: ship.y + 6, duration: 2800, yoyo: true, repeat: -1, ease: "Sine.InOut" });
+    g.fillGradientStyle(0x020713, 0x020713, 0x061226, 0x061226, 0.16);
+    g.fillRect(0, 0, GAME_WIDTH, 260);
+    g.fillStyle(0x040a18, 0.82);
+    g.fillRect(0, 500, GAME_WIDTH, 300);
 
     // 타이틀
     const title = this.add
-      .text(GAME_WIDTH / 2, 200, "무인도에서의 50일", {
+      .text(GAME_WIDTH / 2, 106, "무인도에서의 50일", {
         fontFamily: "Galmuri11, monospace",
         fontSize: "56px",
         color: "#eaf0ff",
@@ -55,10 +35,10 @@ export class TitleScene extends Phaser.Scene {
         shadow: { offsetX: 0, offsetY: 0, color: "#6fd1ff", blur: 18, fill: true },
       })
       .setOrigin(0.5);
-    this.tweens.add({ targets: title, y: 196, duration: 2400, yoyo: true, repeat: -1, ease: "Sine.InOut" });
+    this.tweens.add({ targets: title, y: 102, duration: 2400, yoyo: true, repeat: -1, ease: "Sine.InOut" });
 
     this.add
-      .text(GAME_WIDTH / 2, 260, "— 50일 동안 살아남아라 —", {
+      .text(GAME_WIDTH / 2, 166, "50일 동안 살아남아라", {
         fontFamily: "Galmuri11, monospace",
         fontSize: "20px",
         color: "#9fb7ff",
@@ -67,8 +47,9 @@ export class TitleScene extends Phaser.Scene {
 
     // 버튼
     const hasSave = SaveManager.hasSave();
-    const btnY = GAME_HEIGHT - 230;
-    makeButton(this, GAME_WIDTH / 2, btnY, {
+    const btnX = GAME_WIDTH - 230;
+    const btnY = 574;
+    makeButton(this, btnX, btnY, {
       label: "🆕  새 게임 시작",
       width: 320,
       height: 56,
@@ -80,7 +61,7 @@ export class TitleScene extends Phaser.Scene {
       },
     });
 
-    const continueBtn = makeButton(this, GAME_WIDTH / 2, btnY + 72, {
+    const continueBtn = makeButton(this, btnX, btnY + 66, {
       label: hasSave ? "📂  이어하기" : "📂  저장 없음",
       width: 320,
       height: 56,
@@ -101,7 +82,7 @@ export class TitleScene extends Phaser.Scene {
     });
     if (!hasSave) continueBtn.setAlpha(0.6);
 
-    makeButton(this, GAME_WIDTH / 2, btnY + 144, {
+    makeButton(this, btnX, btnY + 132, {
       label: "🗑  저장 삭제",
       width: 320,
       height: 40,
@@ -117,26 +98,32 @@ export class TitleScene extends Phaser.Scene {
 
     const history = loadRunHistory();
     const hx = 48;
-    const hy = 384;
-    this.add.text(hx, hy, "최근 생존 기록", {
+    const hy = 530;
+    this.add.text(hx, hy, "생존자의 항해 기록", {
       fontFamily: "Galmuri11, monospace",
       fontSize: "18px",
       color: "#cfd8ff",
     });
     this.add.text(
       hx,
-      hy + 34,
+      hy + 32,
       history.length > 0
         ? history.map((entry, i) => `${i + 1}. ${formatRunHistoryLine(entry)}`).join("\n")
         : "아직 기록된 도전이 없다.",
       {
         fontFamily: "Galmuri11, monospace",
-        fontSize: "12px",
-        color: "#8d9bd1",
+        fontSize: "11px",
+        color: "#c2cff7",
         lineSpacing: 6,
-        wordWrap: { width: 450 },
+        wordWrap: { width: 610 },
       }
     );
+    this.add.text(hx, 696, formatRunLegacy(), {
+      fontFamily: "Galmuri11, monospace",
+      fontSize: "12px",
+      color: "#ffd98a",
+      lineSpacing: 6,
+    });
 
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT - 30, `ⓒ 무인도에서의 50일 · Phaser 3 · 최종 update ${LAST_UPDATE}`, {
