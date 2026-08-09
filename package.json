@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "audio:render": "node scripts/generate-original-score.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
@@ -14,6 +15,7 @@
     "phaser": "^3.80.1"
   },
   "devDependencies": {
+    "@audio/encode-ogg": "^1.2.2",
     "typescript": "^5.4.5",
     "vite": "^5.2.11"
   }

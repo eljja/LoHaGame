@@ -1,0 +1,122 @@
+{
+  "generatedAt": "2026-08-10",
+  "tracks": [
+    {
+      "id": "island-overture",
+      "title": "Island Overture",
+      "file": "island-overture.ogg",
+      "scene": "title",
+      "seconds": 86,
+      "bytes": 1312477,
+      "sha256": "90b8ae07c815b1860648981cd0289cdcb2da77f2ff31754e0b155f952414cc53",
+      "oggPages": 301,
+      "peak": 0.91,
+      "rms": 0.1324,
+      "sampleRate": 32000
+    },
+    {
+      "id": "tidebound-horizon",
+      "title": "Tidebound Horizon",
+      "file": "tidebound-horizon.ogg",
+      "scene": "day",
+      "seconds": 97.43,
+      "bytes": 1499340,
+      "sha256": "cdaee13be020cc722ce351867bca86b64e1d8002ddfd326f7ae2b7454f2980d0",
+      "oggPages": 342,
+      "peak": 0.91,
+      "rms": 0.17,
+      "sampleRate": 32000
+    },
+    {
+      "id": "green-isle-wind",
+      "title": "Green Isle Wind",
+      "file": "green-isle-wind.ogg",
+      "scene": "day",
+      "seconds": 104.46,
+      "bytes": 1593970,
+      "sha256": "cc568abe1d3958dec6fd4c21e266d5d9c2251c0debd4d776daa571ca4371232a",
+      "oggPages": 363,
+      "peak": 0.91,
+      "rms": 0.1748,
+      "sampleRate": 32000
+    },
+    {
+      "id": "embers-under-stars",
+      "title": "Embers Under Stars",
+      "file": "embers-under-stars.ogg",
+      "scene": "night",
+      "seconds": 118,
+      "bytes": 1867975,
+      "sha256": "a90c76f4f8514649fb1bb4a8afaa049a6a78f982f5ab647f54b9bd7f4cc1e22b",
+      "oggPages": 432,
+      "peak": 0.91,
+      "rms": 0.1769,
+      "sampleRate": 32000
+    },
+    {
+      "id": "beneath-the-basalt",
+      "title": "Beneath the Basalt",
+      "file": "beneath-the-basalt.ogg",
+      "scene": "cave",
+      "seconds": 112.67,
+      "bytes": 1707329,
+      "sha256": "d80f06a4c0fb1dfafce0297aaa899bc98ba9f9176f08806dd406eec479c77366",
+      "oggPages": 388,
+      "peak": 0.91,
+      "rms": 0.1724,
+      "sampleRate": 32000
+    },
+    {
+      "id": "storm-at-black-reef",
+      "title": "Storm at Black Reef",
+      "file": "storm-at-black-reef.ogg",
+      "scene": "combat",
+      "seconds": 75.82,
+      "bytes": 1062276,
+      "sha256": "75c45831a0f865575812adb42a185cf5be8205e30eb730aa45f896861dcd2a0d",
+      "oggPages": 244,
+      "peak": 0.91,
+      "rms": 0.1706,
+      "sampleRate": 32000
+    },
+    {
+      "id": "teeth-in-the-dark",
+      "title": "Teeth in the Dark",
+      "file": "teeth-in-the-dark.ogg",
+      "scene": "combat",
+      "seconds": 79.85,
+      "bytes": 1099088,
+      "sha256": "60d26b20c199c35f91d6742ae8a2e12f05dbb4b3702b75db60231c990c72b967",
+      "oggPages": 254,
+      "peak": 0.91,
+      "rms": 0.1729,
+      "sampleRate": 32000
+    },
+    {
+      "id": "beacon-across-the-sea",
+      "title": "Beacon Across the Sea",
+      "file": "beacon-across-the-sea.ogg",
+      "scene": "victory",
+      "seconds": 69.16,
+      "bytes": 1039847,
+      "sha256": "9b6a869f909daa53439084c6e217657695da3cbdbd0bc02cd67774c93227b178",
+      "oggPages": 240,
+      "peak": 0.91,
+      "rms": 0.1555,
+      "sampleRate": 32000
+    },
+    {
+      "id": "the-shore-remembers",
+      "title": "The Shore Remembers",
+      "file": "the-shore-remembers.ogg",
+      "scene": "gameover",
+      "seconds": 72.21,
+      "bytes": 1131601,
+      "sha256": "6bfe7b1d861ff19046aba974e34c952503a591508bd17db9efc35d5ed20ffa1a",
+      "oggPages": 262,
+      "peak": 0.91,
+      "rms": 0.1725,
+      "sampleRate": 32000
+    }
+  ]
+}

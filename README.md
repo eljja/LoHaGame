@@ -25,6 +25,7 @@
 ```bash
 npm install
 npm run dev          # http://localhost:5173
+npm run audio:render # 오리지널 사운드트랙 재렌더링
 npm run build        # dist/ 정적 산출물
 npm run preview      # 빌드 결과 미리보기
 ```
@@ -57,6 +58,8 @@ src/
 
 ## 크레딧 / 라이선스 참고
 - 월드·캐릭터·전투 그래픽은 Phaser Canvas 기반 프로젝트 전용 텍스처를 사용하며, 타이틀과 오프닝 시네마틱은 프로젝트용 생성 이미지 에셋을 사용합니다.
-- 음악과 환경음은 Web Audio 기반 생성형 프레이즈 시스템으로 연주되며, 지형·낮밤·날씨·주변 동물에 따라 실시간으로 달라집니다.
+- 음악은 이 게임을 위해 직접 작곡·합성·렌더링한 오리지널 오케스트라 사운드트랙 9곡을 사용합니다. 외부 음악·샘플·루프·사운드폰트는 포함하지 않습니다.
+- 바람·파도·비·번개·불·동물 등의 환경음은 Web Audio 레이어로 지형·낮밤·날씨에 따라 실시간으로 달라집니다.
+- 악곡 생성 과정과 파일 검증은 `scripts/generate-original-score.mjs`, 권리 정보는 `public/audio/music/ORIGINAL_SCORE.md`에 기록되어 있습니다.
 - 폰트: [Galmuri11](https://github.com/quiple/galmuri) (OFL).
 - "SCP"풍 크리처는 **오리지널 명칭·외형**으로 오마주했습니다.

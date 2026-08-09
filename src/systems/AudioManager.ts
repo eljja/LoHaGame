@@ -44,6 +44,40 @@ interface InstrumentShape {
   q: number;
 }
 
+interface RecordedMusicPlayback {
+  element: HTMLAudioElement;
+  source: MediaElementAudioSourceNode;
+  gain: GainNode;
+  name: BgmName;
+  file: string;
+}
+
+const MUSIC_PLAYLISTS: Record<BgmName, readonly string[]> = {
+  title: ["island-overture.ogg"],
+  intro_calm: ["island-overture.ogg"],
+  intro_storm: ["storm-at-black-reef.ogg"],
+  intro_shore: ["tidebound-horizon.ogg"],
+  day: ["tidebound-horizon.ogg", "green-isle-wind.ogg"],
+  night: ["embers-under-stars.ogg"],
+  cave: ["beneath-the-basalt.ogg"],
+  combat: ["storm-at-black-reef.ogg", "teeth-in-the-dark.ogg"],
+  victory: ["beacon-across-the-sea.ogg"],
+  gameover: ["the-shore-remembers.ogg"],
+};
+
+const MUSIC_LEVELS: Record<BgmName, number> = {
+  title: 0.78,
+  intro_calm: 0.72,
+  intro_storm: 0.84,
+  intro_shore: 0.74,
+  day: 0.72,
+  night: 0.68,
+  cave: 0.64,
+  combat: 0.82,
+  victory: 0.76,
+  gameover: 0.67,
+};
+
 const midi = (note: number) => 440 * Math.pow(2, (note - 69) / 12);
 const choose = <T>(values: readonly T[]): T => values[Math.floor(Math.random() * values.length)];
 const between = (min: number, max: number) => min + Math.random() * (max - min);
@@ -57,6 +91,8 @@ class AudioManager {
   private ambientGain: GainNode | null = null;
   private musicInterval: number | null = null;
   private musicTrackGain: GainNode | null = null;
+  private recordedPlayback: RecordedMusicPlayback | null = null;
+  private lastTrackByBgm = new Map<BgmName, string>();
   private currentBgm: BgmName | null = null;
   private phraseIndex = 0;
 
@@ -102,14 +138,14 @@ class AudioManager {
     this.ambientGain.gain.value = 0.42;
 
     const dry = this.ctx.createGain();
-    dry.gain.value = 0.76;
+    dry.gain.value = 0.9;
     this.musicGain.connect(dry);
     dry.connect(this.masterGain);
 
     const convolver = this.ctx.createConvolver();
     convolver.buffer = this.makeImpulse(2.6, 2.8);
     const wet = this.ctx.createGain();
-    wet.gain.value = 0.24;
+    wet.gain.value = 0.1;
     this.musicGain.connect(convolver);
     convolver.connect(wet);
     wet.connect(this.masterGain);
@@ -120,6 +156,7 @@ class AudioManager {
   resume(): void {
     this.init();
     if (this.ctx?.state === "suspended") void this.ctx.resume();
+    if (this.recordedPlayback?.element.paused) void this.recordedPlayback.element.play().catch(() => { /* user gesture may still be required */ });
   }
 
   setMuted(muted: boolean): void {
@@ -240,6 +277,68 @@ class AudioManager {
     if (!this.ctx || !this.musicGain || this.currentBgm === name) return;
     this.fadeOutCurrentTrack();
     this.currentBgm = name;
+    this.startRecordedBgm(name);
+  }
+
+  private startRecordedBgm(name: BgmName): void {
+    if (!this.ctx || !this.musicGain || this.currentBgm !== name || typeof document === "undefined") return;
+    const probe = document.createElement("audio");
+    if (!probe.canPlayType('audio/ogg; codecs="vorbis"')) {
+      this.startProceduralBgm(name);
+      return;
+    }
+
+    const playlist = MUSIC_PLAYLISTS[name];
+    const previous = this.lastTrackByBgm.get(name);
+    const candidates = playlist.length > 1 ? playlist.filter((file) => file !== previous) : playlist;
+    const file = choose(candidates.length ? candidates : playlist);
+    this.lastTrackByBgm.set(name, file);
+
+    const element = document.createElement("audio");
+    element.src = new URL(`audio/music/${file}`, document.baseURI).href;
+    element.preload = "auto";
+    element.loop = false;
+
+    let source: MediaElementAudioSourceNode;
+    try {
+      source = this.ctx.createMediaElementSource(element);
+    } catch {
+      this.startProceduralBgm(name);
+      return;
+    }
+
+    const gain = this.ctx.createGain();
+    const now = this.ctx.currentTime;
+    const level = MUSIC_LEVELS[name];
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(level, now + 1.6);
+    source.connect(gain);
+    gain.connect(this.musicGain);
+
+    const playback: RecordedMusicPlayback = { element, source, gain, name, file };
+    this.recordedPlayback = playback;
+    element.onended = () => {
+      if (this.recordedPlayback !== playback || this.currentBgm !== name) return;
+      this.recordedPlayback = null;
+      this.disposeRecordedPlayback(playback);
+      this.startRecordedBgm(name);
+    };
+    element.onerror = () => this.handleRecordedMusicFailure(playback);
+    void element.play().catch((error: unknown) => {
+      if (error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "AbortError")) return;
+      this.handleRecordedMusicFailure(playback);
+    });
+  }
+
+  private handleRecordedMusicFailure(playback: RecordedMusicPlayback): void {
+    if (this.recordedPlayback !== playback || this.currentBgm !== playback.name) return;
+    this.recordedPlayback = null;
+    this.disposeRecordedPlayback(playback);
+    this.startProceduralBgm(playback.name);
+  }
+
+  private startProceduralBgm(name: BgmName): void {
+    if (!this.ctx || !this.musicGain || this.currentBgm !== name) return;
     this.phraseIndex = 0;
 
     const track = this.ctx.createGain();
@@ -302,6 +401,9 @@ class AudioManager {
       window.clearInterval(this.musicInterval);
       this.musicInterval = null;
     }
+    const recorded = this.recordedPlayback;
+    this.recordedPlayback = null;
+    if (recorded) this.disposeRecordedPlayback(recorded, duration);
     const track = this.musicTrackGain;
     this.musicTrackGain = null;
     if (!this.ctx || !track) return;
@@ -310,6 +412,24 @@ class AudioManager {
     track.gain.setValueAtTime(Math.max(0.0001, track.gain.value), now);
     track.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     window.setTimeout(() => { try { track.disconnect(); } catch { /* already disconnected */ } }, (duration + 4) * 1000);
+  }
+
+  private disposeRecordedPlayback(playback: RecordedMusicPlayback, fadeSeconds = 0): void {
+    playback.element.onended = null;
+    playback.element.onerror = null;
+    if (!this.ctx || fadeSeconds <= 0) {
+      playback.element.pause();
+      try { playback.source.disconnect(); playback.gain.disconnect(); } catch { /* already disconnected */ }
+      return;
+    }
+    const now = this.ctx.currentTime;
+    playback.gain.gain.cancelScheduledValues(now);
+    playback.gain.gain.setValueAtTime(Math.max(0.0001, playback.gain.gain.value), now);
+    playback.gain.gain.exponentialRampToValueAtTime(0.0001, now + fadeSeconds);
+    window.setTimeout(() => {
+      playback.element.pause();
+      try { playback.source.disconnect(); playback.gain.disconnect(); } catch { /* already disconnected */ }
+    }, (fadeSeconds + 0.1) * 1000);
   }
 
   private buildPhrase(name: BgmName, index: number): Phrase {
