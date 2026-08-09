@@ -35,18 +35,12 @@ export class BootScene extends Phaser.Scene {
 
     this.load.image("title-island-v2", "assets/title-island-v2.jpg");
 
-    // 최소 대기(타이틀 부드러운 전환)
-    this.load.on("complete", () => {
-      this.time.delayedCall(300, () => {
-        bg.destroy();
-        bar.destroy();
-        pct.destroy();
-        title.destroy();
-        getStore(this);
-        this.scene.start("TitleScene");
-      });
-    });
   }
 
-  create(): void {}
+  create(): void {
+    this.time.delayedCall(300, () => {
+      getStore(this);
+      this.scene.start("TitleScene");
+    });
+  }
 }
