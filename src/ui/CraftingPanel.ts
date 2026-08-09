@@ -229,6 +229,7 @@ export class CraftingPanel {
         fontSize: "12px",
         color: "#a3b4e8",
         align: "center",
+        lineSpacing: 5,
         wordWrap: { width: dw - 20 },
       })
       .setOrigin(0.5, 0);
