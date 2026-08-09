@@ -22,7 +22,7 @@ import { formatDangerSignals } from "../systems/DangerTracker";
 import { formatNearestMarkerLine, getNextCraftingGoal } from "../systems/ProgressGuide";
 import { determineVictoryEnding } from "../systems/RunSummary";
 import type { Achievement } from "../data/achievements";
-import { entityDisplaySize, entityTextureKey, playerTextureKey, type PlayerDirection } from "../art/GameArt";
+import { entityDisplaySize, entityTextureKey, entityVariantCount, playerTextureKey, type PlayerDirection } from "../art/GameArt";
 
 // Viewport constants
 const VP_X = 0;
@@ -459,11 +459,37 @@ export class WorldScene extends Phaser.Scene {
           gfx.lineStyle(1, blade, 0.38);
           const bx = px + 5 + (hash % 20);
           const by = py + 13 + ((hash >> 3) % 14);
-          gfx.lineBetween(bx, by + 5, bx - 2, by);
-          gfx.lineBetween(bx, by + 5, bx + 2, by - 2);
+          const grassVariant = hash % 4;
+          if (grassVariant === 0) {
+            gfx.lineBetween(bx, by + 5, bx - 2, by);
+            gfx.lineBetween(bx, by + 5, bx + 2, by - 2);
+          } else if (grassVariant === 1) {
+            gfx.lineBetween(bx, by + 5, bx - 5, by + 1);
+            gfx.lineBetween(bx, by + 5, bx + 5, by);
+            gfx.lineBetween(bx, by + 5, bx + 1, by - 3);
+          } else if (grassVariant === 2) {
+            gfx.fillStyle(blade, 0.27);
+            gfx.fillCircle(bx - 3, by + 1, 2);
+            gfx.fillCircle(bx + 1, by, 2);
+            gfx.fillCircle(bx, by + 4, 2);
+          } else {
+            gfx.lineBetween(bx - 5, by + 4, bx - 4, by);
+            gfx.lineBetween(bx + 1, by + 5, bx + 2, by - 2);
+            gfx.lineBetween(bx + 6, by + 4, bx + 7, by + 1);
+          }
           if (terrType === "forest") {
             gfx.fillStyle(0x0f3625, 0.18);
-            gfx.fillCircle(px + 22, py + 8, 7);
+            if (grassVariant === 0) gfx.fillCircle(px + 22, py + 8, 7);
+            else if (grassVariant === 1) {
+              gfx.fillEllipse(px + 10, py + 8, 14, 7);
+              gfx.fillEllipse(px + 25, py + 12, 10, 6);
+            } else if (grassVariant === 2) {
+              gfx.fillCircle(px + 7, py + 7, 5);
+              gfx.fillCircle(px + 15, py + 5, 6);
+              gfx.fillCircle(px + 24, py + 8, 5);
+            } else {
+              gfx.fillEllipse(px + 18, py + 6, 22, 7);
+            }
           }
         } else if (terrType === "rock" || terrType === "cliff_rock") {
           gfx.lineStyle(1, 0x303945, 0.32);
@@ -529,8 +555,9 @@ export class WorldScene extends Phaser.Scene {
       }
 
       const size = entityDisplaySize(entity.type);
+      const variant = Math.abs(entity.id * 31 + entity.type.length * 17) % entityVariantCount(entity.type);
       const t = this.add
-        .image(worldX, worldY, entityTextureKey(entity.type))
+        .image(worldX, worldY, entityTextureKey(entity.type, variant))
         .setDisplaySize(size, size)
         .setOrigin(0.5)
         .setDepth(5)

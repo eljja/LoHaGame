@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { ENTITIES, type EntityType } from "../data/tiles";
 
 const PLAYER_PREFIX = "art-player-v3-";
-const ENTITY_PREFIX = "art-entity-v2-";
+const ENTITY_PREFIX = "art-entity-v3-";
 const COMBAT_PREFIX = "art-combat-v2-";
 
 type Ctx = CanvasRenderingContext2D;
@@ -65,47 +65,80 @@ function makeCanvas(scene: Phaser.Scene, key: string, size: number, draw: (ctx: 
   texture.refresh();
 }
 
-function drawTree(ctx: Ctx): void {
-  rounded(ctx, 42, 48, 12, 34, 5); ctx.fillStyle = "#6d3f24"; ctx.fill();
-  rounded(ctx, 46, 50, 5, 29, 2); ctx.fillStyle = "#a36a38"; ctx.fill();
-  ellipse(ctx, 48, 37, 25, 24, "#174e31");
-  ellipse(ctx, 34, 39, 17, 16, "#236b3c");
-  ellipse(ctx, 57, 26, 18, 18, "#2f8650");
-  ellipse(ctx, 43, 22, 17, 16, "#3b9b58");
-  ellipse(ctx, 31, 28, 12, 11, "#55aa63");
-  ellipse(ctx, 38, 20, 6, 5, "#8bd47f");
-}
-
-function drawBush(ctx: Ctx, berries = false): void {
-  stroke(ctx, [34, 75, 47, 52, 58, 75], "#4d3823", 5);
-  ellipse(ctx, 34, 57, 19, 18, "#215c38");
-  ellipse(ctx, 52, 53, 20, 20, "#2d7844");
-  ellipse(ctx, 64, 61, 16, 16, "#388a4c");
-  ellipse(ctx, 43, 42, 17, 15, "#4a9c55");
-  if (berries) {
-    [[31,53],[44,47],[55,57],[64,52],[47,67],[58,39]].forEach(([x,y], i) => {
-      dot(ctx, x, y, 4, i % 2 ? "#6f3dac" : "#8d58ca");
-      dot(ctx, x - 1, y - 1, 1.2, "#d6b8ff");
+function drawTree(ctx: Ctx, variant: number): void {
+  const v = variant % 4;
+  if (v === 0) {
+    rounded(ctx, 42, 48, 12, 34, 5); ctx.fillStyle = "#6d3f24"; ctx.fill();
+    rounded(ctx, 46, 50, 5, 29, 2); ctx.fillStyle = "#a36a38"; ctx.fill();
+    ellipse(ctx, 48, 37, 25, 24, "#174e31"); ellipse(ctx, 34, 39, 17, 16, "#236b3c");
+    ellipse(ctx, 57, 26, 18, 18, "#2f8650"); ellipse(ctx, 43, 22, 17, 16, "#3b9b58");
+    ellipse(ctx, 31, 28, 12, 11, "#55aa63"); ellipse(ctx, 38, 20, 6, 5, "#8bd47f");
+  } else if (v === 1) {
+    polygon(ctx, [44,82,47,34,55,33,58,82], "#70462c"); stroke(ctx, [51,66,37,45,25,39], "#765036", 6);
+    ellipse(ctx, 47, 29, 19, 25, "#235f38"); ellipse(ctx, 29, 35, 16, 18, "#317746");
+    ellipse(ctx, 62, 38, 18, 19, "#3e8d50"); ellipse(ctx, 51, 16, 13, 12, "#65ad62");
+    ellipse(ctx, 23, 31, 7, 6, "#8bc779");
+  } else if (v === 2) {
+    rounded(ctx, 39, 45, 17, 38, 6); ctx.fillStyle = "#5c3a28"; ctx.fill();
+    stroke(ctx, [46,66,63,44,74,38], "#69442e", 7); stroke(ctx, [45,57,31,39,20,36], "#69442e", 6);
+    ellipse(ctx, 48, 29, 26, 18, "#17533b"); ellipse(ctx, 69, 34, 17, 14, "#28704a");
+    ellipse(ctx, 27, 32, 19, 15, "#398955"); ellipse(ctx, 54, 18, 18, 12, "#58a966");
+    dot(ctx, 70, 29, 3, "#d49a45"); dot(ctx, 32, 27, 3, "#d49a45");
+  } else {
+    rounded(ctx, 45, 43, 10, 40, 4); ctx.fillStyle = "#80603a"; ctx.fill();
+    stroke(ctx, [50,51,35,31,22,24], "#80603a", 5); stroke(ctx, [51,47,65,28,78,23], "#80603a", 5);
+    [[22,24],[34,28],[48,20],[63,25],[78,22]].forEach(([x,y], i) => {
+      ellipse(ctx, x, y, 13 + (i % 2) * 2, 11, i % 2 ? "#4d934e" : "#2d713f");
     });
+    ellipse(ctx, 49, 13, 11, 9, "#79ba64");
   }
 }
 
-function drawRock(ctx: Ctx): void {
-  polygon(ctx, [16,72,24,40,42,22,68,28,82,57,75,76,33,82], "#606c78");
-  polygon(ctx, [24,40,42,22,45,48,16,72], "#93a0aa");
-  polygon(ctx, [45,48,68,28,82,57,58,60], "#75818d");
-  stroke(ctx, [45,48,51,59,44,68], "#46515d", 3);
-  stroke(ctx, [26,69,40,64], "#bdc6cc", 2);
+function drawBush(ctx: Ctx, berries = false, variant = 0): void {
+  const v = variant % 3;
+  const lobes = v === 0
+    ? [[34,57,19,18],[52,53,20,20],[64,61,16,16],[43,42,17,15]]
+    : v === 1
+      ? [[28,62,16,14],[42,50,18,18],[59,48,17,17],[68,63,17,15],[49,66,20,16]]
+      : [[31,53,17,19],[47,43,19,18],[64,53,18,20],[38,67,18,14],[58,68,17,14]];
+  stroke(ctx, v === 1 ? [27,76,46,51,69,76] : [34,75,47,52,58,75], "#4d3823", 5);
+  lobes.forEach(([x,y,rx,ry], i) => ellipse(ctx, x, y, rx, ry, ["#215c38","#2d7844","#388a4c","#4a9c55"][i % 4]));
+  if (berries) {
+    const berryColors = v === 1 ? ["#b9474f", "#dc6671"] : v === 2 ? ["#385c9d", "#6384c4"] : ["#6f3dac", "#8d58ca"];
+    const positions = v === 0 ? [[31,53],[44,47],[55,57],[64,52],[47,67],[58,39]] : v === 1 ? [[29,61],[39,50],[53,45],[64,58],[51,67]] : [[29,50],[43,39],[60,49],[37,65],[59,66]];
+    positions.forEach(([x,y], i) => { dot(ctx, x, y, 4, berryColors[i % 2]); dot(ctx, x - 1, y - 1, 1.2, "#f2d5e7"); });
+  }
 }
 
-function drawAnimal(ctx: Ctx, kind: "rabbit" | "wolf" | "boar" | "bear"): void {
-  const palette = {
-    rabbit: ["#b78a62", "#e3c7a8", "#593f31"],
-    wolf: ["#697887", "#a9b3bb", "#26303a"],
-    boar: ["#6e4633", "#a56f50", "#2c211d"],
-    bear: ["#604633", "#956e4d", "#261d18"],
+function drawRock(ctx: Ctx, variant: number): void {
+  const v = variant % 4;
+  if (v === 0) {
+    polygon(ctx, [16,72,24,40,42,22,68,28,82,57,75,76,33,82], "#606c78");
+    polygon(ctx, [24,40,42,22,45,48,16,72], "#93a0aa"); polygon(ctx, [45,48,68,28,82,57,58,60], "#75818d");
+    stroke(ctx, [45,48,51,59,44,68], "#46515d", 3); stroke(ctx, [26,69,40,64], "#bdc6cc", 2);
+  } else if (v === 1) {
+    polygon(ctx, [12,75,19,52,36,42,52,55,64,32,83,48,87,76], "#5b6872");
+    polygon(ctx, [19,52,36,42,43,61,12,75], "#8998a0"); polygon(ctx, [64,32,83,48,69,59,52,55], "#73838c");
+    stroke(ctx, [67,39,63,50,73,56], "#b4c1c5", 2);
+  } else if (v === 2) {
+    polygon(ctx, [12,73,24,45,48,36,78,48,86,72,72,81,25,81], "#6d777c");
+    polygon(ctx, [24,45,48,36,56,55,18,69], "#a2aaab"); polygon(ctx, [56,55,78,48,86,72,66,68], "#505d64");
+    stroke(ctx, [31,66,48,61,61,65], "#c0c9c8", 3);
+  } else {
+    polygon(ctx, [24,79,29,35,44,14,63,24,76,58,69,81], "#56636c");
+    polygon(ctx, [29,35,44,14,48,49,24,79], "#89979f"); polygon(ctx, [48,49,63,24,76,58,59,65], "#6c7980");
+    stroke(ctx, [48,49,43,60,50,70], "#3e4a51", 3);
+  }
+}
+
+function drawAnimal(ctx: Ctx, kind: "rabbit" | "wolf" | "boar" | "bear", variant = 0): void {
+  const palettes = {
+    rabbit: [["#b78a62", "#e3c7a8", "#593f31"], ["#d3d0c5", "#f2eee3", "#66645e"], ["#846e61", "#c8b5a8", "#3e3531"]],
+    wolf: [["#697887", "#a9b3bb", "#26303a"], ["#4d555b", "#89939a", "#171d22"], ["#9a8e7c", "#d0c4ae", "#514a42"]],
+    boar: [["#6e4633", "#a56f50", "#2c211d"], ["#4f3b31", "#846250", "#201b18"], ["#8a5b39", "#bd835a", "#3b291f"]],
+    bear: [["#604633", "#956e4d", "#261d18"], ["#40362f", "#77675a", "#181513"], ["#80583b", "#b0805d", "#33251d"]],
   }[kind];
-  const [base, light, dark] = palette;
+  const [base, light, dark] = palettes[variant % palettes.length];
   ellipse(ctx, 47, 58, kind === "bear" ? 28 : 25, kind === "bear" ? 23 : 18, base);
   ellipse(ctx, 66, 48, kind === "bear" ? 18 : 16, kind === "bear" ? 18 : 14, base);
   if (kind === "rabbit") {
@@ -131,6 +164,11 @@ function drawAnimal(ctx: Ctx, kind: "rabbit" | "wolf" | "boar" | "bear"): void {
     polygon(ctx, [82,54,91,58,83,61], "#efe0bb");
   }
   ctx.globalAlpha = 0.32; ellipse(ctx, 48, 54, 19, 10, light); ctx.globalAlpha = 1;
+  if (variant % 3 === 1) {
+    ellipse(ctx, 38, 52, kind === "rabbit" ? 8 : 10, kind === "rabbit" ? 6 : 5, light);
+  } else if (variant % 3 === 2) {
+    stroke(ctx, [29,49,39,53,49,49,59,53], light, kind === "bear" ? 5 : 3);
+  }
 }
 
 function drawFlame(ctx: Ctx, x = 48, y = 52, scale = 1): void {
@@ -139,38 +177,68 @@ function drawFlame(ctx: Ctx, x = 48, y = 52, scale = 1): void {
   polygon(ctx, [x,y-8*scale,x-3*scale,y+7*scale,x+4*scale,y+9*scale,x+6*scale,y], "#fff3a0");
 }
 
-function drawEntity(ctx: Ctx, type: EntityType): void {
+function drawEntity(ctx: Ctx, type: EntityType, variant: number): void {
+  const v = variant % entityVariantCount(type);
   ctx.shadowColor = "rgba(0,0,0,.35)";
   ctx.shadowBlur = 5;
   ctx.shadowOffsetY = 3;
   switch (type) {
-    case "tree": drawTree(ctx); break;
-    case "berry_bush": drawBush(ctx, true); break;
-    case "stone_outcrop": drawRock(ctx); break;
+    case "tree": drawTree(ctx, v); break;
+    case "berry_bush": drawBush(ctx, true, v); break;
+    case "stone_outcrop": drawRock(ctx, v); break;
     case "vine":
-      stroke(ctx, [22,78,29,57,48,50,59,31,74,22], "#276e38", 7);
-      [[29,59],[43,52],[57,34],[70,24],[52,43]].forEach(([x,y], i) => {
-        ellipse(ctx, x + (i%2?5:-5), y, 9, 5, i%2 ? "#52a95a" : "#3d8b49");
+      stroke(ctx, v === 0 ? [22,78,29,57,48,50,59,31,74,22] : v === 1 ? [17,74,35,65,31,44,52,36,69,17] : [24,20,32,38,57,43,67,61,76,78], v === 2 ? "#3c7b38" : "#276e38", 7);
+      (v === 0 ? [[29,59],[43,52],[57,34],[70,24],[52,43]] : v === 1 ? [[25,65],[32,48],[47,40],[61,27],[67,18]] : [[28,31],[40,41],[56,45],[66,58],[72,72]]).forEach(([x,y], i) => {
+        ellipse(ctx, x + (i%2?5:-5), y, v === 1 ? 7 : 9, v === 1 ? 7 : 5, i%2 ? "#65b35d" : "#3d8b49");
       });
       break;
     case "shell":
-      ellipse(ctx, 48, 58, 25, 20, "#f2cfac"); polygon(ctx, [23,61,34,35,48,26,62,35,73,61], "#f6dcc2");
-      for (let x = 34; x <= 62; x += 7) stroke(ctx, [48,30,x,65], "#c78f7b", 2);
+      if (v === 0) {
+        ellipse(ctx, 48, 58, 25, 20, "#f2cfac"); polygon(ctx, [23,61,34,35,48,26,62,35,73,61], "#f6dcc2");
+        for (let x = 34; x <= 62; x += 7) stroke(ctx, [48,30,x,65], "#c78f7b", 2);
+      } else if (v === 1) {
+        ellipse(ctx, 48, 54, 23, 23, "#d89a75"); stroke(ctx, [48,54,55,45,54,35,43,30,31,38,28,54,38,68,56,70,70,58], "#f2c3a1", 6);
+        dot(ctx, 48, 54, 5, "#a76656");
+      } else if (v === 2) {
+        ellipse(ctx, 48, 59, 27, 16, "#e8c7a5"); polygon(ctx, [22,59,34,39,62,39,75,59,65,70,31,70], "#f5dcc1");
+        stroke(ctx, [25,58,70,58], "#b98473", 3); stroke(ctx, [35,44,41,65,48,42,54,65,62,44], "#c8957f", 2);
+      } else {
+        polygon(ctx, [48,25,56,43,75,38,62,54,75,69,55,63,48,82,41,63,21,69,34,54,21,38,40,43], "#f2d3a2");
+        stroke(ctx, [48,31,48,72,28,43,68,64,68,43,28,64], "#c89475", 2);
+      }
       break;
     case "driftwood":
-      polygon(ctx, [14,67,21,51,72,31,82,40,76,54,27,75], "#6d472c");
-      stroke(ctx, [24,58,70,39], "#b07a46", 5); stroke(ctx, [30,53,20,39], "#8c5d37", 5); stroke(ctx, [64,42,72,25], "#8c5d37", 5);
+      if (v === 0) {
+        polygon(ctx, [14,67,21,51,72,31,82,40,76,54,27,75], "#6d472c"); stroke(ctx, [24,58,70,39], "#b07a46", 5); stroke(ctx, [30,53,20,39], "#8c5d37", 5); stroke(ctx, [64,42,72,25], "#8c5d37", 5);
+      } else if (v === 1) {
+        stroke(ctx, [18,69,43,50,75,22], "#785235", 12); stroke(ctx, [39,53,24,32], "#9c7047", 7); stroke(ctx, [52,43,74,55], "#9c7047", 7); stroke(ctx, [24,66,67,30], "#c09261", 3);
+      } else {
+        stroke(ctx, [17,67,77,47], "#805638", 11); stroke(ctx, [23,39,67,72], "#68442f", 10); stroke(ctx, [28,62,68,50], "#b37b4c", 3); stroke(ctx, [31,44,60,67], "#9d6d49", 3);
+      }
       break;
     case "mushroom":
-      rounded(ctx, 42, 50, 13, 31, 6); ctx.fillStyle = "#e9d6b2"; ctx.fill();
-      ellipse(ctx, 48, 45, 27, 19, "#c84442");
-      [[35,40],[49,34],[60,45]].forEach(([x,y]) => dot(ctx,x,y,4,"#fff4df"));
+      if (v === 0) {
+        rounded(ctx, 42, 50, 13, 31, 6); ctx.fillStyle = "#e9d6b2"; ctx.fill(); ellipse(ctx, 48, 45, 27, 19, "#c84442");
+        [[35,40],[49,34],[60,45]].forEach(([x,y]) => dot(ctx,x,y,4,"#fff4df"));
+      } else if (v === 1) {
+        [[31,58,8,20,17],[49,49,10,27,22],[66,61,7,17,15]].forEach(([x,y,stem,capW,capH], i) => {
+          rounded(ctx, x-stem/2, y, stem, 22-(i%2)*5, 4); ctx.fillStyle="#ead5b0";ctx.fill(); ellipse(ctx,x,y,capW,capH/2,i===1?"#dc8d35":"#e8ad47");
+        });
+      } else if (v === 2) {
+        rounded(ctx, 43, 42, 11, 39, 5);ctx.fillStyle="#d7cab7";ctx.fill(); ellipse(ctx,48,38,21,14,"#765887");
+        ellipse(ctx,39,36,6,4,"#9f83ad"); ellipse(ctx,57,39,5,3,"#b39ac0"); stroke(ctx,[39,58,56,58],"#b9aa93",3);
+      } else {
+        rounded(ctx, 39, 49, 18, 33, 7);ctx.fillStyle="#eee0bd";ctx.fill(); ellipse(ctx,48,48,30,13,"#b89b67");
+        polygon(ctx,[18,49,28,31,48,24,68,31,78,49],"#d6bd82"); stroke(ctx,[26,47,70,47],"#92784e",3);
+      }
       break;
-    case "rabbit": case "wolf": case "boar": case "bear": drawAnimal(ctx, type); break;
+    case "rabbit": case "wolf": case "boar": case "bear": drawAnimal(ctx, type, v); break;
     case "flower":
-      stroke(ctx, [48,78,48,47], "#3a813f", 5);
-      for (let i=0;i<8;i++) { const a=i*Math.PI/4; ellipse(ctx,48+Math.cos(a)*14,39+Math.sin(a)*14,8,5,"#fff2e8"); }
-      dot(ctx,48,39,7,"#f5b940"); break;
+      stroke(ctx, v === 3 ? [39,79,42,51,56,35,60,76] : [48,78,48,47], "#3a813f", 5);
+      { const petals = [8,5,6,5][v]; const colors = ["#fff2e8","#f3c6d8","#9fccec","#f2d26e"]; const cx=v===3?56:48; const cy=v===3?34:39;
+        for (let i=0;i<petals;i++) { const a=i*Math.PI*2/petals; ellipse(ctx,cx+Math.cos(a)*14,cy+Math.sin(a)*14,v===1?9:8,v===2?4:5,colors[v]); }
+        dot(ctx,cx,cy,7,v===2?"#6b4b31":"#f5a940"); if(v===3){ellipse(ctx,38,48,10,6,"#f7e28d");dot(ctx,38,48,4,"#d98934");}
+      } break;
     case "cave_entrance":
       polygon(ctx,[10,79,19,40,38,18,61,22,82,48,88,79],"#626a70");
       ellipse(ctx,49,64,25,28,"#111a20"); stroke(ctx,[24,62,31,40,42,29],"#9da5a8",4); break;
@@ -195,8 +263,11 @@ function drawEntity(ctx: Ctx, type: EntityType): void {
     case "buried_treasure":
       ellipse(ctx,48,70,30,10,"#8a6c43"); stroke(ctx,[28,36,68,75,68,36,28,75],"#c94b45",7); break;
     case "planted_seed":
-      ellipse(ctx,48,73,25,8,"#70482b"); stroke(ctx,[48,69,48,41],"#397940",5); ellipse(ctx,38,45,11,6,"#60ad59"); ellipse(ctx,58,40,11,6,"#73bd61"); break;
-    case "ripe_plant": drawBush(ctx, true); break;
+      ellipse(ctx,48,73,25,8,"#70482b"); stroke(ctx,v===0?[48,69,48,41]:v===1?[48,69,43,48,49,32]:[48,69,55,48,50,35],"#397940",5);
+      if(v===0){ellipse(ctx,38,45,11,6,"#60ad59");ellipse(ctx,58,40,11,6,"#73bd61");}
+      else if(v===1){ellipse(ctx,34,48,13,6,"#75b95f");ellipse(ctx,55,39,12,7,"#4f9d4d");dot(ctx,49,31,4,"#9dca6b");}
+      else{ellipse(ctx,43,49,8,13,"#559d52");ellipse(ctx,61,48,8,12,"#72b864");ellipse(ctx,51,36,7,11,"#8ac773");} break;
+    case "ripe_plant": drawBush(ctx, true, v); break;
     case "signal_fire_unlit": case "signal_fire_lit":
       stroke(ctx,[30,78,48,26,66,78,37,57,60,57,30,78],"#735039",6); ellipse(ctx,48,28,18,6,"#4e392c");
       if (type === "signal_fire_lit") drawFlame(ctx,48,23,.62); break;
@@ -308,12 +379,20 @@ export function registerWorldArt(scene: Phaser.Scene): void {
     makeCanvas(scene, playerTextureKey(direction), 96, (ctx) => drawPlayer(ctx, direction));
   }
   for (const type of Object.keys(ENTITIES) as EntityType[]) {
-    makeCanvas(scene, entityTextureKey(type), 96, (ctx) => drawEntity(ctx, type));
+    for (let variant = 0; variant < entityVariantCount(type); variant++) {
+      makeCanvas(scene, entityTextureKey(type, variant), 96, (ctx) => drawEntity(ctx, type, variant));
+    }
   }
 }
 
 export function playerTextureKey(direction: PlayerDirection = "down"): string { return `${PLAYER_PREFIX}${direction}`; }
-export function entityTextureKey(type: EntityType): string { return `${ENTITY_PREFIX}${type}`; }
+export function entityTextureKey(type: EntityType, variant = 0): string { return `${ENTITY_PREFIX}${type}-${variant}`; }
+
+export function entityVariantCount(type: EntityType): number {
+  if (["tree", "stone_outcrop", "shell", "mushroom", "flower"].includes(type)) return 4;
+  if (["berry_bush", "vine", "driftwood", "rabbit", "wolf", "boar", "bear", "planted_seed", "ripe_plant"].includes(type)) return 3;
+  return 1;
+}
 
 export function entityDisplaySize(type: EntityType): number {
   if (["tree","shipwreck","cliff_lookout","tent_placed","signal_fire_unlit","signal_fire_lit","raft_placed"].includes(type)) return 42;
