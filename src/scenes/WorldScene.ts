@@ -335,6 +335,7 @@ export class WorldScene extends Phaser.Scene {
       this.refreshGuideText();
     };
     store.inv.on("change", inventoryChangeHandler);
+    store.on("equipmentChanged", inventoryChangeHandler);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       store.off("achievement", achievementHandler);
       store.off("comboActivated", comboActivatedHandler);
@@ -345,6 +346,7 @@ export class WorldScene extends Phaser.Scene {
       store.time.off("day10Tick", day10TickHandler);
       store.stats.off("death", deathHandler);
       store.inv.off("change", inventoryChangeHandler);
+      store.off("equipmentChanged", inventoryChangeHandler);
       this.events.off(Phaser.Scenes.Events.RESUME, resumeHandler);
       for (const [event, handler] of this.keyboardHandlers) {
         this.input.keyboard?.off(event, handler);
@@ -1664,14 +1666,20 @@ export class WorldScene extends Phaser.Scene {
 
   private refreshEquipBar(): void {
     const store = getStore(this);
-    const weapon = store.inv.bestWeapon();
-    const wDef = ITEMS[weapon.id as import("../types").ItemId];
+    const weapon = store.getEquippedWeapon();
+    const wDef = weapon.id ? ITEMS[weapon.id] : null;
+    const shield = store.getEquippedShield();
+    const shieldDef = shield ? ITEMS[shield.id] : null;
     const hasTorch = store.inv.count("torch") > 0;
     const rod = store.inv.hasTool("rod") ? "🎣" : "";
+    const ammo = weapon.id === "pistol" ? ` · •${store.inv.count("bullet")}발` : "";
+    const shieldSlot = shield ? store.inv.slots[shield.slotIdx] : null;
+    const shieldDur = shield && shieldSlot?.dur != null ? ` ${shieldSlot.dur}/${shieldDef?.maxDurability}` : "";
     const lines = [
-      `⚔ ${wDef?.icon ?? "✊"} ${wDef?.name ?? "맨손"} (${weapon.dmg} dmg)`,
-      hasTorch ? "🔥 횃불 보유" : "🌑 횃불 없음",
-      rod ? `${rod} 낚싯대 보유` : "",
+      `⚔ ${wDef?.icon ?? "✊"} ${wDef?.name ?? "맨손"} ${weapon.dmg}dmg${ammo}`,
+      shieldDef ? `${shieldDef.icon} ${shieldDef.name}${shieldDur} (-${Math.round((shield?.reduction ?? 0) * 100)}%)` : "🛡 없음",
+      hasTorch ? "🔥 횃불" : "🌑 횃불 없음",
+      rod ? `${rod} 낚싯대` : "",
     ].filter(Boolean);
     this.equipBarText.setText(lines.join("   ·   "));
   }

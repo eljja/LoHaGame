@@ -491,7 +491,7 @@ export class CaveScene extends Phaser.Scene {
       const s = store.inv.slots[i];
       if (!s) continue;
       const def = ITEMS[s.id];
-      if (def.category === "tool" || def.category === "weapon") continue;
+      if (def.category === "tool" || def.category === "weapon" || def.category === "armor") continue;
       droppableSlots.push(i);
     }
     if (droppableSlots.length === 0) {

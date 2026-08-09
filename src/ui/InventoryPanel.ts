@@ -128,8 +128,9 @@ export class InventoryPanel {
       const cy = startY + Math.floor(i / cols) * (slotSize + gap);
       const item = store.inv.slots[i] ?? null;
       const isSelected = this.selectedSlotIdx === i;
+      const isEquipped = !!item && (store.equipped.weaponSlot === i || store.equipped.shieldSlot === i);
 
-      const borderCol = isSelected ? COLORS.accent : COLORS.panelBorder;
+      const borderCol = isSelected ? COLORS.accent : isEquipped ? COLORS.good : COLORS.panelBorder;
       const fillCol = isSelected ? 0x1c2a5c : 0x111a38;
       const bg = this.scene.add
         .rectangle(cx, cy, slotSize, slotSize, fillCol, 1)
@@ -142,15 +143,16 @@ export class InventoryPanel {
         const emoji = this.scene.add
           .text(cx + slotSize / 2, cy + slotSize / 2 - 6, def.icon, { fontSize: "30px" })
           .setOrigin(0.5);
+        const countLabel = item.id === "pistol" ? `•${store.inv.count("bullet")}` : `×${item.count}`;
         const count = this.scene.add
-          .text(cx + slotSize - 4, cy + 2, `×${item.count}`, {
+          .text(cx + slotSize - 4, cy + 2, countLabel, {
             fontFamily: "Galmuri11, monospace",
             fontSize: "11px",
             color: "#ffd97a",
           })
           .setOrigin(1, 0);
         const catColors: Record<string, string> = {
-          food: "#8be58b", weapon: "#ff9a9a", tool: "#ffd97a", material: "#a3b4e8", misc: "#cfd8ff", build: "#e8c860",
+          food: "#8be58b", weapon: "#ff9a9a", armor: "#78d7ff", tool: "#ffd97a", material: "#a3b4e8", misc: "#cfd8ff", build: "#e8c860",
         };
         const cat = this.scene.add
           .text(cx + slotSize / 2, cy + slotSize - 11, def.name, {
@@ -160,6 +162,13 @@ export class InventoryPanel {
           })
           .setOrigin(0.5);
         slot.add([emoji, count, cat]);
+        if (isEquipped) {
+          const equippedBadge = this.scene.add.text(cx + 5, cy + 3, "E", {
+            fontFamily: "Galmuri11, monospace", fontSize: "12px", color: "#8bff9a",
+            backgroundColor: "#16351f", padding: { x: 4, y: 2 },
+          });
+          slot.add(equippedBadge);
+        }
 
         bg.setInteractive({ useHandCursor: true });
         bg.on("pointerover", () => { if (!isSelected) bg.setFillStyle(0x172447); });
@@ -247,12 +256,13 @@ export class InventoryPanel {
         color: "#eaf0ff",
       });
     const catColors: Record<string, string> = {
-      food: "#8be58b", weapon: "#ff9a9a", tool: "#ffd97a", material: "#a3b4e8", misc: "#cfd8ff", build: "#e8c860",
+      food: "#8be58b", weapon: "#ff9a9a", armor: "#78d7ff", tool: "#ffd97a", material: "#a3b4e8", misc: "#cfd8ff", build: "#e8c860",
     };
     const catLabel: Record<string, string> = {
-      food: "음식", weapon: "무기", tool: "도구", material: "재료", misc: "기타", build: "건축",
+      food: "음식", weapon: "무기", armor: "방어구", tool: "도구", material: "재료", misc: "기타", build: "건축",
     };
-    const catTxt = this.scene.add.text(dX + 76, detailY + 44, `[${catLabel[def.category] ?? def.category}]  보유: ${item.count}개`, {
+    const equippedLabel = store.equipped.weaponSlot === this.selectedSlotIdx || store.equipped.shieldSlot === this.selectedSlotIdx ? "  ·  장착 중" : "";
+    const catTxt = this.scene.add.text(dX + 76, detailY + 44, `[${catLabel[def.category] ?? def.category}]  보유: ${item.count}개${equippedLabel}`, {
       fontFamily: "Galmuri11, monospace",
       fontSize: "13px",
       color: catColors[def.category] ?? "#a3b4e8",
@@ -281,12 +291,21 @@ export class InventoryPanel {
       slot.add(effectTxt);
     }
     if (def.weaponDamage) {
-      const dmgTxt = this.scene.add.text(dX + 76, detailY + 88, `⚔ 공격력: ${def.weaponDamage}`, {
+      const ammo = item.id === "pistol" ? `   • 탄약: ${store.inv.count("bullet")}발` : "";
+      const dmgTxt = this.scene.add.text(dX + 76, detailY + 88, `⚔ 공격력: ${def.weaponDamage}${ammo}`, {
         fontFamily: "Galmuri11, monospace",
         fontSize: "13px",
         color: "#ff9a9a",
       });
       slot.add(dmgTxt);
+    }
+    if (def.damageReduction) {
+      const defenseTxt = this.scene.add.text(dX + 76, detailY + 88, `🛡 피해 흡수: ${Math.round(def.damageReduction * 100)}%`, {
+        fontFamily: "Galmuri11, monospace",
+        fontSize: "13px",
+        color: "#78d7ff",
+      });
+      slot.add(defenseTxt);
     }
 
     // 내구도 표시 (무기·도구)
@@ -326,6 +345,22 @@ export class InventoryPanel {
         label,
         action: () => this.useItem(item.id),
         color: 0x1e4a2a,
+      });
+    }
+    if (def.weaponDamage) {
+      const equipped = store.equipped.weaponSlot === this.selectedSlotIdx;
+      buttons.push({
+        label: equipped ? "✋ 무기 해제" : "⚔ 무기 장착",
+        action: () => this.toggleEquipment(item.id, "weapon"),
+        color: equipped ? 0x3a3420 : 0x173d55,
+      });
+    }
+    if (def.damageReduction) {
+      const equipped = store.equipped.shieldSlot === this.selectedSlotIdx;
+      buttons.push({
+        label: equipped ? "✋ 방패 해제" : "🛡 방패 장착",
+        action: () => this.toggleEquipment(item.id, "shield"),
+        color: equipped ? 0x3a3420 : 0x173d55,
       });
     }
     buttons.push({
@@ -464,10 +499,36 @@ export class InventoryPanel {
     store.pushLog(`${def.name}은(는) 지금 바로 사용할 수 없다.`);
   }
 
+  private toggleEquipment(id: ItemId, kind: "weapon" | "shield"): void {
+    const store = getStore(this.scene);
+    const equipped = kind === "weapon"
+      ? store.equipped.weaponSlot === this.selectedSlotIdx
+      : store.equipped.shieldSlot === this.selectedSlotIdx;
+    const changed = kind === "weapon"
+      ? store.setEquippedWeapon(equipped ? undefined : id, this.selectedSlotIdx ?? undefined)
+      : store.setEquippedShield(equipped ? undefined : id, this.selectedSlotIdx ?? undefined);
+    if (!changed) {
+      store.pushLog("장착할 아이템을 인벤토리에서 찾을 수 없다.");
+      audio.play("error");
+      return;
+    }
+    const def = ITEMS[id];
+    store.pushLog(equipped ? `✋ ${def.name} 장착을 해제했다.` : `${def.icon} ${def.name}을(를) 장착했다.`);
+    store.save();
+    audio.play("menu");
+    const w = 780;
+    const h = 620;
+    const x = (GAME_WIDTH - w) / 2;
+    const y = (GAME_HEIGHT - h) / 2;
+    this.renderGrid(x, y, w);
+    this.renderDetail(x, y, w, h);
+  }
+
   private dropItem(id: ItemId): void {
     const store = getStore(this.scene);
     const def = ITEMS[id];
-    store.inv.remove(id, 1);
+    if (this.selectedSlotIdx === null || !store.inv.removeFromSlot(this.selectedSlotIdx, 1)) return;
+    store.syncEquipment();
     store.pushLog(`🗑 ${def.icon} ${def.name}을(를) 버렸다.`);
     audio.play("click");
     this.selectedSlotIdx = null;

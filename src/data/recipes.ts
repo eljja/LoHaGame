@@ -5,7 +5,7 @@ import type { ItemId, Recipe } from "../types";
  * key = ItemId, value = 해금되는 recipe id 배열.
  */
 export const RECIPE_UNLOCK_TRIGGERS: Partial<Record<ItemId, string[]>> = {
-  stick:       ["wood_club", "fishing_rod"],
+  stick:       ["wood_club", "wood_shield", "fishing_rod"],
   stone:       ["stone_axe", "stone_spear", "stone_pickaxe", "bonfire"],
   vine:        ["rope", "stone_axe", "stone_spear", "stone_pickaxe"],
   cloth:       ["torch", "bandage", "tent", "signal_fire"],
@@ -53,6 +53,17 @@ export const RECIPES: Recipe[] = [
       { id: "stone", count: 1 },
       { id: "vine", count: 1 },
     ],
+  },
+  {
+    id: "wood_shield",
+    name: "나무 방패",
+    icon: "🛡",
+    result: { id: "wood_shield", count: 1 },
+    inputs: [
+      { id: "stick", count: 5 },
+      { id: "vine", count: 2 },
+    ],
+    desc: "장착하면 받은 피해를 30% 흡수한다. 내구도 40.",
   },
   {
     id: "iron_sword",

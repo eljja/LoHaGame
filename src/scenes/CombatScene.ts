@@ -194,10 +194,11 @@ export class CombatScene extends Phaser.Scene {
       .rectangle(14, playerHpPanelY + 34, this.playerHpBarMaxWidth, 16, 0x4aff8a, 1)
       .setOrigin(0, 0);
 
-    this.playerHpText = this.add.text(14, playerHpPanelY + 58, "", {
+    this.playerHpText = this.add.text(14, playerHpPanelY + 56, "", {
       fontFamily: "Galmuri11, monospace",
-      fontSize: "14px",
+      fontSize: "12px",
       color: "#eaf0ff",
+      lineSpacing: 4,
     });
 
     this.updatePlayerHp();
@@ -254,7 +255,16 @@ export class CombatScene extends Phaser.Scene {
 
     const col = hp > 60 ? 0x4aff8a : hp > 30 ? 0xffcc44 : 0xff5a6a;
     this.playerHpBar.setFillStyle(col);
-    this.playerHpText.setText(`HP: ${Math.ceil(hp)} / 100   ⚡ ${Math.ceil(store.stats.energy)}`);
+    const equippedWeapon = store.getEquippedWeapon();
+    const weaponDef = equippedWeapon.id ? ITEMS[equippedWeapon.id] : null;
+    const ammo = equippedWeapon.id === "pistol" ? ` · •${store.inv.count("bullet")}발` : "";
+    const shield = store.getEquippedShield();
+    const shieldSlot = shield ? store.inv.slots[shield.slotIdx] : null;
+    const shieldText = shield ? `   🛡${shieldSlot?.dur ?? ITEMS[shield.id].maxDurability}/${ITEMS[shield.id].maxDurability}` : "";
+    this.playerHpText.setText(
+      `HP: ${Math.ceil(hp)} / 100   ⚡ ${Math.ceil(store.stats.energy)}\n` +
+      `⚔ ${weaponDef?.name ?? "맨손"}${ammo}${shieldText}`
+    );
   }
 
   private buildButtons(): void {
@@ -262,12 +272,13 @@ export class CombatScene extends Phaser.Scene {
     this.buttons = [];
     const store = getStore(this);
     const weapon = this.effectiveWeapon();
-    const weaponName = ITEMS[weapon.id as ItemId]?.name ?? "맨손";
+    const weaponName = weapon.id ? ITEMS[weapon.id].name : "맨손";
     const slot = weapon.slotIdx >= 0 ? store.inv.slots[weapon.slotIdx] : null;
-    const durStr = slot?.dur != null && ITEMS[weapon.id].maxDurability != null
+    const durStr = weapon.id && slot?.dur != null && ITEMS[weapon.id].maxDurability != null
       ? ` [${slot.dur}/${ITEMS[weapon.id].maxDurability}]`
       : "";
-    const ammoStr = weapon.id === "pistol" ? ` (🔫${store.inv.count("bullet")}발)` : "";
+    const equipped = store.getEquippedWeapon();
+    const ammoStr = equipped.id === "pistol" ? ` (•${store.inv.count("bullet")}발)` : "";
 
     const actions: Array<[string, () => void, boolean?]> = [
       ["🎒 아이템", () => this.useItemPrompt()],
@@ -393,14 +404,29 @@ export class CombatScene extends Phaser.Scene {
     this.time.delayedCall(25, doTick);
   }
 
-  /** 실제로 이번 턴 사용할 무기. 권총인데 탄이 없으면 다음 무기로 폴백. */
-  private effectiveWeapon(): { id: ItemId; dmg: number; slotIdx: number } {
+  /** 인벤토리에서 선택한 무기만 사용한다. 탄 없는 권총은 맨손으로 전환된다. */
+  private effectiveWeapon(): { id: ItemId | null; dmg: number; slotIdx: number } {
     const store = getStore(this);
-    const best = store.inv.bestWeapon();
-    if (best.id === "pistol" && !store.inv.has("bullet")) {
-      return store.inv.bestWeaponExcept("pistol");
-    }
-    return best;
+    const equipped = store.getEquippedWeapon();
+    if (equipped.id === "pistol" && !store.inv.has("bullet")) return { id: null, dmg: 3, slotIdx: -1 };
+    return equipped;
+  }
+
+  private absorbWithShield(incoming: number): { damage: number; note: string } {
+    if (incoming <= 0) return { damage: 0, note: "" };
+    const store = getStore(this);
+    const shield = store.getEquippedShield();
+    if (!shield) return { damage: incoming, note: "" };
+
+    const blocked = Math.max(1, Math.round(incoming * shield.reduction));
+    const damage = Math.max(0, incoming - blocked);
+    const def = ITEMS[shield.id];
+    const result = store.inv.useDurability(shield.slotIdx);
+    store.syncEquipment();
+    this.updatePlayerHp();
+    const durability = result.broken ? " · 방패 파손!" : ` · 내구도 ${result.dur}/${result.max}`;
+    if (result.broken) audio.play("error");
+    return { damage, note: ` ${def.icon} ${blocked} 흡수${durability}` };
   }
 
   // ── 플레이어 행동 ──────────────────────────────────────
@@ -420,7 +446,7 @@ export class CombatScene extends Phaser.Scene {
     this.startAttackBar((t) => {
       const store = getStore(this);
       const weapon = this.effectiveWeapon();
-      const weaponDef = ITEMS[weapon.id];
+      const weaponDef = weapon.id ? ITEMS[weapon.id] : null;
 
       // 우측 끝 1% = 도망 성공
       if (t >= 0.99) {
@@ -431,7 +457,10 @@ export class CombatScene extends Phaser.Scene {
       }
 
       // 권총 사용 시 탄약 1 소비
-      if (weapon.id === "pistol") store.inv.remove("bullet", 1);
+      if (weapon.id === "pistol") {
+        store.inv.remove("bullet", 1);
+        this.updatePlayerHp();
+      }
 
       // 가우시안 데미지 — 정중앙(t=0.5)에서 풀 데미지, 거리에 따라 부드럽게 감소
       const energyMult = 1 + store.stats.energy / 200;
@@ -479,7 +508,7 @@ export class CombatScene extends Phaser.Scene {
       this.updateEnemyHpBar();
 
       // 내구도 감소 (피해를 줬을 때만)
-      if (dmg > 0 && weapon.slotIdx >= 0 && weaponDef.maxDurability != null) {
+      if (dmg > 0 && weapon.slotIdx >= 0 && weaponDef?.maxDurability != null) {
         const r = store.inv.useDurability(weapon.slotIdx);
         if (r.broken) {
           this.pushLog(`💥 ${weaponDef.name}이(가) 부서졌다!`);
@@ -487,6 +516,8 @@ export class CombatScene extends Phaser.Scene {
         } else if (r.hasDurability && r.dur! <= 5) {
           this.pushLog(`⚠ ${weaponDef.name} 내구도 ${r.dur}/${r.max} (거의 부서짐)`);
         }
+        store.syncEquipment();
+        this.updatePlayerHp();
       }
 
       // 다음 단계: 적이 살아있으면 방어 단계로 자동 전환
@@ -506,8 +537,9 @@ export class CombatScene extends Phaser.Scene {
 
       // 시간 초과 = 방어 실패 = 풀 피해
       if (t === null) {
-        this.pushLog(`😬 방어 실패! ${this.enemy.name}의 공격 ${baseDmg} 피해.`);
-        store.stats.apply({ hp: -baseDmg }, `${this.enemy.name}의 공격을 막지 못했다.`);
+        const shielded = this.absorbWithShield(baseDmg);
+        this.pushLog(`😬 방어 실패! ${this.enemy.name}의 공격 ${shielded.damage} 피해.${shielded.note}`);
+        store.stats.apply({ hp: -shielded.damage }, `${this.enemy.name}의 공격을 막지 못했다.`);
         this.cameras.main.shake(220, 0.012);
         audio.play("hurt");
         this.time.delayedCall(450, () => this.endDefenseTurn());
@@ -535,14 +567,16 @@ export class CombatScene extends Phaser.Scene {
 
       // 가우시안 기반 피해 감소 (정중앙=무피해, 가장자리=풀피해)
       const blockGauss = this.gauss01(t, 0.5, this.defenseSigma);
-      const dmgTaken = Math.max(0, Math.round(baseDmg * (1 - blockGauss)));
+      const timedDamage = Math.max(0, Math.round(baseDmg * (1 - blockGauss)));
+      const shielded = this.absorbWithShield(timedDamage);
+      const dmgTaken = shielded.damage;
 
       const label =
         blockGauss >= 0.85 ? "✨ 완벽 방어!"  :
         blockGauss >= 0.55 ? "🛡 방어 성공"   :
         blockGauss >= 0.20 ? "⚠ 빗방어"      :
                              "😬 거의 못 막음";
-      this.pushLog(`${label} → 피해 ${dmgTaken}.`);
+      this.pushLog(`${label} → 피해 ${dmgTaken}.${shielded.note}`);
 
       if (dmgTaken > 0) {
         store.stats.apply({ hp: -dmgTaken }, `${this.enemy.name}의 공격으로 쓰러졌다.`);
@@ -781,9 +815,12 @@ export class CombatScene extends Phaser.Scene {
     this.rollDice((d1, d2) => {
       const store = getStore(this);
       const weapon = this.effectiveWeapon();
-      const weaponDef = ITEMS[weapon.id];
+      const weaponDef = weapon.id ? ITEMS[weapon.id] : null;
 
-      if (weapon.id === "pistol") store.inv.remove("bullet", 1);
+      if (weapon.id === "pistol") {
+        store.inv.remove("bullet", 1);
+        this.updatePlayerHp();
+      }
 
       const diceSum = d1 + d2;
       const diceMult = 0.7 + ((diceSum - 2) / 10) * 0.6;
@@ -807,7 +844,7 @@ export class CombatScene extends Phaser.Scene {
       this.tweens.add({ targets: this.enemySprite, alpha: 0.3, duration: 60, yoyo: true });
       this.updateEnemyHpBar();
 
-      if (weapon.slotIdx >= 0 && weaponDef.maxDurability != null) {
+      if (weapon.slotIdx >= 0 && weaponDef?.maxDurability != null) {
         const r = store.inv.useDurability(weapon.slotIdx);
         if (r.broken) {
           this.pushLog(`💥 ${weaponDef.name}이(가) 부서졌다!`);
@@ -815,6 +852,8 @@ export class CombatScene extends Phaser.Scene {
         } else if (r.hasDurability && r.dur! <= 5) {
           this.pushLog(`⚠ ${weaponDef.name} 내구도 ${r.dur}/${r.max} (거의 부서짐)`);
         }
+        store.syncEquipment();
+        this.updatePlayerHp();
         this.buildButtons();
       }
 
@@ -908,7 +947,9 @@ export class CombatScene extends Phaser.Scene {
         this.cameras.main.shake(200, 0.008);
       }
       this.defending = false;
-      this.pushLog(logMsg);
+      const shielded = this.absorbWithShield(dmg);
+      dmg = shielded.damage;
+      this.pushLog(`${logMsg}${shielded.note}`);
       if (dmg > 0) store.stats.apply({ hp: -dmg }, `${this.enemy.name}의 공격으로 쓰러졌다.`);
 
       this.time.delayedCall(quality === "perfect" ? 600 : 400, () => {

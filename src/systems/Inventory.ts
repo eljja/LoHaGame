@@ -75,6 +75,16 @@ export class Inventory extends Phaser.Events.EventEmitter {
     }
   }
 
+  /** 지정 슬롯에서 수량을 제거한다. 같은 아이템의 다른 슬롯에는 영향을 주지 않는다. */
+  removeFromSlot(idx: number, count = 1): boolean {
+    const slot = this.slots[idx];
+    if (!slot || count <= 0 || slot.count < count) return false;
+    slot.count -= count;
+    if (slot.count <= 0) this.slots[idx] = null;
+    this.emit("change");
+    return true;
+  }
+
   /**
    * 내구도를 1 감소시킨다. 반환값:
    *  - broken: true → 아이템이 부서져 슬롯이 비워졌다

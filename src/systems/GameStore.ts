@@ -14,6 +14,10 @@ import { RECIPE_UNLOCK_TRIGGERS } from "../data/recipes";
 import { ITEMS } from "../data/items";
 
 const ACTION_TIME_STAT_DRAIN_MULT = 0.6;
+const STARTER_RECIPES = [
+  "wood_club", "stone_axe", "stone_spear", "wood_shield", "rope", "torch",
+  "stone_pickaxe", "bandage", "bonfire", "tent",
+];
 
 /**
  * 모든 시스템과 게임 상태의 단일 소유자. Phaser game.registry에 'store'로 저장.
@@ -23,6 +27,7 @@ export class GameStore extends Phaser.Events.EventEmitter {
   stats = new PlayerStats();
   inv = new Inventory();
   crafting: Crafting;
+  equipped: GameState["equipped"] = {};
 
   /** 오픈월드 맵 */
   map: WorldMap = new WorldMap();
@@ -37,10 +42,7 @@ export class GameStore extends Phaser.Events.EventEmitter {
     firstTimeVisited: {},
     bossesDefeated: [],
     unlockedAchievements: [],
-    discoveredRecipes: [
-      "wood_club", "stone_axe", "stone_spear", "rope", "torch",
-      "stone_pickaxe", "bandage", "bonfire", "tent",
-    ],
+    discoveredRecipes: [...STARTER_RECIPES],
     fishCaught: 0,
     hazardWarnings: [],
     pendingStormDay: undefined,
@@ -83,6 +85,80 @@ export class GameStore extends Phaser.Events.EventEmitter {
   /** 현재 맵의 모든 광원 엔티티 목록. */
   getLightSources(): WorldEntity[] {
     return this.map.entities.filter((e) => LIGHT_SOURCE_TYPES.includes(e.type));
+  }
+
+  setEquippedWeapon(id?: ItemId, requestedSlot?: number): boolean {
+    const slotIdx = id === undefined ? -1 : this.resolveEquipmentSlot(id, requestedSlot);
+    if (id !== undefined && (!ITEMS[id].weaponDamage || slotIdx < 0)) return false;
+    if (id === undefined) {
+      delete this.equipped.weapon;
+      delete this.equipped.weaponSlot;
+    } else {
+      this.equipped.weapon = id;
+      this.equipped.weaponSlot = slotIdx;
+    }
+    this.emit("equipmentChanged", this.equipped);
+    return true;
+  }
+
+  setEquippedShield(id?: ItemId, requestedSlot?: number): boolean {
+    const slotIdx = id === undefined ? -1 : this.resolveEquipmentSlot(id, requestedSlot);
+    if (id !== undefined && (!ITEMS[id].damageReduction || slotIdx < 0)) return false;
+    if (id === undefined) {
+      delete this.equipped.shield;
+      delete this.equipped.shieldSlot;
+    } else {
+      this.equipped.shield = id;
+      this.equipped.shieldSlot = slotIdx;
+    }
+    this.emit("equipmentChanged", this.equipped);
+    return true;
+  }
+
+  getEquippedWeapon(): { id: ItemId | null; dmg: number; slotIdx: number } {
+    const id = this.equipped.weapon;
+    if (!id || !ITEMS[id].weaponDamage) {
+      delete this.equipped.weapon;
+      delete this.equipped.weaponSlot;
+      return { id: null, dmg: 3, slotIdx: -1 };
+    }
+    const slotIdx = this.resolveEquipmentSlot(id, this.equipped.weaponSlot);
+    if (slotIdx < 0) {
+      delete this.equipped.weapon;
+      delete this.equipped.weaponSlot;
+      this.emit("equipmentChanged", this.equipped);
+      return { id: null, dmg: 3, slotIdx: -1 };
+    }
+    this.equipped.weaponSlot = slotIdx;
+    return { id, dmg: ITEMS[id].weaponDamage!, slotIdx };
+  }
+
+  getEquippedShield(): { id: ItemId; reduction: number; slotIdx: number } | null {
+    const id = this.equipped.shield;
+    if (!id || !ITEMS[id].damageReduction) {
+      delete this.equipped.shield;
+      delete this.equipped.shieldSlot;
+      return null;
+    }
+    const slotIdx = this.resolveEquipmentSlot(id, this.equipped.shieldSlot);
+    if (slotIdx < 0) {
+      delete this.equipped.shield;
+      delete this.equipped.shieldSlot;
+      this.emit("equipmentChanged", this.equipped);
+      return null;
+    }
+    this.equipped.shieldSlot = slotIdx;
+    return { id, reduction: ITEMS[id].damageReduction!, slotIdx };
+  }
+
+  syncEquipment(): void {
+    this.getEquippedWeapon();
+    this.getEquippedShield();
+  }
+
+  private resolveEquipmentSlot(id: ItemId, requestedSlot?: number): number {
+    if (requestedSlot != null) return this.inv.slots[requestedSlot]?.id === id ? requestedSlot : -1;
+    return this.inv.slots.findIndex((slot) => slot?.id === id);
   }
 
   // ── Achievement system ────────────────────────────────────────────
@@ -301,6 +377,7 @@ export class GameStore extends Phaser.Events.EventEmitter {
     this.time = new TimeSystem();
     this.stats = new PlayerStats();
     this.inv = new Inventory();
+    this.equipped = {};
     this.flags = {
       lootedCrates: 0,
       hasTent: false,
@@ -308,10 +385,7 @@ export class GameStore extends Phaser.Events.EventEmitter {
       firstTimeVisited: {},
       bossesDefeated: [],
       unlockedAchievements: [],
-      discoveredRecipes: [
-        "wood_club", "stone_axe", "stone_spear", "rope", "torch",
-        "stone_pickaxe", "bandage", "bonfire", "tent",
-      ],
+      discoveredRecipes: [...STARTER_RECIPES],
       fishCaught: 0,
       hazardWarnings: [],
       pendingStormDay: undefined,
@@ -338,6 +412,7 @@ export class GameStore extends Phaser.Events.EventEmitter {
       time: this.time,
       stats: this.stats,
       inv: this.inv,
+      equipped: this.equipped,
       flags: this.flags,
       caveDepth: this.caveDepth,
       map: this.map,
@@ -363,6 +438,7 @@ export class GameStore extends Phaser.Events.EventEmitter {
     this.time.fromJSON(blob.time);
     this.stats.fromJSON(blob.stats);
     this.inv.fromJSON(blob.inventory);
+    this.equipped = blob.equipped ? { ...blob.equipped } : {};
     const savedFlags = blob.flags as Partial<GameState["flags"]>;
     this.flags = {
       lootedCrates: typeof savedFlags.lootedCrates === "number" ? Math.max(0, Math.floor(savedFlags.lootedCrates)) : 0,
@@ -376,11 +452,8 @@ export class GameStore extends Phaser.Events.EventEmitter {
         ? savedFlags.unlockedAchievements.filter((id): id is string => typeof id === "string")
         : [],
       discoveredRecipes: Array.isArray(savedFlags.discoveredRecipes)
-        ? savedFlags.discoveredRecipes.filter((id): id is string => typeof id === "string")
-        : [
-            "wood_club", "stone_axe", "stone_spear", "rope", "torch",
-            "stone_pickaxe", "bandage", "bonfire", "tent",
-          ],
+        ? [...new Set([...savedFlags.discoveredRecipes.filter((id): id is string => typeof id === "string"), "wood_shield"])]
+        : [...STARTER_RECIPES],
       fishCaught: typeof savedFlags.fishCaught === "number" ? Math.max(0, Math.floor(savedFlags.fishCaught)) : 0,
       nightSkyBuff: savedFlags.nightSkyBuff === true ? true : undefined,
       lastNightSkyDay: typeof savedFlags.lastNightSkyDay === "number" ? Math.floor(savedFlags.lastNightSkyDay) : undefined,
@@ -408,6 +481,7 @@ export class GameStore extends Phaser.Events.EventEmitter {
       this.placePlayerAtStart();
     }
     this.migrateLegacyStructures();
+    this.syncEquipment();
     this.updatePerkMultipliers();
     this.activeCombos = new Set();
     this.recomputeCombos(true); // 로드 시 silent로 콤보 동기화 (로그 스팸 방지)

@@ -23,6 +23,7 @@ export type ItemId =
   | "wood_club"
   | "stone_axe"
   | "stone_spear"
+  | "wood_shield"
   | "fishing_rod"
   | "stone_pickaxe"
   | "iron_pickaxe"
@@ -56,6 +57,8 @@ export interface ItemDef {
   consume?: Partial<{ hp: number; hunger: number; thirst: number; energy: number }>;
   /** 장착 무기 데미지 */
   weaponDamage?: number;
+  /** 장착 방패의 피해 감소율 (0~1) */
+  damageReduction?: number;
   /** 광물 채굴 가능 단계(1: 돌 곡괭이, 2: 철 곡괭이) */
   pickaxeTier?: 0 | 1 | 2;
   tool?: "axe" | "pickaxe" | "rod" | "gun";
@@ -64,7 +67,7 @@ export interface ItemDef {
   placeable?: "bonfire" | "tent" | "signal_fire" | "seed" | "raft";
   /** 사용 시 특수 이벤트 트리거. 씬이 onUseCallback에서 분기 처리. */
   onUse?: "treasure_map" | "bottle_trade";
-  category: "material" | "food" | "tool" | "weapon" | "build" | "misc";
+  category: "material" | "food" | "tool" | "weapon" | "armor" | "build" | "misc";
 }
 
 export interface Recipe {
@@ -136,8 +139,8 @@ export interface GameState {
   hour: number; // 0..23
   phase: Phase;
   stats: { hp: number; hunger: number; thirst: number; energy: number };
-  inventory: Array<{ id: ItemId; count: number } | null>; // 슬롯 배열
-  equipped: { weapon?: ItemId; pickaxe?: ItemId } ;
+  inventory: Array<{ id: ItemId; count: number; dur?: number } | null>; // 슬롯 배열
+  equipped: { weapon?: ItemId; weaponSlot?: number; shield?: ItemId; shieldSlot?: number; pickaxe?: ItemId };
   flags: {
     lootedCrates: number;
     hasTent: boolean;

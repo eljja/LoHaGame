@@ -14,6 +14,7 @@ export interface SaveBlob {
   time: { day: number; hour: number; phase: "day" | "night"; elapsedInPhase: number };
   stats: { hp: number; hunger: number; thirst: number; energy: number };
   inventory: GameState["inventory"];
+  equipped?: GameState["equipped"];
   flags: GameState["flags"];
   caveDepth: GameState["caveDepth"];
   map?: WorldMapSaveBlob;
@@ -27,6 +28,7 @@ export const SaveManager = {
     time: TimeSystem;
     stats: PlayerStats;
     inv: Inventory;
+    equipped: GameState["equipped"];
     flags: GameState["flags"];
     caveDepth: GameState["caveDepth"];
     map: WorldMap;
@@ -37,6 +39,7 @@ export const SaveManager = {
       time: data.time.toJSON(),
       stats: data.stats.toJSON(),
       inventory: data.inv.toJSON(),
+      equipped: data.equipped,
       flags: data.flags,
       caveDepth: data.caveDepth,
       map: data.map.toJSON(),
@@ -107,10 +110,24 @@ function normalizeSaveBlob(value: unknown): SaveBlob | null {
   if (value.playerTx !== undefined && !isIntegerInRange(value.playerTx, 0, WORLD_TILES - 1)) return null;
   if (value.playerTy !== undefined && !isIntegerInRange(value.playerTy, 0, WORLD_TILES - 1)) return null;
   if (value.savedAt !== undefined && !isNumber(value.savedAt)) return null;
+  const equipped = normalizeEquipment(value.equipped);
   return {
     ...(value as unknown as Omit<SaveBlob, "savedAt">),
+    equipped,
     savedAt: isNumber(value.savedAt) ? value.savedAt : 0,
   };
+}
+
+function normalizeEquipment(value: unknown): GameState["equipped"] | undefined {
+  if (!isRecord(value)) return undefined;
+  const equipped: GameState["equipped"] = {};
+  for (const key of ["weapon", "shield", "pickaxe"] as const) {
+    const id = value[key];
+    if (typeof id === "string" && id in ITEMS) equipped[key] = id as GameState["equipped"][typeof key];
+  }
+  if (isIntegerInRange(value.weaponSlot, 0, 499)) equipped.weaponSlot = value.weaponSlot;
+  if (isIntegerInRange(value.shieldSlot, 0, 499)) equipped.shieldSlot = value.shieldSlot;
+  return equipped;
 }
 
 function isInventory(value: unknown[]): boolean {

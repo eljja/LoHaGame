@@ -123,6 +123,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   stone_axe:    { id: "stone_axe",    name: "돌도끼",     icon: "🪓", desc: "나무를 빠르게 벤다.",         stack: 1,  weaponDamage: 12, tool: "axe", category: "weapon", maxDurability: 35 },
   stone_spear:  { id: "stone_spear",  name: "돌창",       icon: "🗡", desc: "찌르기 공격.",                stack: 1,  weaponDamage: 16, category: "weapon", maxDurability: 30 },
   iron_sword:   { id: "iron_sword",   name: "철검",       icon: "⚔", desc: "벼려낸 철로 만든 강력한 검.", stack: 1,  weaponDamage: 30, category: "weapon", maxDurability: 80 },
+  wood_shield:  { id: "wood_shield",  name: "나무 방패",  icon: "🛡", desc: "적에게 받은 피해를 30% 흡수한다. 공격을 막을 때마다 내구도가 감소한다.", stack: 1, damageReduction: 0.3, category: "armor", maxDurability: 40 },
   fishing_rod:  { id: "fishing_rod",  name: "나무 낚싯대",icon: "🎣", desc: "강과 바다에서 낚시.",          stack: 1,  tool: "rod",     category: "tool", maxDurability: 30 },
   stone_pickaxe:{ id: "stone_pickaxe",name: "돌 곡괭이",  icon: "⛏", desc: "돌과 약한 광석을 캔다.",      stack: 1,  tool: "pickaxe", pickaxeTier: 1, category: "tool", maxDurability: 45 },
   iron_pickaxe: { id: "iron_pickaxe", name: "철 곡괭이",  icon: "⚒", desc: "깊은 광맥을 캔다.",           stack: 1,  tool: "pickaxe", pickaxeTier: 2, category: "tool", maxDurability: 100 },
