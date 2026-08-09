@@ -49,6 +49,7 @@ export class CaveScene extends Phaser.Scene {
     cam.fadeIn(400, 0, 0, 0);
 
     audio.playBgm("cave");
+    audio.setWorldContext("cave", "night");
 
     if (store.caveDepth === 0) store.caveDepth = 1;
 
@@ -180,7 +181,10 @@ export class CaveScene extends Phaser.Scene {
     }).setOrigin(1, 0);
 
     const escHandler = () => this.leave();
-    const resumeHandler = () => audio.playBgm("cave");
+    const resumeHandler = () => {
+      audio.playBgm("cave");
+      audio.setWorldContext("cave", "night");
+    };
     this.input.keyboard?.on("keydown-ESC", escHandler);
     this.events.on(Phaser.Scenes.Events.RESUME, resumeHandler);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {

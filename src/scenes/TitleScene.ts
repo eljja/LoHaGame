@@ -14,6 +14,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create(): void {
+    audio.clearWorldAmbience();
     this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, "title-island-v2").setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
 
     const g = this.add.graphics();

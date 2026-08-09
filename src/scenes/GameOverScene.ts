@@ -14,6 +14,7 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   create(): void {
+    audio.clearWorldAmbience();
     const cam = this.cameras.main;
     cam.fadeIn(600, 0, 0, 0);
 

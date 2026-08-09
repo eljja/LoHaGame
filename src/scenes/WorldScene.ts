@@ -243,6 +243,7 @@ export class WorldScene extends Phaser.Scene {
     const phaseChangeHandler = (phase: "day" | "night") => {
       audio.play(phase === "day" ? "phase_day" : "phase_night");
       this.syncBgm();
+      this.syncWorldAmbience();
       this.updateNightOverlay();
       this.refreshGuideText();
       if (phase === "day") {
@@ -301,8 +302,10 @@ export class WorldScene extends Phaser.Scene {
     store.stats.on("death", deathHandler);
 
     this.syncBgm();
+    this.syncWorldAmbience();
     const resumeHandler = () => {
       this.syncBgm();
+      this.syncWorldAmbience();
       this.renderEntities();
       this.updateActionHint();
       // cave depth achievement (check before CaveScene resets depth)
@@ -820,6 +823,7 @@ export class WorldScene extends Phaser.Scene {
     if (!this.spendActionTime(3, 0.5)) return;
     store.playerTx = nx;
     store.playerTy = ny;
+    this.syncWorldAmbience();
 
     // Animate player
     const newX = nx * TILE_PX + TILE_PX / 2;
@@ -1212,6 +1216,7 @@ export class WorldScene extends Phaser.Scene {
 
       case "bonfire_placed": {
         store.pushLog("🔥 모닥불이 은은한 열기를 내뿜는다. 주변 2칸 이내에서 요리할 수 있다.");
+        audio.play("fire");
         break;
       }
 
@@ -1249,6 +1254,7 @@ export class WorldScene extends Phaser.Scene {
         store.map.addEntity("signal_fire_lit", tx, ty);
         store.pushLog("🔥 봉화대에 불을 붙였다! 해양 보스의 힘이 약해진다.");
         audio.play("craft");
+        this.time.delayedCall(250, () => audio.play("fire"));
         this.spawnPickupFx(tx, ty, "🔥🔥🔥", "#ffcc44");
         break;
       }
@@ -1256,6 +1262,7 @@ export class WorldScene extends Phaser.Scene {
       case "signal_fire_lit": {
         const lit = store.map.entities.filter((e) => e.type === "signal_fire_lit").length;
         store.pushLog(`🔥 타오르는 봉화대. 점화된 봉화 ${lit}개 — 다음 해양 보스 공격력 ${Math.min(60, lit * 30)}% 감소.`);
+        audio.play("fire");
         break;
       }
 
@@ -1310,6 +1317,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.renderEntities();
     this.updateActionHint();
+    this.syncWorldAmbience();
   }
 
   private lootShipwreck(entity: WorldEntity): void {
@@ -1863,6 +1871,25 @@ export class WorldScene extends Phaser.Scene {
     audio.playBgm(store.time.phase === "day" ? "day" : "night");
   }
 
+  private syncWorldAmbience(): void {
+    const store = getStore(this);
+    let terrain = store.map.terrainAt(store.playerTx, store.playerTy) ?? "grass";
+    let forestTiles = 0;
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const nearby = store.map.terrainAt(store.playerTx + dx, store.playerTy + dy);
+        if (nearby === "river") terrain = "river";
+        if (nearby === "forest") forestTiles++;
+      }
+    }
+    if (terrain === "grass" && forestTiles >= 5) terrain = "forest";
+    const nearFire = store.map.entities.some((entity) =>
+      (entity.type === "bonfire_placed" || entity.type === "signal_fire_lit") &&
+      Math.abs(entity.tx - store.playerTx) + Math.abs(entity.ty - store.playerTy) <= 2
+    );
+    audio.setWorldContext(terrain, store.time.phase, nearFire);
+  }
+
   // ── Panel toggles ──────────────────────────────────────────────
   private toggleInventory(): void {
     audio.play("menu");
@@ -2145,6 +2172,7 @@ export class WorldScene extends Phaser.Scene {
     this.renderEntities();
     this.updateActionHint();
     this.syncBgm();
+    this.syncWorldAmbience();
   }
 
   // ── 동적 요소 (Wildlife/Weather/RandomEvents) 는 systems/ 모듈로 분리됨 ──

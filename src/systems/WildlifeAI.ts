@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { TILE_PX } from "../data/tiles";
 import { getStore } from "./GameStore";
+import { audio } from "./AudioManager";
 
 /** 토끼/늑대/멧돼지/곰이 무작위 방향으로 이동하는 AI 틱.
  *  WorldScene에서 호출하며 entityObjects 접근은 콜백으로 분리. */
@@ -27,6 +28,13 @@ const TWEEN_DURATION: Record<string, number> = {
   wolf: 520,
   boar: 620,
   bear: 720,
+};
+
+const SOUND_CHANCE: Record<string, number> = {
+  rabbit: 0.035,
+  wolf: 0.1,
+  boar: 0.075,
+  bear: 0.09,
 };
 
 function tickWildlife(
@@ -85,6 +93,10 @@ function tickWildlife(
           sprite.setData("wildlifeMoving", false);
         },
       });
+      const distance = Math.abs(nx - store.playerTx) + Math.abs(ny - store.playerTy);
+      if (distance <= 10 && Math.random() < (SOUND_CHANCE[a.type] ?? 0)) {
+        audio.playAnimal(a.type as "rabbit" | "wolf" | "boar" | "bear", distance);
+      }
       break;
     }
   }

@@ -15,7 +15,8 @@ export class IntroScene extends Phaser.Scene {
   create(): void {
     this.done = false;
     this.cameras.main.fadeIn(650, 0, 0, 0);
-    audio.playBgm("title");
+    audio.clearWorldAmbience();
+    audio.playBgm("intro_calm");
     audio.play("wave");
 
     const voyage = this.cinematicImage("intro-voyage-v2", 0);
@@ -75,7 +76,7 @@ export class IntroScene extends Phaser.Scene {
 
     this.time.delayedCall(6800, () => {
       act.setText("프롤로그  ·  폭풍");
-      audio.playBgm("combat");
+      audio.playBgm("intro_storm");
       this.tweens.add({ targets: voyage, alpha: 0, duration: 1200 });
       this.tweens.add({ targets: storm, alpha: 1, scale: 1.065, duration: 1300, ease: "Sine.Out" });
       this.tweens.add({ targets: rain, alpha: 1, duration: 900 });
@@ -118,7 +119,7 @@ export class IntroScene extends Phaser.Scene {
 
     this.time.delayedCall(15400, () => {
       act.setText("프롤로그  ·  생존자");
-      audio.playBgm("title");
+      audio.playBgm("intro_shore");
       this.tweens.add({ targets: storm, alpha: 0, duration: 1800 });
       this.tweens.add({ targets: rain, alpha: 0, duration: 1500 });
       this.tweens.add({ targets: shore, alpha: 1, scale: 1.055, x: GAME_WIDTH / 2 + 14, duration: 1900, ease: "Sine.Out" });

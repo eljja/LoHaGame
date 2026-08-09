@@ -55,12 +55,14 @@ export function setupWeather(scene: Phaser.Scene): void {
       else if (roll < 0.3) startWind(scene);
     },
   });
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => audio.setWeather(null));
 }
 
 function startRain(scene: Phaser.Scene): void {
   const store = getStore(scene);
   store.pushLog("🌧 하늘이 어두워지더니 비가 내리기 시작한다.");
-  audio.play("phase_night");
+  audio.setWeather("rain");
+  audio.play("rain_start");
   const duration = 35000;
   const particles: Phaser.GameObjects.Text[] = [];
   const worldCam = scene.cameras.main;
@@ -87,7 +89,13 @@ function startRain(scene: Phaser.Scene): void {
     }
   };
   const spawner = scene.time.addEvent({ delay: 80, loop: true, callback: spawn });
+  for (const delay of [6500, 15500, 27000]) {
+    scene.time.delayedCall(delay + Phaser.Math.Between(-1800, 1800), () => {
+      if (Math.random() < 0.62) audio.play("thunder");
+    });
+  }
   scene.time.delayedCall(duration, () => {
+    audio.setWeather(null);
     spawner.remove(false);
     particles.forEach((p) => p.destroy());
     // 비 보너스: 더러운 물 1-2 추가 (빈 용기 같이)
@@ -105,6 +113,8 @@ function startWind(scene: Phaser.Scene): void {
   const store = getStore(scene);
   store.pushLog("🍃 해안에서 상쾌한 바람이 불어온다. 기분이 좋아진다.");
   store.stats.apply({ energy: 6 });
+  audio.setWeather("wind");
+  audio.play("wind_gust");
   const worldCam = scene.cameras.main;
   // 바람 이펙트: 작은 잎사귀 몇 개 화면 가로질러 이동
   for (let i = 0; i < 8; i++) {
@@ -124,4 +134,5 @@ function startWind(scene: Phaser.Scene): void {
       onComplete: () => leaf.destroy(),
     });
   }
+  scene.time.delayedCall(7000, () => audio.setWeather(null));
 }

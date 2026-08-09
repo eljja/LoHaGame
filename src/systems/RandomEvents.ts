@@ -119,5 +119,5 @@ function triggerForecastStorm(scene: Phaser.Scene, deps: RandomEventsDeps): void
     ? `⛈ 예고된 폭풍이 지나갔다. 몸을 웅크려 버텼지만 ${losses}가 흩어졌다.`
     : "⛈ 예고된 폭풍이 지나갔다. 큰 피해는 없지만 밤새 버티느라 기운이 빠졌다.");
   deps.spawnPickupFx(store.playerTx, store.playerTy, "⛈", "#9fb7ff");
-  audio.play("phase_night");
+  audio.play("thunder");
 }
