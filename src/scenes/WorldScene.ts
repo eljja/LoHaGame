@@ -22,6 +22,7 @@ import { formatDangerSignals } from "../systems/DangerTracker";
 import { formatNearestMarkerLine, getNextCraftingGoal } from "../systems/ProgressGuide";
 import { determineVictoryEnding } from "../systems/RunSummary";
 import type { Achievement } from "../data/achievements";
+import { entityDisplaySize, entityTextureKey, playerTextureKey } from "../art/GameArt";
 
 // Viewport constants
 const VP_X = 0;
@@ -29,13 +30,21 @@ const VP_Y = 56;
 const VP_W = GAME_WIDTH;
 const VP_H = 552; // 56..608
 
+function shadeColor(color: number, amount: number): number {
+  const clamp = (v: number) => Math.max(0, Math.min(255, v));
+  const r = clamp(((color >> 16) & 0xff) + amount);
+  const g = clamp(((color >> 8) & 0xff) + amount);
+  const b = clamp((color & 0xff) + amount);
+  return (r << 16) | (g << 8) | b;
+}
+
 export class WorldScene extends Phaser.Scene {
   // World-space objects (followed by main camera)
   private terrainGfx!: Phaser.GameObjects.Graphics;
   private interactionGfx!: Phaser.GameObjects.Graphics;
-  private entityObjects: Map<number, Phaser.GameObjects.Text> = new Map();
+  private entityObjects: Map<number, Phaser.GameObjects.Image> = new Map();
   private entityDecorObjects: Phaser.GameObjects.GameObject[] = [];
-  private playerSprite!: Phaser.GameObjects.Text;
+  private playerSprite!: Phaser.GameObjects.Image;
   private playerShadow!: Phaser.GameObjects.Ellipse;
 
   // UI-space objects (UI camera)
@@ -106,12 +115,12 @@ export class WorldScene extends Phaser.Scene {
 
     // Player sprite (world space)
     this.playerSprite = this.add
-      .text(
+      .image(
         store.playerTx * TILE_PX + TILE_PX / 2,
         store.playerTy * TILE_PX + TILE_PX / 2,
-        "🧑",
-        { fontSize: "28px" }
+        playerTextureKey(),
       )
+      .setDisplaySize(38, 38)
       .setOrigin(0.5)
       .setDepth(10);
     this.worldObjects.push(this.playerSprite);
@@ -119,7 +128,7 @@ export class WorldScene extends Phaser.Scene {
     // 플레이어 가벼운 호흡 애니메이션 (원래 위치 추적 방해 없이 스케일만)
     this.tweens.add({
       targets: this.playerSprite,
-      scaleY: 1.04,
+      scaleY: this.playerSprite.scaleY * 1.04,
       duration: 1200,
       yoyo: true,
       repeat: -1,
@@ -412,29 +421,73 @@ export class WorldScene extends Phaser.Scene {
       for (let tx = 0; tx < map.size; tx++) {
         const terrType = map.terrain[ty][tx];
         const def = TERRAIN[terrType];
-        // Slight checkerboard mottle
-        const useMottle = def.mottle && (tx + ty) % 2 === 0;
-        const col = useMottle ? def.mottle! : def.color;
-        gfx.fillStyle(col, 1);
-        gfx.fillRect(tx * TILE_PX, ty * TILE_PX, TILE_PX, TILE_PX);
         const px = tx * TILE_PX;
         const py = ty * TILE_PX;
-        const hash = (tx * 31 + ty * 17) & 7;
+        const hash = (tx * 73 + ty * 151 + tx * ty * 17) & 255;
+        const base = def.mottle && hash % 4 === 0 ? def.mottle : def.color;
+        gfx.fillStyle(shadeColor(base, ((hash % 5) - 2) * 3), 1);
+        gfx.fillRect(px, py, TILE_PX, TILE_PX);
+
         if (terrType === "deep_water" || terrType === "shallow_water" || terrType === "river") {
-          if (hash <= 2) {
-            gfx.fillStyle(0xb9e8ff, terrType === "deep_water" ? 0.10 : 0.18);
-            gfx.fillRect(px + 5 + hash * 3, py + 9 + (ty % 3) * 5, 9, 1);
+          const alpha = terrType === "deep_water" ? 0.14 : 0.24;
+          gfx.lineStyle(1, 0xbdeaff, alpha);
+          const offset = 5 + (hash % 9);
+          gfx.beginPath();
+          gfx.moveTo(px + 3, py + offset);
+          gfx.lineTo(px + 10, py + offset - 1);
+          gfx.lineTo(px + 18, py + offset + 1);
+          gfx.lineTo(px + 27, py + offset);
+          gfx.strokePath();
+          if (hash % 3 === 0) {
+            gfx.lineStyle(1, 0x76c8e8, alpha * 0.75);
+            gfx.lineBetween(px + 8, py + 24, px + 23, py + 23);
           }
-        } else {
-          gfx.fillStyle(0xffffff, 0.08);
-          gfx.fillRect(px, py, TILE_PX, 1);
-          if (hash === 0) {
-            gfx.fillStyle(0xffffff, 0.10);
-            gfx.fillRect(px + 7, py + 8, 2, 2);
+        } else if (terrType === "sand") {
+          gfx.fillStyle(0x8f7446, 0.18);
+          gfx.fillCircle(px + 7 + (hash % 18), py + 7 + ((hash >> 3) % 18), 1);
+          if (hash % 4 === 0) {
+            gfx.lineStyle(1, 0xf5e7b5, 0.22);
+            gfx.lineBetween(px + 4, py + 25, px + 14, py + 26);
           }
+        } else if (terrType === "grass" || terrType === "forest") {
+          const blade = terrType === "forest" ? 0x173f29 : 0x2c6c35;
+          gfx.lineStyle(1, blade, 0.38);
+          const bx = px + 5 + (hash % 20);
+          const by = py + 13 + ((hash >> 3) % 14);
+          gfx.lineBetween(bx, by + 5, bx - 2, by);
+          gfx.lineBetween(bx, by + 5, bx + 2, by - 2);
+          if (terrType === "forest") {
+            gfx.fillStyle(0x0f3625, 0.18);
+            gfx.fillCircle(px + 22, py + 8, 7);
+          }
+        } else if (terrType === "rock" || terrType === "cliff_rock") {
+          gfx.lineStyle(1, 0x303945, 0.32);
+          const rx = px + 6 + (hash % 12);
+          gfx.beginPath();
+          gfx.moveTo(rx, py + 5);
+          gfx.lineTo(rx + 7, py + 13);
+          gfx.lineTo(rx + 3, py + 22);
+          gfx.strokePath();
+          gfx.lineStyle(1, 0xd7dde0, 0.18);
+          gfx.lineBetween(px + 3, py + 3, px + 20, py + 3);
         }
-        gfx.lineStyle(1, 0x07101a, 0.10);
+
+        // A very soft cell edge keeps navigation readable without a checkerboard look.
+        gfx.lineStyle(1, 0x07101a, 0.045);
         gfx.strokeRect(px, py, TILE_PX, TILE_PX);
+
+        // Foam traces the actual coastline instead of relying on square color contrast.
+        if (terrType === "sand") {
+          const isWater = (x: number, y: number) => {
+            const t = map.terrain[y]?.[x];
+            return t === "deep_water" || t === "shallow_water" || t === "river";
+          };
+          gfx.lineStyle(2, 0xeaf8ef, 0.42);
+          if (isWater(tx, ty - 1)) gfx.lineBetween(px + 1, py + 1, px + TILE_PX - 1, py + 1);
+          if (isWater(tx, ty + 1)) gfx.lineBetween(px + 1, py + TILE_PX - 1, px + TILE_PX - 1, py + TILE_PX - 1);
+          if (isWater(tx - 1, ty)) gfx.lineBetween(px + 1, py + 1, px + 1, py + TILE_PX - 1);
+          if (isWater(tx + 1, ty)) gfx.lineBetween(px + TILE_PX - 1, py + 1, px + TILE_PX - 1, py + TILE_PX - 1);
+        }
       }
     }
   }
@@ -470,21 +523,24 @@ export class WorldScene extends Phaser.Scene {
         this.worldObjects.push(ring);
       }
 
+      const size = entityDisplaySize(entity.type);
       const t = this.add
-        .text(worldX, worldY, def.icon, { fontSize: "24px" })
+        .image(worldX, worldY, entityTextureKey(entity.type))
+        .setDisplaySize(size, size)
         .setOrigin(0.5)
         .setDepth(5)
-        .setShadow(0, 2, "#000000", 5, true, true)
         .setInteractive({ useHandCursor: true });
+      const baseScale = t.scaleX;
+      t.setData("baseScale", baseScale);
 
       t.on("pointerdown", () => this.tapEntity(entity));
       t.on("pointerover", () => {
         this.actionHintText.setText(`${def.icon} ${def.label} — 탭하여 상호작용`);
-        this.tweens.add({ targets: t, scale: 1.2, duration: 120, ease: "Sine.Out" });
+        this.tweens.add({ targets: t, scaleX: baseScale * 1.16, scaleY: baseScale * 1.16, duration: 120, ease: "Sine.Out" });
       });
       t.on("pointerout", () => {
         this.updateActionHint();
-        this.tweens.add({ targets: t, scale: 1.0, duration: 120, ease: "Sine.Out" });
+        this.tweens.add({ targets: t, scaleX: baseScale, scaleY: baseScale, duration: 120, ease: "Sine.Out" });
       });
 
       // 살아있는 엔티티는 가볍게 흔들/호흡 애니메이션
@@ -519,7 +575,8 @@ export class WorldScene extends Phaser.Scene {
         // 불꽃이 살짝 크기·색으로 일렁임
         this.tweens.add({
           targets: t,
-          scale: 1.12,
+          scaleX: baseScale * 1.1,
+          scaleY: baseScale * 1.1,
           duration: 380,
           ease: "Sine.InOut",
           yoyo: true,
@@ -528,7 +585,7 @@ export class WorldScene extends Phaser.Scene {
       } else if (entity.type === "tent_placed") {
         this.tweens.add({
           targets: t,
-          scaleY: 1.06,
+          scaleY: baseScale * 1.04,
           duration: 1800,
           ease: "Sine.InOut",
           yoyo: true,
@@ -594,9 +651,11 @@ export class WorldScene extends Phaser.Scene {
     for (const id of ids) {
       const sprite = this.entityObjects.get(id);
       if (!sprite) continue;
+      const baseScale = Number(sprite.getData("baseScale")) || sprite.scaleX;
       this.tweens.add({
         targets: sprite,
-        scale: 1.5,
+        scaleX: baseScale * 1.35,
+        scaleY: baseScale * 1.35,
         duration: 200,
         yoyo: true,
         repeat: 2,
@@ -788,7 +847,7 @@ export class WorldScene extends Phaser.Scene {
     // 발자국 같은 잔상: 살짝 위아래로 튀어오르는 hop
     this.tweens.add({
       targets: this.playerSprite,
-      scaleY: 0.92,
+      scaleY: this.playerSprite.scaleX * 0.92,
       duration: 60,
       yoyo: true,
       ease: "Quad.Out",

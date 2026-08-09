@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { GAME_WIDTH, GAME_HEIGHT, COLORS } from "../config";
 import { getStore } from "../systems/GameStore";
+import { registerWorldArt } from "../art/GameArt";
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -34,10 +35,14 @@ export class BootScene extends Phaser.Scene {
     });
 
     this.load.image("title-island-v2", "assets/title-island-v2.jpg");
+    this.load.image("intro-voyage-v2", "assets/intro-voyage-v2.jpg");
+    this.load.image("intro-storm-v2", "assets/intro-storm-v2.jpg");
+    this.load.image("intro-shore-v2", "assets/intro-shore-v2.jpg");
 
   }
 
   create(): void {
+    registerWorldArt(this);
     this.time.delayedCall(300, () => {
       getStore(this);
       this.scene.start("TitleScene");

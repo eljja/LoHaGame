@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { ensureCombatTexture, playerTextureKey } from "../art/GameArt";
 import { GAME_WIDTH, GAME_HEIGHT, COLORS } from "../config";
 import { ITEMS } from "../data/items";
 import type { EnemyDef, ItemId } from "../types";
@@ -17,7 +18,7 @@ const DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 export class CombatScene extends Phaser.Scene {
   private enemy!: EnemyDef;
   private enemyHp = 0;
-  private enemySprite!: Phaser.GameObjects.Text;
+  private enemySprite!: Phaser.GameObjects.Image;
   private enemyHpBar!: Phaser.GameObjects.Rectangle;
   private enemyHpBarMaxWidth = 380;
   private enemyNameText!: Phaser.GameObjects.Text;
@@ -156,7 +157,8 @@ export class CombatScene extends Phaser.Scene {
 
     // 적 스프라이트
     this.enemySprite = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 30, this.enemy.icon, { fontSize: "130px" })
+      .image(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 30, ensureCombatTexture(this, this.enemy.id))
+      .setDisplaySize(230, 230)
       .setOrigin(0.5);
     this.tweens.add({ targets: this.enemySprite, y: this.enemySprite.y - 14, duration: 1800, yoyo: true, repeat: -1, ease: "Sine.InOut" });
 
@@ -171,7 +173,7 @@ export class CombatScene extends Phaser.Scene {
 
     // ── 플레이어 영역 ──────────────────────────────────────
     const playerHpPanelY = GAME_HEIGHT - 286;
-    this.add.text(60, playerHpPanelY - 30, "🧑", { fontSize: "68px" }).setOrigin(0.5);
+    this.add.image(60, playerHpPanelY - 30, playerTextureKey()).setDisplaySize(76, 76).setOrigin(0.5);
 
     // 플레이어 HP 패널. 하단 로그 패널 위에 배치해 전투 중에도 가리지 않는다.
     drawPanel(this, 6, playerHpPanelY, 278, 96, { fill: 0x0a1428, alpha: 0.94 });

@@ -6,7 +6,7 @@ import { getStore } from "./GameStore";
  *  WorldScene에서 호출하며 entityObjects 접근은 콜백으로 분리. */
 export function setupWildlifeAI(
   scene: Phaser.Scene,
-  getEntitySprite: (id: number) => Phaser.GameObjects.Text | undefined,
+  getEntitySprite: (id: number) => Phaser.GameObjects.Image | undefined,
 ): void {
   scene.time.addEvent({
     delay: 2400,
@@ -31,7 +31,7 @@ const TWEEN_DURATION: Record<string, number> = {
 
 function tickWildlife(
   scene: Phaser.Scene,
-  getEntitySprite: (id: number) => Phaser.GameObjects.Text | undefined,
+  getEntitySprite: (id: number) => Phaser.GameObjects.Image | undefined,
 ): void {
   // 씬이 일시정지 상태면 아무것도 하지 않음
   if (scene.scene.isPaused()) return;
