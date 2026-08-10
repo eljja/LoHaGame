@@ -1903,7 +1903,7 @@ export class WorldScene extends Phaser.Scene {
 
   private syncBgm(): void {
     const store = getStore(this);
-    audio.playBgm(store.time.phase === "day" ? "day" : "night");
+    audio.playWorldBgm(store.time.phase);
   }
 
   private syncWorldAmbience(): void {

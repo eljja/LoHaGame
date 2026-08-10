@@ -132,12 +132,14 @@ export class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    audio.playBgm("title");
     const muteBtn = makeButton(this, 80, 50, {
-      label: audio.muted ? "🔇 음소거" : "🔊 소리",
+      label: audio.needsActivation ? "▶ 소리 시작" : audio.muted ? "🔇 음소거" : "🔊 소리",
       width: 140,
       height: 40,
       fontSize: 14,
       bg: 0x0c1228,
+      skipAudioResume: true,
       onClick: () => {
         const m = audio.toggleMuted();
         (muteBtn as any).setLabel(m ? "🔇 음소거" : "🔊 소리");
@@ -146,7 +148,6 @@ export class TitleScene extends Phaser.Scene {
     });
 
     this.cameras.main.fadeIn(500, 0, 0, 0);
-    audio.playBgm("title");
     void COLORS; // 정적 참조 유지
   }
 }

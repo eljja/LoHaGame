@@ -6,7 +6,8 @@ export type SfxName =
 
 export type BgmName =
   | "title" | "intro_calm" | "intro_storm" | "intro_shore"
-  | "day" | "night" | "cave" | "combat" | "victory" | "gameover";
+  | "day" | "night" | "day_rain" | "night_rain" | "day_wind" | "night_wind"
+  | "cave" | "combat" | "victory" | "gameover";
 
 type Instrument = "felt" | "kalimba" | "flute" | "strings" | "bell" | "pluck" | "bass" | "pulse";
 type Percussion = "kick" | "frame" | "wood" | "shaker" | "impact";
@@ -54,11 +55,15 @@ interface RecordedMusicPlayback {
 
 const MUSIC_PLAYLISTS: Record<BgmName, readonly string[]> = {
   title: ["island-overture.ogg"],
-  intro_calm: ["island-overture.ogg"],
-  intro_storm: ["storm-at-black-reef.ogg"],
-  intro_shore: ["tidebound-horizon.ogg"],
+  intro_calm: ["last-lights-of-home.ogg"],
+  intro_storm: ["through-the-tempest.ogg"],
+  intro_shore: ["first-light-on-the-island.ogg"],
   day: ["tidebound-horizon.ogg", "green-isle-wind.ogg"],
   night: ["embers-under-stars.ogg"],
+  day_rain: ["rain-on-new-leaves.ogg"],
+  night_rain: ["lanterns-in-the-rain.ogg"],
+  day_wind: ["windward-path.ogg"],
+  night_wind: ["stars-in-the-gale.ogg"],
   cave: ["beneath-the-basalt.ogg"],
   combat: ["storm-at-black-reef.ogg", "teeth-in-the-dark.ogg"],
   victory: ["beacon-across-the-sea.ogg"],
@@ -72,6 +77,10 @@ const MUSIC_LEVELS: Record<BgmName, number> = {
   intro_shore: 0.74,
   day: 0.72,
   night: 0.68,
+  day_rain: 0.68,
+  night_rain: 0.64,
+  day_wind: 0.72,
+  night_wind: 0.66,
   cave: 0.64,
   combat: 0.82,
   victory: 0.76,
@@ -95,9 +104,11 @@ class AudioManager {
   private lastTrackByBgm = new Map<BgmName, string>();
   private currentBgm: BgmName | null = null;
   private phraseIndex = 0;
+  private playbackBlocked = false;
 
   private worldZone = "none";
   private worldPhase: WorldPhase = "day";
+  private worldMusicPhase: WorldPhase = "day";
   private nearFire = false;
   private weatherLayer: WeatherLayer = null;
   private ambientSources: AudioScheduledSourceNode[] = [];
@@ -156,7 +167,11 @@ class AudioManager {
   resume(): void {
     this.init();
     if (this.ctx?.state === "suspended") void this.ctx.resume();
-    if (this.recordedPlayback?.element.paused) void this.recordedPlayback.element.play().catch(() => { /* user gesture may still be required */ });
+    if (this.recordedPlayback?.element.paused) {
+      void this.recordedPlayback.element.play()
+        .then(() => { this.playbackBlocked = false; })
+        .catch(() => { this.playbackBlocked = true; });
+    }
   }
 
   setMuted(muted: boolean): void {
@@ -166,8 +181,17 @@ class AudioManager {
   }
 
   toggleMuted(): boolean {
+    if (this.playbackBlocked || this.ctx?.state === "suspended") {
+      this.setMuted(false);
+      this.resume();
+      return false;
+    }
     this.setMuted(!this.muted);
     return this.muted;
+  }
+
+  get needsActivation(): boolean {
+    return !this.ctx || this.ctx.state === "suspended" || this.playbackBlocked;
   }
 
   play(name: SfxName): void {
@@ -317,6 +341,9 @@ class AudioManager {
 
     const playback: RecordedMusicPlayback = { element, source, gain, name, file };
     this.recordedPlayback = playback;
+    element.onplaying = () => {
+      if (this.recordedPlayback === playback) this.playbackBlocked = false;
+    };
     element.onended = () => {
       if (this.recordedPlayback !== playback || this.currentBgm !== name) return;
       this.recordedPlayback = null;
@@ -325,9 +352,18 @@ class AudioManager {
     };
     element.onerror = () => this.handleRecordedMusicFailure(playback);
     void element.play().catch((error: unknown) => {
-      if (error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "AbortError")) return;
+      if (error instanceof DOMException && error.name === "NotAllowedError") {
+        this.playbackBlocked = true;
+        return;
+      }
+      if (error instanceof DOMException && error.name === "AbortError") return;
       this.handleRecordedMusicFailure(playback);
     });
+  }
+
+  playWorldBgm(phase: WorldPhase): void {
+    this.worldMusicPhase = phase;
+    this.playBgm(this.worldBgmFor(phase, this.weatherLayer));
   }
 
   private handleRecordedMusicFailure(playback: RecordedMusicPlayback): void {
@@ -387,6 +423,9 @@ class AudioManager {
     if (this.weatherLayer === weather) return;
     this.weatherLayer = weather;
     this.refreshWorldAmbience();
+    if (this.currentBgm && this.isWorldBgm(this.currentBgm)) {
+      this.playBgm(this.worldBgmFor(this.worldMusicPhase, weather));
+    }
   }
 
   clearWorldAmbience(): void {
@@ -417,6 +456,7 @@ class AudioManager {
   private disposeRecordedPlayback(playback: RecordedMusicPlayback, fadeSeconds = 0): void {
     playback.element.onended = null;
     playback.element.onerror = null;
+    playback.element.onplaying = null;
     if (!this.ctx || fadeSeconds <= 0) {
       playback.element.pause();
       try { playback.source.disconnect(); playback.gain.disconnect(); } catch { /* already disconnected */ }
@@ -432,6 +472,18 @@ class AudioManager {
     }, (fadeSeconds + 0.1) * 1000);
   }
 
+  private worldBgmFor(phase: WorldPhase, weather: WeatherLayer): BgmName {
+    if (weather === "rain") return phase === "day" ? "day_rain" : "night_rain";
+    if (weather === "wind") return phase === "day" ? "day_wind" : "night_wind";
+    return phase;
+  }
+
+  private isWorldBgm(name: BgmName): boolean {
+    return name === "day" || name === "night"
+      || name === "day_rain" || name === "night_rain"
+      || name === "day_wind" || name === "night_wind";
+  }
+
   private buildPhrase(name: BgmName, index: number): Phrase {
     if (name === "title") return this.harmonicPhrase(
       choose([
@@ -445,7 +497,7 @@ class AudioManager {
     if (name === "intro_shore") return this.harmonicPhrase(
       [[48,52,55],[55,59,62],[57,60,64],[53,57,60],[48,52,55]], 3.8, index, "flute", "strings", false, true,
     );
-    if (name === "day") {
+    if (name === "day" || name === "day_rain" || name === "day_wind") {
       const progressions = [
         [[48,52,55],[55,59,62],[57,60,64],[53,57,60],[48,52,55],[52,55,59],[53,57,60]],
         [[57,60,64],[53,57,60],[48,52,55],[55,59,62],[52,55,59],[53,57,60],[55,59,62]],
@@ -454,7 +506,7 @@ class AudioManager {
       ] as const;
       return this.harmonicPhrase(choose(progressions).map((c) => [...c]), 4, index, choose(["kalimba","pluck","felt"] as const), "strings", index % 3 !== 2, true);
     }
-    if (name === "night") return this.harmonicPhrase(
+    if (name === "night" || name === "night_rain" || name === "night_wind") return this.harmonicPhrase(
       choose([
         [[50,53,57],[46,50,53],[43,46,50],[48,52,55],[50,53,57],[45,48,52]],
         [[45,48,52],[50,53,57],[48,52,55],[43,46,50],[46,50,53],[45,48,52]],

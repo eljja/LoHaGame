@@ -13,6 +13,7 @@ export interface ButtonOpts {
   textColor?: string;
   onClick: () => void;
   disabled?: boolean;
+  skipAudioResume?: boolean;
 }
 
 export function makeButton(
@@ -77,7 +78,7 @@ export function makeButton(
     }
     rect.setFillStyle(COLORS.accent);
     scene.tweens.add({ targets: container, scale: 0.96, duration: 60, yoyo: true });
-    audio.resume();
+    if (!opts.skipAudioResume) audio.resume();
     audio.play("click");
   });
   container.on("pointerup", () => {
