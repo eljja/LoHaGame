@@ -71,20 +71,20 @@ const MUSIC_PLAYLISTS: Record<BgmName, readonly string[]> = {
 };
 
 const MUSIC_LEVELS: Record<BgmName, number> = {
-  title: 0.78,
-  intro_calm: 0.72,
+  title: 0.95,
+  intro_calm: 0.64,
   intro_storm: 0.84,
-  intro_shore: 0.74,
-  day: 0.72,
-  night: 0.68,
-  day_rain: 0.68,
-  night_rain: 0.64,
-  day_wind: 0.72,
-  night_wind: 0.66,
+  intro_shore: 0.92,
+  day: 0.7,
+  night: 0.55,
+  day_rain: 0.63,
+  night_rain: 0.63,
+  day_wind: 0.75,
+  night_wind: 0.76,
   cave: 0.64,
   combat: 0.82,
-  victory: 0.76,
-  gameover: 0.67,
+  victory: 0.92,
+  gameover: 0.53,
 };
 
 const midi = (note: number) => 440 * Math.pow(2, (note - 69) / 12);

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-10",
+  "generatedAt": "2026-08-13",
   "tracks": [
     {
       "id": "island-overture",
@@ -7,11 +7,11 @@
       "file": "island-overture.ogg",
       "scene": "title",
       "seconds": 86,
-      "bytes": 1334628,
-      "sha256": "e4909ea0db938628ced0aaf4bd84d44a73ab9136de64b5a6494b8ddf5b8339a1",
-      "oggPages": 310,
+      "bytes": 1182511,
+      "sha256": "476232b4ac3eb9de9fdfe26c1e13a35e2e396081369613d1f54a1142eab55b15",
+      "oggPages": 275,
       "peak": 0.91,
-      "rms": 0.1423,
+      "rms": 0.1061,
       "sampleRate": 32000
     },
     {
@@ -20,11 +20,11 @@
       "file": "last-lights-of-home.ogg",
       "scene": "intro_calm",
       "seconds": 76.59,
-      "bytes": 1198418,
-      "sha256": "648e57324e220e8956d47ec7c73e7898b2a2be144305bf07965b4d71b2a6fc79",
-      "oggPages": 278,
+      "bytes": 1086727,
+      "sha256": "daa8353a9376ab418f497fae4bf5fde59723ac2d054a3fff66894285bc3cac07",
+      "oggPages": 251,
       "peak": 0.91,
-      "rms": 0.1717,
+      "rms": 0.1882,
       "sampleRate": 32000
     },
     {
@@ -33,11 +33,11 @@
       "file": "through-the-tempest.ogg",
       "scene": "intro_storm",
       "seconds": 56,
-      "bytes": 781107,
-      "sha256": "fb5f7cf5c674719d88cdf74421ec6fe6bffad3d8755ee2508ff8aa9465a5946a",
-      "oggPages": 179,
+      "bytes": 690085,
+      "sha256": "c2e0f79220a83d85182ca1bf6e9e7fad194367842ca081d362cf1ad8c9e0646e",
+      "oggPages": 160,
       "peak": 0.91,
-      "rms": 0.1654,
+      "rms": 0.141,
       "sampleRate": 32000
     },
     {
@@ -46,11 +46,11 @@
       "file": "first-light-on-the-island.ogg",
       "scene": "intro_shore",
       "seconds": 57.89,
-      "bytes": 843961,
-      "sha256": "30c706c307fd496f345f1d83d4322427d4a5d63033b44c617db812a3efc579a9",
-      "oggPages": 195,
+      "bytes": 780552,
+      "sha256": "97ebcf4a92fb7441931743ba7b7ef3931bb8e15a646c432ced5e72d0825c9aa0",
+      "oggPages": 182,
       "peak": 0.91,
-      "rms": 0.1521,
+      "rms": 0.1121,
       "sampleRate": 32000
     },
     {
@@ -59,11 +59,11 @@
       "file": "tidebound-horizon.ogg",
       "scene": "day",
       "seconds": 97.43,
-      "bytes": 1499185,
-      "sha256": "114aa8ad4d67b43d4156ec0331926cce860e21bda5bb8cd3f8d88a2867375051",
-      "oggPages": 342,
+      "bytes": 1384421,
+      "sha256": "34db39991bef310d830bd638e226d91ca78d18443cbde808e91caaf3069f69b3",
+      "oggPages": 320,
       "peak": 0.91,
-      "rms": 0.17,
+      "rms": 0.1687,
       "sampleRate": 32000
     },
     {
@@ -72,11 +72,11 @@
       "file": "green-isle-wind.ogg",
       "scene": "day",
       "seconds": 104.46,
-      "bytes": 1619912,
-      "sha256": "dd582daf2b8efe02815eb445c3405e65ba0d87abea2f4739f8905488bba25f70",
-      "oggPages": 370,
+      "bytes": 1499799,
+      "sha256": "dfdf2bc3f61067bf70c81b3edfe50d4d8c13213de7f299e41fe3518ac1b7c3bf",
+      "oggPages": 345,
       "peak": 0.91,
-      "rms": 0.1769,
+      "rms": 0.1755,
       "sampleRate": 32000
     },
     {
@@ -85,11 +85,11 @@
       "file": "embers-under-stars.ogg",
       "scene": "night",
       "seconds": 118,
-      "bytes": 1885963,
-      "sha256": "01abee760baf5375c38a97b0062ce6c0816a83b0518031cbed2131e31f576d93",
-      "oggPages": 437,
+      "bytes": 1718437,
+      "sha256": "0985a52d143be179c3e7dc558d74aaf24065d72afa15425ecadb8ed64701db8d",
+      "oggPages": 396,
       "peak": 0.91,
-      "rms": 0.1699,
+      "rms": 0.2153,
       "sampleRate": 32000
     },
     {
@@ -98,11 +98,11 @@
       "file": "rain-on-new-leaves.ogg",
       "scene": "rain_day",
       "seconds": 74.57,
-      "bytes": 1165239,
-      "sha256": "98dc3235fa9b4389bbe7a8b28684a47f20051bc36c986c6ff31487a1fe2f6d01",
-      "oggPages": 272,
+      "bytes": 1057484,
+      "sha256": "d586a5ec823d2bb5009b0b8b6bcfa24ee9d6364e277404335c351e1b00c89851",
+      "oggPages": 245,
       "peak": 0.91,
-      "rms": 0.1769,
+      "rms": 0.1923,
       "sampleRate": 32000
     },
     {
@@ -111,11 +111,11 @@
       "file": "lanterns-in-the-rain.ogg",
       "scene": "rain_night",
       "seconds": 83.42,
-      "bytes": 1307802,
-      "sha256": "f3f4166a03236329d2c8edefe88d743ae40ce52b57d9a094fd5ce7a5b2366fab",
-      "oggPages": 305,
+      "bytes": 1187436,
+      "sha256": "981e1b0533da65184b82eac68ad51a170cbeaafce335935793f667374b0bf5f2",
+      "oggPages": 276,
       "peak": 0.91,
-      "rms": 0.1676,
+      "rms": 0.1905,
       "sampleRate": 32000
     },
     {
@@ -124,11 +124,11 @@
       "file": "windward-path.ogg",
       "scene": "wind_day",
       "seconds": 47.74,
-      "bytes": 703989,
-      "sha256": "2e594293fbcd9c728b1acff73039b4b3921f3db905d51748828293079cba135c",
-      "oggPages": 162,
+      "bytes": 639141,
+      "sha256": "c4fc08231688fe0ee9efca94d3fceda777229da9dca154dff5b98b770f1f014f",
+      "oggPages": 149,
       "peak": 0.91,
-      "rms": 0.1866,
+      "rms": 0.1624,
       "sampleRate": 32000
     },
     {
@@ -137,11 +137,11 @@
       "file": "stars-in-the-gale.ogg",
       "scene": "wind_night",
       "seconds": 57.89,
-      "bytes": 891837,
-      "sha256": "46834e336d39ac474f48c89b2c495a0aded04b161f86150d5406957a8db77046",
-      "oggPages": 207,
+      "bytes": 797164,
+      "sha256": "d104be2bd23790d8dc629203f25002a2fc9a02aff4f75647600d0a1ec9d5f5f9",
+      "oggPages": 185,
       "peak": 0.91,
-      "rms": 0.1683,
+      "rms": 0.1542,
       "sampleRate": 32000
     },
     {
@@ -150,11 +150,11 @@
       "file": "beneath-the-basalt.ogg",
       "scene": "cave",
       "seconds": 112.67,
-      "bytes": 1747635,
-      "sha256": "f10470333b8adaebee37cd838c71df102732902fd779666481adbc4a99251141",
-      "oggPages": 399,
+      "bytes": 1588801,
+      "sha256": "383f5b93973ec3ed8ae4ee341e0e2b4d5bc657f232459d4d590e5e1434cc96a8",
+      "oggPages": 374,
       "peak": 0.91,
-      "rms": 0.1707,
+      "rms": 0.1759,
       "sampleRate": 32000
     },
     {
@@ -163,11 +163,11 @@
       "file": "storm-at-black-reef.ogg",
       "scene": "combat",
       "seconds": 75.82,
-      "bytes": 1072722,
-      "sha256": "a885dee3294d7e1a8939a03689bcc461dc5de4e437ff0da7083a5e1590709d3b",
-      "oggPages": 246,
+      "bytes": 956121,
+      "sha256": "6b9ebb138ac85332ce17ee29839d857f087cd7c696b36fd78669ae45c464a3cf",
+      "oggPages": 220,
       "peak": 0.91,
-      "rms": 0.1641,
+      "rms": 0.1493,
       "sampleRate": 32000
     },
     {
@@ -176,11 +176,11 @@
       "file": "teeth-in-the-dark.ogg",
       "scene": "combat",
       "seconds": 79.85,
-      "bytes": 1125879,
-      "sha256": "f043e4353f0ad09d19cd00d99a999ad91a578113fcc604d4a9fd996df6490a3e",
-      "oggPages": 258,
+      "bytes": 1012379,
+      "sha256": "90261d621f5a6ee5985c4dd358382d766f4e792c7986b65e952855cdd3a357b5",
+      "oggPages": 234,
       "peak": 0.91,
-      "rms": 0.1747,
+      "rms": 0.1459,
       "sampleRate": 32000
     },
     {
@@ -189,11 +189,11 @@
       "file": "beacon-across-the-sea.ogg",
       "scene": "victory",
       "seconds": 69.16,
-      "bytes": 1039847,
-      "sha256": "f0e24b45075abba7973eceb57ab06dd6afb260a823d1f5a501f01c833946f0d4",
-      "oggPages": 240,
+      "bytes": 941541,
+      "sha256": "6fbac4eebd6ee0690516114bdf79d52e0541bbb09df91f066dfec6c79395899b",
+      "oggPages": 220,
       "peak": 0.91,
-      "rms": 0.1555,
+      "rms": 0.1091,
       "sampleRate": 32000
     },
     {
@@ -202,11 +202,11 @@
       "file": "the-shore-remembers.ogg",
       "scene": "gameover",
       "seconds": 72.21,
-      "bytes": 1139510,
-      "sha256": "420c53b2958befda98e19ab8affadc6bc44e71b9e81e2c56b22729d6fec18487",
-      "oggPages": 263,
+      "bytes": 1033609,
+      "sha256": "81faf0b236ab6fcddbee36b1de2a0d374b5105affaf544f0fa7724fbe1b51f75",
+      "oggPages": 237,
       "peak": 0.91,
-      "rms": 0.1896,
+      "rms": 0.2286,
       "sampleRate": 32000
     }
   ]

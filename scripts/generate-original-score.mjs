@@ -131,12 +131,13 @@ function makeWave(harmonics) {
 }
 
 const WAVES = {
-  strings: makeWave([1, .42, .28, .17, .11, .075, .052, .035, .024, .016]),
-  brass: makeWave([1, .72, .45, .3, .18, .11, .075, .045]),
-  woodwind: makeWave([1, .16, .34, .08, .13, .04, .06]),
-  flute: makeWave([1, .12, .045, .018]),
-  choir: makeWave([1, .34, .18, .12, .09, .055, .03]),
-  harp: makeWave([1, .62, .43, .31, .22, .15, .1, .07, .04, .025]),
+  strings: makeWave([1, .36, .22, .13, .075, .043, .024, .013]),
+  brass: makeWave([1, .58, .32, .18, .1, .055, .028]),
+  woodwind: makeWave([1, .12, .24, .045, .075, .022]),
+  flute: makeWave([1, .075, .025, .008]),
+  harp: makeWave([1, .52, .31, .19, .115, .065, .035, .018]),
+  pulse: makeWave([1, .28, .12, .055, .025]),
+  sub: makeWave([1, .14, .035]),
 };
 
 function midi(note) { return 440 * 2 ** ((note - 69) / 12); }
@@ -197,7 +198,7 @@ class Score {
 
   drum(kind, beat, velocity, pan = 0) {
     const start = Math.floor(beat * this.beatSeconds * SAMPLE_RATE);
-    const duration = kind === "cymbal" ? 3.6 : kind === "timpani" ? 1.7 : .9;
+    const duration = kind === "cymbal" ? 3.6 : kind === "boom" ? 2.4 : kind === "timpani" ? 1.7 : .9;
     const samples = Math.min(this.left.length - start, Math.floor(duration * SAMPLE_RATE));
     const leftGain = Math.cos((pan + 1) * Math.PI / 4) * velocity;
     const rightGain = Math.sin((pan + 1) * Math.PI / 4) * velocity;
@@ -208,7 +209,11 @@ class Score {
       state ^= state << 13; state ^= state >>> 17; state ^= state << 5;
       const noise = (state >>> 0) / 2_147_483_648 - 1;
       let value;
-      if (kind === "timpani") {
+      if (kind === "boom") {
+        const phase = TAU * (49 * t - 7 * t * t);
+        filtered += (noise - filtered) * .055;
+        value = (Math.sin(phase) * .9 + Math.sin(phase * .5) * .24 + filtered * .13) * Math.exp(-1.85 * t);
+      } else if (kind === "timpani") {
         const phase = TAU * (72 * t - 18 * t * t);
         value = (Math.sin(phase) * .82 + noise * .13) * Math.exp(-2.5 * t);
       } else if (kind === "taiko") {
@@ -228,15 +233,17 @@ class Score {
 
 function instrumentShape(instrument, duration) {
   switch (instrument) {
-    case "violins": return { wave: "strings", attack: .42, release: 1.15, sustain: .82, level: .145, detune: .0019, vibrato: 5.1, vibratoDepth: .0018, breath: .012, shimmer: .07 };
-    case "violas": return { wave: "strings", attack: .5, release: 1.3, sustain: .86, level: .14, detune: .0016, vibrato: 4.7, vibratoDepth: .0015, breath: .009, shimmer: .04 };
-    case "cellos": return { wave: "strings", attack: .38, release: 1.1, sustain: .88, level: .16, detune: .0012, vibrato: 4.3, vibratoDepth: .0013, breath: .008, shimmer: .025 };
-    case "horns": return { wave: "brass", attack: .22, release: .75, sustain: .78, level: .115, detune: .0008, vibrato: 4.8, vibratoDepth: .0007, breath: .018, shimmer: .025 };
-    case "trombones": return { wave: "brass", attack: .12, release: .55, sustain: .84, level: .12, detune: .0005, vibrato: 0, vibratoDepth: 0, breath: .014, shimmer: 0 };
-    case "flute": return { wave: "flute", attack: .08, release: .32, sustain: .9, level: .13, detune: 0, vibrato: 5.4, vibratoDepth: .0014, breath: .055, shimmer: .035 };
-    case "oboe": return { wave: "woodwind", attack: .07, release: .28, sustain: .88, level: .105, detune: 0, vibrato: 5, vibratoDepth: .0009, breath: .025, shimmer: .02 };
-    case "choir": return { wave: "choir", attack: .8, release: 1.8, sustain: .9, level: .075, detune: .0018, vibrato: 4.1, vibratoDepth: .0012, breath: .02, shimmer: .06 };
-    case "harp": return { wave: "harp", attack: .004, release: Math.min(2.5, duration), sustain: .1, level: .11, detune: .0004, vibrato: 0, vibratoDepth: 0, breath: 0, shimmer: .035 };
+    case "violins": return { wave: "strings", attack: .34, release: .9, sustain: .86, level: .13, detune: .00125, vibrato: 4.9, vibratoDepth: .00075, breath: .004, shimmer: .018 };
+    case "violas": return { wave: "strings", attack: .38, release: 1, sustain: .88, level: .135, detune: .0011, vibrato: 4.5, vibratoDepth: .00065, breath: .003, shimmer: .012 };
+    case "cellos": return { wave: "strings", attack: .24, release: .85, sustain: .9, level: .16, detune: .0008, vibrato: 4.1, vibratoDepth: .00055, breath: .002, shimmer: .008 };
+    case "horns": return { wave: "brass", attack: .18, release: .58, sustain: .84, level: .13, detune: .00055, vibrato: 4.5, vibratoDepth: .00035, breath: .006, shimmer: .008 };
+    case "trombones": return { wave: "brass", attack: .09, release: .42, sustain: .88, level: .14, detune: .00035, vibrato: 0, vibratoDepth: 0, breath: .004, shimmer: 0 };
+    case "trumpets": return { wave: "brass", attack: .07, release: .35, sustain: .82, level: .105, detune: .00045, vibrato: 4.7, vibratoDepth: .00025, breath: .005, shimmer: .006 };
+    case "flute": return { wave: "flute", attack: .07, release: .25, sustain: .92, level: .085, detune: 0, vibrato: 5, vibratoDepth: .00055, breath: .018, shimmer: .008 };
+    case "oboe": return { wave: "woodwind", attack: .065, release: .24, sustain: .9, level: .078, detune: 0, vibrato: 4.8, vibratoDepth: .0004, breath: .012, shimmer: .005 };
+    case "harp": return { wave: "harp", attack: .004, release: Math.min(2.1, duration), sustain: .08, level: .092, detune: .00025, vibrato: 0, vibratoDepth: 0, breath: 0, shimmer: .008 };
+    case "pulse": return { wave: "pulse", attack: .008, release: .16, sustain: .62, level: .115, detune: .0003, vibrato: 0, vibratoDepth: 0, breath: 0, shimmer: 0 };
+    case "sub": return { wave: "sub", attack: .015, release: .38, sustain: .9, level: .2, detune: 0, vibrato: 0, vibratoDepth: 0, breath: 0, shimmer: 0 };
     default: return { wave: "strings", attack: .12, release: .7, sustain: .85, level: .1, detune: 0, vibrato: 0, vibratoDepth: 0, breath: 0, shimmer: 0 };
   }
 }
@@ -263,76 +270,114 @@ function intensityFor(style, bar, bars) {
   return .34 + .43 * Math.sin(Math.PI * progress) + (progress > .74 ? .12 : 0);
 }
 
+const D_MAJOR_PITCH_CLASSES = new Set([1, 2, 4, 6, 7, 9, 11]);
+
+function nearestChordTone(target, chord, registerOffset = 24) {
+  const candidates = [];
+  for (const note of chord) {
+    for (const octave of [registerOffset - 12, registerOffset, registerOffset + 12]) candidates.push(note + octave);
+  }
+  return candidates.reduce((best, note) => Math.abs(note - target) < Math.abs(best - target) ? note : best, candidates[0]);
+}
+
+function nearestScaleTone(target) {
+  for (let distance = 0; distance < 7; distance++) {
+    const up = Math.round(target) + distance;
+    if (D_MAJOR_PITCH_CLASSES.has((up % 12 + 12) % 12)) return up;
+    const down = Math.round(target) - distance;
+    if (D_MAJOR_PITCH_CLASSES.has((down % 12 + 12) % 12)) return down;
+  }
+  return Math.round(target);
+}
+
 function orchestrate(score) {
   const { track } = score;
   const melodyBase = track.melodyBase;
-  const isStorm = track.style === "combat" || track.style === "intro_storm";
+  const isAction = track.style === "combat" || track.style === "intro_storm";
   const isRain = track.style === "rain_day" || track.style === "rain_night";
   const isWind = track.style === "wind_day" || track.style === "wind_night";
   const isNightLike = track.style === "night" || track.style === "rain_night" || track.style === "wind_night";
-  const chordLength = isStorm ? 2 : 4;
+  const isHeroic = track.style === "title" || track.style === "intro_shore" || track.style === "victory";
+  const isGentle = isRain || isNightLike || track.style === "intro_calm" || track.style === "gameover";
 
   for (let bar = 0; bar < track.bars; bar++) {
     const beat = bar * 4;
     const chord = track.chords[bar % track.chords.length];
     const intensity = intensityFor(track.style, bar, track.bars);
+    const progress = bar / Math.max(1, track.bars - 1);
     const root = chord[0];
+    const fifth = chord[2];
 
-    score.note("cellos", root - 12, beat, 4.05, .7 + intensity * .25, -.22);
-    score.note("cellos", chord[2] - 12, beat + (isStorm ? 2 : 0), chordLength, .42 + intensity * .18, .16);
-    chord.slice(0, 3).forEach((note, index) => score.note("violas", note + 12, beat, 4.1, .45 + intensity * .34, (index - 1) * .3));
-    chord.slice(1).forEach((note, index) => score.note("violins", note + 24, beat, 4.05, .35 + intensity * .32, .2 + index * .23));
+    // A stable low foundation and open fifths keep the harmony broad rather than uncanny.
+    score.note("sub", root - 12, beat, 4.05, .34 + intensity * .28, 0);
+    score.note("cellos", root, beat, 4.05, .5 + intensity * .28, -.22);
+    score.note("cellos", fifth, beat, 4.05, .35 + intensity * .2, .16);
+    score.note("violas", chord[1] + 12, beat, 4.08, .3 + intensity * .24, -.34);
+    score.note("violas", fifth + 12, beat, 4.08, .32 + intensity * .24, .3);
+    score.note("violins", chord[3] + 12, beat, 4.05, .25 + intensity * .2, .45);
 
-    if (["title", "victory", "intro_calm", "intro_shore"].includes(track.style)) {
-      chord.slice(0, 3).forEach((note, index) => score.note("choir", note + 12, beat, 4.15, intensity * .65, (index - 1) * .36));
-    }
-
-    if (intensity > .57 && !isNightLike && !isRain && track.style !== "cave" && track.style !== "gameover") {
-      score.note("horns", root + 12, beat, 3.7, intensity * .76, -.14);
-      score.note("horns", chord[2] + 12, beat, 3.7, intensity * .58, .18);
-    }
-
-    const arpSteps = isStorm || isWind ? 8 : track.style === "cave" || track.style === "rain_night" ? 2 : 4;
-    for (let step = 0; step < arpSteps; step++) {
-      if ((isNightLike || track.style === "cave") && score.rng() < .25) continue;
-      const note = chord[(step * 2 + bar) % chord.length] + (isStorm ? 12 : 24);
-      score.note("harp", note, beat + step * 4 / arpSteps, isWind ? .42 : .65, (isRain ? .3 : .42) + intensity * .3, (step % 2 ? .52 : -.52));
-    }
-
-    const melodyInstrument = track.style === "day" || track.style === "wind_day" || track.style === "intro_shore" ? (bar % 8 < 4 ? "flute" : "oboe")
-      : isNightLike || isRain || track.style === "gameover" || track.style === "intro_calm" ? "oboe"
-      : track.style === "cave" ? "flute" : "violins";
-    const melodySteps = isStorm || isWind ? 4 : 2;
-    for (let step = 0; step < melodySteps; step++) {
-      const motifIndex = (bar * melodySteps + step) % track.motif.length;
-      const note = melodyBase + track.motif[motifIndex];
-      const restChance = track.style === "cave" ? .48 : isNightLike || isRain ? .28 : .1;
-      if (score.rng() > restChance) score.note(melodyInstrument, note, beat + step * 4 / melodySteps, isStorm || isWind ? .85 : 1.65, .46 + intensity * .42, step ? .16 : -.12);
-    }
-
-    if (isStorm) {
-      for (let eighth = 0; eighth < 8; eighth++) {
-        const ostinato = chord[eighth % 2 ? 2 : 0] + 12;
-        score.note(eighth % 2 ? "violas" : "cellos", ostinato, beat + eighth * .5, .34, .48 + intensity * .28, eighth % 2 ? .22 : -.22);
+    const pulseStarts = isAction ? 0 : (track.style === "title" && bar < 4) || isGentle ? 4 : 2;
+    const pulseSteps = isAction || isWind ? 8 : 4;
+    if (bar >= pulseStarts && track.style !== "cave") {
+      for (let step = 0; step < pulseSteps; step++) {
+        const pulseNote = step % 4 === 3 ? fifth : root;
+        const pulseBeat = beat + step * 4 / pulseSteps;
+        score.note("pulse", pulseNote + 12, pulseBeat, isAction ? .28 : .48, (.18 + intensity * .3) * (isGentle ? .45 : 1), step % 2 ? .16 : -.16);
+        if (isAction && step % 2 === 0) score.note("cellos", pulseNote, pulseBeat, .26, .24 + intensity * .3, -.08);
       }
-      const drumScale = track.style === "combat" ? 1 : .72;
-      score.drum("taiko", beat, (.48 + intensity * .35) * drumScale, -.18);
-      score.drum("taiko", beat + 2, (.4 + intensity * .3) * drumScale, .2);
-      if (bar % 4 === 3) score.drum("timpani", beat + 3, .58 + intensity * .3);
-      if (bar % 8 === 0 || bar === track.bars - 1) score.drum("cymbal", beat, .22 + intensity * .18, .25);
-      if (intensity > .74) score.note("trombones", root + 12, beat, 1.6, intensity * .7, -.08);
-    } else if (["victory", "intro_shore"].includes(track.style) || (track.style === "title" && bar >= track.bars * .65)) {
-      score.drum("timpani", beat, .28 + intensity * .3, -.2);
-      if (bar % 4 === 0) score.drum("cymbal", beat, .13 + intensity * .12, .25);
-    } else if ((track.style === "day" || track.style === "wind_day") && bar % 8 === 4) {
-      score.drum("timpani", beat, .14 + intensity * .12, -.3);
+    }
+
+    const brassThreshold = isHeroic ? .42 : isAction ? .52 : .68;
+    if (intensity >= brassThreshold && !isRain && !isNightLike && track.style !== "gameover") {
+      score.note("horns", root + 12, beat, 3.75, .34 + intensity * .4, -.18);
+      score.note("horns", fifth + 12, beat, 3.75, .3 + intensity * .34, .2);
+      if ((isAction || isHeroic) && progress > .55) score.note("trombones", root, beat, 3.6, .28 + intensity * .32, -.04);
+    }
+
+    // Strong beats resolve to the current chord; weak beats may move through the shared major scale.
+    const melodySteps = isAction || isWind ? 4 : 2;
+    const melodyActive = isAction || isHeroic || bar % 2 === 0 || (track.style === "day" && bar % 4 !== 3);
+    if (melodyActive) {
+      for (let step = 0; step < melodySteps; step++) {
+        const motifIndex = (bar * melodySteps + step) % track.motif.length;
+        const target = melodyBase + track.motif[motifIndex] * .72;
+        const note = step === 0 || (isAction && step === 2)
+          ? nearestChordTone(target, chord, 24)
+          : nearestScaleTone(target);
+        const lead = isGentle ? (bar % 4 < 2 ? "violins" : "oboe") : progress > .62 && (isHeroic || isAction) ? "trumpets" : "violins";
+        const duration = isAction || isWind ? .72 : 1.55;
+        const velocity = (.34 + intensity * .38) * (lead === "oboe" ? .72 : 1);
+        score.note(lead, note, beat + step * 4 / melodySteps, duration, velocity, step % 2 ? .16 : -.12);
+      }
+    }
+
+    if (isGentle && bar % 2 === 0) {
+      const highRoot = nearestChordTone(melodyBase + 7, chord, 24);
+      score.note("harp", highRoot, beat, .85, .24 + intensity * .18, -.48);
+      score.note("harp", nearestChordTone(highRoot + 5, chord, 24), beat + 2, .85, .2 + intensity * .16, .48);
+    }
+
+    if (isAction) {
+      score.drum("taiko", beat, .38 + intensity * .36, -.18);
+      score.drum("taiko", beat + 2, .32 + intensity * .3, .2);
+      if (bar % 2 === 1) score.drum("timpani", beat + 3, .28 + intensity * .28);
+      if (bar % 4 === 0) score.drum("boom", beat, .36 + intensity * .3);
+      if (bar % 8 === 0 || bar === track.bars - 1) score.drum("cymbal", beat, .13 + intensity * .15, .25);
+    } else if (isHeroic) {
+      if (bar % 4 === 0 && (bar > 0 || track.style === "victory")) score.drum("boom", beat, .25 + intensity * .28);
+      if (progress > .45 && bar % 2 === 0) score.drum("timpani", beat, .22 + intensity * .22, -.2);
+      if (progress > .62 && bar % 4 === 0) score.drum("cymbal", beat, .09 + intensity * .12, .25);
+    } else if (isWind && bar % 4 === 0) {
+      score.drum("timpani", beat, .16 + intensity * .16, -.22);
+    } else if (track.style === "day" && bar % 8 === 4) {
+      score.drum("boom", beat, .13 + intensity * .13);
     }
   }
 }
 
 function addSchroederReverb(left, right, style) {
-  const wet = style === "cave" ? .34 : style === "night" || style === "rain_night" || style === "wind_night" ? .25 : style === "combat" || style === "intro_storm" ? .17 : .22;
-  const feedback = style === "cave" ? .76 : .69;
+  const wet = style === "cave" ? .2 : style === "night" || style === "rain_night" || style === "wind_night" ? .18 : style === "combat" || style === "intro_storm" ? .1 : .14;
+  const feedback = style === "cave" ? .69 : .63;
   const delaysLeft = [0.0297, 0.0371, 0.0411, 0.0437].map((seconds) => Math.floor(seconds * SAMPLE_RATE));
   const delaysRight = [0.0307, 0.0329, 0.0393, 0.0451].map((seconds) => Math.floor(seconds * SAMPLE_RATE));
   const combLeft = delaysLeft.map((size) => new Float32Array(size));
@@ -451,5 +496,5 @@ for (const track of TRACKS) {
   process.stdout.write(`${score.duration.toFixed(1)}s, ${(encoded.length / 1_048_576).toFixed(2)} MiB\n`);
 }
 
-await writeFile(join(OUTPUT_DIR, "manifest.json"), `${JSON.stringify({ generatedAt: "2026-08-10", tracks: manifest }, null, 2)}\n`);
+await writeFile(join(OUTPUT_DIR, "manifest.json"), `${JSON.stringify({ generatedAt: "2026-08-13", tracks: manifest }, null, 2)}\n`);
 console.log(`Rendered ${manifest.length} original tracks to ${OUTPUT_DIR}`);
