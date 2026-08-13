@@ -105,6 +105,8 @@ class AudioManager {
   private currentBgm: BgmName | null = null;
   private phraseIndex = 0;
   private playbackBlocked = false;
+  private activationFallbackBound = false;
+  private readonly activationFallback = () => this.resume();
 
   private worldZone = "none";
   private worldPhase: WorldPhase = "day";
@@ -166,12 +168,38 @@ class AudioManager {
 
   resume(): void {
     this.init();
-    if (this.ctx?.state === "suspended") void this.ctx.resume();
-    if (this.recordedPlayback?.element.paused) {
-      void this.recordedPlayback.element.play()
-        .then(() => { this.playbackBlocked = false; })
+    if (this.ctx?.state === "suspended") {
+      void this.ctx.resume()
+        .then(() => this.updateActivationState())
         .catch(() => { this.playbackBlocked = true; });
     }
+    if (this.recordedPlayback?.element.paused) {
+      void this.recordedPlayback.element.play()
+        .then(() => this.updateActivationState())
+        .catch(() => { this.playbackBlocked = true; });
+    }
+  }
+
+  private requestAutomaticPlayback(): void {
+    this.resume();
+    if (this.activationFallbackBound || typeof window === "undefined") return;
+    this.activationFallbackBound = true;
+    // Browsers that reject audible autoplay are unlocked by the first interaction anywhere.
+    window.addEventListener("pointerdown", this.activationFallback, true);
+    window.addEventListener("touchstart", this.activationFallback, true);
+    window.addEventListener("keydown", this.activationFallback, true);
+    this.updateActivationState();
+  }
+
+  private updateActivationState(): void {
+    const contextBlocked = Boolean(this.ctx && this.ctx.state !== "running");
+    const mediaBlocked = Boolean(this.recordedPlayback?.element.paused);
+    this.playbackBlocked = contextBlocked || mediaBlocked;
+    if (this.playbackBlocked || !this.activationFallbackBound || typeof window === "undefined") return;
+    window.removeEventListener("pointerdown", this.activationFallback, true);
+    window.removeEventListener("touchstart", this.activationFallback, true);
+    window.removeEventListener("keydown", this.activationFallback, true);
+    this.activationFallbackBound = false;
   }
 
   setMuted(muted: boolean): void {
@@ -188,10 +216,6 @@ class AudioManager {
     }
     this.setMuted(!this.muted);
     return this.muted;
-  }
-
-  get needsActivation(): boolean {
-    return !this.ctx || this.ctx.state === "suspended" || this.playbackBlocked;
   }
 
   play(name: SfxName): void {
@@ -298,10 +322,15 @@ class AudioManager {
 
   playBgm(name: BgmName): void {
     this.init();
-    if (!this.ctx || !this.musicGain || this.currentBgm === name) return;
+    if (!this.ctx || !this.musicGain) return;
+    if (this.currentBgm === name) {
+      this.requestAutomaticPlayback();
+      return;
+    }
     this.fadeOutCurrentTrack();
     this.currentBgm = name;
     this.startRecordedBgm(name);
+    this.requestAutomaticPlayback();
   }
 
   private startRecordedBgm(name: BgmName): void {
@@ -320,6 +349,7 @@ class AudioManager {
 
     const element = document.createElement("audio");
     element.src = new URL(`audio/music/${file}`, document.baseURI).href;
+    element.autoplay = true;
     element.preload = "auto";
     element.loop = false;
 
@@ -342,7 +372,7 @@ class AudioManager {
     const playback: RecordedMusicPlayback = { element, source, gain, name, file };
     this.recordedPlayback = playback;
     element.onplaying = () => {
-      if (this.recordedPlayback === playback) this.playbackBlocked = false;
+      if (this.recordedPlayback === playback) this.updateActivationState();
     };
     element.onended = () => {
       if (this.recordedPlayback !== playback || this.currentBgm !== name) return;

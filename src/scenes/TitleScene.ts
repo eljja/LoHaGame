@@ -134,7 +134,7 @@ export class TitleScene extends Phaser.Scene {
 
     audio.playBgm("title");
     const muteBtn = makeButton(this, 80, 50, {
-      label: audio.needsActivation ? "▶ 소리 시작" : audio.muted ? "🔇 음소거" : "🔊 소리",
+      label: audio.muted ? "🔇 음소거" : "🔊 소리",
       width: 140,
       height: 40,
       fontSize: 14,
